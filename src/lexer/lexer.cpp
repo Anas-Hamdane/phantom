@@ -1,4 +1,4 @@
-#include "../include/lexer/lexer.hpp"
+#include "../../include/lexer/lexer.hpp"
 
 namespace phantom {
   char Lexer::peek() const {
@@ -50,8 +50,8 @@ namespace phantom {
 
   Token Lexer::handle_numerics() {
     std::string lexeme;
-    char character = peek();
     bool valid = true;
+    char character;
 
     // Impossible case, at least for now.
     // if (!isdigit(character))
@@ -108,7 +108,7 @@ namespace phantom {
 
       // base case
       if (character == '\0') {
-        tokens.push_back(Token(TokenType::EndOfFile, Location(line_number, index)));
+        tokens.emplace_back(TokenType::EndOfFile, Location(line_number, index));
         break;
       }
 
@@ -117,9 +117,9 @@ namespace phantom {
         consume();
 
       else if (recognize_punctuation(character) != -1)
-        tokens.push_back(Token(Token::punctuation_type(character),
+        tokens.emplace_back(Token::punctuation_type(character),
                                std::string(1, consume()),
-                               Location(line_number, index)));
+                               Location(line_number, index));
 
       else if (digit(character))
         tokens.push_back(handle_numerics());
@@ -128,9 +128,9 @@ namespace phantom {
         tokens.push_back(handle_strings());
 
       else
-        tokens.push_back(Token(TokenType::INVALID,
+        tokens.emplace_back(TokenType::INVALID,
                                std::string(1, consume()),
-                               Location(line_number, index)));
+                               Location(line_number, index));
     }
 
     return tokens;

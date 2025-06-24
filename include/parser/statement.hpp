@@ -16,7 +16,7 @@ public:
     std::unique_ptr<Expression> expression;
 
 public:
-    ReturnStatement(std::unique_ptr<Expression> expression);
+    explicit ReturnStatement(std::unique_ptr<Expression> expression);
   };
 
   class VariableStatement : public Statement {

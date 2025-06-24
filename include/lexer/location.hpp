@@ -11,7 +11,7 @@ namespace phantom {
 
 public:
     Location(size_t line, size_t column);
-    std::string format();
+    std::string format() const;
   };
 } // namespace phantom
 

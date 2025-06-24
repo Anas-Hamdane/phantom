@@ -2,8 +2,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "include/lexer.hpp"
-#include "include/parser.hpp"
+#include "../include/lexer/lexer.hpp"
+#include "../include/parser/parser.hpp"
 
 namespace phantom {
   std::string toke_type(phantom::TokenType type) {
@@ -42,7 +42,9 @@ namespace phantom {
         return "EndOfFile";
       case phantom::INVALID:
         return "INVALID";
-    }
+      case phantom::COMMA:
+        return "COMMA";
+    };
 
     return "IDK";
   }
@@ -66,7 +68,10 @@ int main(int argc, char* argv[]) {
   phantom::Lexer lexer(content);
   auto tokens = lexer.tokenize();
 
-  for (phantom::Token token : tokens) {
+  if (!lexer.get_log().empty())
+    std::cerr << lexer.get_log() << '\n';
+
+  for (const phantom::Token& token : tokens) {
     std::cout << toke_type(token.type) << ": `" << token.form << "`";
     if (token.type == phantom::TokenType::INTEGER_LITERAL)
       std::cout << ", value: " << token.value;
@@ -78,7 +83,5 @@ int main(int argc, char* argv[]) {
   auto stts = parser.parse();
 
   std::cout << "statements size: " << stts.size() << '\n';
-  std::cout << "Lexer log: " << lexer.get_log() << '\n';
-  std::cout << "Parser log: " << parser.get_log() << '\n';
   return 0;
 }

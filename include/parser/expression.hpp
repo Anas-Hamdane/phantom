@@ -1,7 +1,7 @@
 #ifndef PHANTOM_EXPRESSION_HPP
 #define PHANTOM_EXPRESSION_HPP
 
-#include "token.hpp"
+#include "../lexer/token.hpp"
 
 #include <memory>
 #include <string>
@@ -16,14 +16,14 @@ public:
     long value;
 
 public:
-    IntegerLiteralExpression(long value);
+    explicit IntegerLiteralExpression(long value);
   };
 
   class IdentifierExpression : public Expression {
     std::string name;
 
 public:
-    IdentifierExpression(std::string name);
+    explicit IdentifierExpression(std::string name);
   };
 
   class BinaryOpExpression : public Expression {
@@ -36,4 +36,4 @@ public:
   };
 } // namespace phantom
 
-#endif // !PHANTOM_STATEMENTS_HPP
+#endif // PHANTOM_EXPRESSION_HPP

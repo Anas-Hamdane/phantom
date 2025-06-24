@@ -1,15 +1,17 @@
-#include "../include/lexer/token.hpp"
+#include <utility>
+
+#include "../../include/lexer/token.hpp"
 
 namespace phantom {
-  Token::Token(TokenType type, const std::string& form, long value, Location location)
+  Token::Token(TokenType type, std::string  form, long value, Location location)
       : type(type),
-        form(form),
+        form(std::move(form)),
         value(value),
         location(location) {}
 
-  Token::Token(TokenType type, const std::string& form, Location location)
+  Token::Token(TokenType type, std::string  form, Location location)
       : type(type),
-        form(form),
+        form(std::move(form)),
         location(location) {}
 
   Token::Token(TokenType type, Location location)

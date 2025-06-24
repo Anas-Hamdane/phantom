@@ -2,13 +2,12 @@
 #define PHANTOM_PARSER_HPP
 
 #include "statement.hpp"
-#include "token.hpp"
+#include "../lexer/token.hpp"
 #include <vector>
 
 namespace phantom {
   class Parser {
     std::vector<Token> tokens;
-    std::string log;
     size_t index;
 
     Token peek(size_t offset = 0) const;
@@ -33,7 +32,7 @@ namespace phantom {
 
     std::unique_ptr<Statement> parse_statement();
 
-    constexpr static const int precedence(TokenType type) {
+    constexpr static int precedence(TokenType type) {
       switch (type) {
         case TokenType::PLUS:
         case TokenType::MINUS:
@@ -47,10 +46,8 @@ namespace phantom {
     }
 
 public:
-    Parser(std::vector<Token> tokens);
+    explicit Parser(std::vector<Token> tokens);
     std::vector<std::unique_ptr<Statement>> parse(TokenType limit = TokenType::EndOfFile);
-
-    std::string get_log();
   };
 } // namespace phantom
 

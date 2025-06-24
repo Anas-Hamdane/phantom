@@ -3,6 +3,7 @@
 
 #include "token.hpp"
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace phantom {
@@ -18,15 +19,12 @@ namespace phantom {
 
     void report_error(const std::string& error);
 
-    constexpr static const int recognize_punctuation(const char character) {
-    if (punctuation.empty())
-      return -1;
-
+    constexpr static int recognize_punctuation(const char character) {
     int begin = 0;
     int end = punctuation.size() - 1;
 
     while (begin <= end) {
-      int mid = begin + (end - begin) / 2;
+      const int mid = begin + (end - begin) / 2;
 
       if (punctuation[mid] == character)
         return mid;
@@ -40,15 +38,12 @@ namespace phantom {
     return -1;
   }
 
-    constexpr static const int recognize_type(const std::string& buffer) {
-      if (types.empty())
-        return -1;
-
+    constexpr static int recognize_type(const std::string& buffer) {
       int begin = 0;
       int end = types.size() - 1;
 
       while (begin <= end) {
-        int mid = begin + (end - begin) / 2;
+        const int mid = begin + (end - begin) / 2;
 
         if (types[mid] == buffer)
           return mid;
@@ -62,15 +57,12 @@ namespace phantom {
       return -1;
     }
 
-    constexpr static const int recognize_keyword(const std::string& buffer) {
-    if (keywords.empty())
-      return -1;
-
+    constexpr static int recognize_keyword(const std::string& buffer) {
     int begin = 0;
     int end = keywords.size() - 1;
 
     while (begin <= end) {
-      int mid = begin + (end - begin) / 2;
+      const int mid = begin + (end - begin) / 2;
 
       if (keywords[mid] == buffer)
         return mid;
@@ -84,22 +76,22 @@ namespace phantom {
     return -1;
   }
 
-    bool new_line(char character);
+    static bool new_line(char character);
 
-    bool whitespace(char character);
+    static bool whitespace(char character);
 
-    bool alphabet(char character);
+    static bool alphabet(char character);
 
-    bool digit(char character);
+    static bool digit(char character);
 
-    bool alpha_digit(char character);
+    static bool alpha_digit(char character);
 
     Token handle_numerics();
 
     Token handle_strings();
 
 public:
-    Lexer(std::string source) : source(source), index(0), line_number(1) {}
+    explicit Lexer(std::string source) : source(std::move(source)), line_number(1), index(0) {}
 
     std::vector<Token> tokenize();
 

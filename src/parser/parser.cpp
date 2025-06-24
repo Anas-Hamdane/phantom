@@ -1,7 +1,21 @@
-#include "include/parser.hpp"
+#include "../../include/parser/parser.hpp"
+#include <iostream>
+
+#if defined(_WIN32) || defined(_WIN64)
+#define WINDOWS
+#include <io.h> // for _isatty
+#include <windows.h>
+#undef RGB
+
+#elif defined(__unix__) || defined(__unix) || defined(__APPLE__) || defined(__linux__)
+#define UNIX_LIKE
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+#endif
 
 namespace phantom {
-  Parser::Parser(std::vector<Token> tokens) : tokens(tokens), index(0) {}
+  Parser::Parser(std::vector<Token> tokens) : tokens(std::move(tokens)), index(0) {}
 
   std::unique_ptr<Expression> Parser::parse_primary() {
     Token token = peek();
@@ -120,7 +134,7 @@ namespace phantom {
     if (match(TokenType::COMMA))
       consume(); // ','
 
-    return Parameter(name, type);
+    return {name, type};
   }
 
   std::unique_ptr<Statement> Parser::parse_function() {
@@ -134,7 +148,7 @@ namespace phantom {
     consume(); // 'fn'
 
     if (!match(TokenType::COLON))
-      report_error("Expected \":\" after \"fn\" specifier");
+      report_error(R"(Expected ":" after "fn" specifier)");
 
     consume(); // ':'
 
@@ -189,7 +203,7 @@ namespace phantom {
           return parse_function();
 
       default:
-        return std::unique_ptr<Statement>();
+        return {};
     };
   }
 
@@ -204,14 +218,14 @@ namespace phantom {
 
   Token Parser::peek(size_t offset) const {
     if ((index + offset) >= tokens.size())
-      return Token(TokenType::EndOfFile);
+      return {TokenType::EndOfFile, Location(0, 0)};
 
     return tokens[index + offset];
   }
 
   Token Parser::consume(size_t offset) {
     if ((index + offset) >= tokens.size())
-      return Token(TokenType::EndOfFile);
+      return {TokenType::EndOfFile, Location(0, 0)};
 
     Token token = tokens[index + offset];
 
@@ -227,8 +241,33 @@ namespace phantom {
   }
 
   void Parser::report_error(const std::string& error) {
-    log.append(error + '\n');
-  }
+    bool colored = false;
 
-  std::string Parser::get_log() { return this->log; }
+    // clang-format off
+    #if defined (UNIX_LIKE)
+      if (isatty(fileno(stderr)))
+        colored = true;
+      else
+        colored = false;
+    #elif defined (WINDOWS)
+      if (_isatty(_fileno(stderr)))
+        colored = true;
+      else
+        colored = false;
+    #endif
+    // clang-format on
+
+    std::string intro;
+
+    if (colored)
+      intro.append("\x1b[1;31m");
+
+    intro += "Error:" + tokens[index].location.format();
+
+    if (colored)
+      intro.append("\x1b[0m");
+
+    std::cerr << intro << "\n\t" + error + '\n';
+    exit(EXIT_FAILURE);
+  }
 } // namespace phantom

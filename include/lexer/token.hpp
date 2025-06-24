@@ -17,7 +17,7 @@ namespace phantom {
     // identifiers
     IDENTIFIER, // var_name
 
-    // Ponctuation
+    // Punctuation
     COLON,             // :
     SEMI_COLON,        // ;
     COMMA,             // ,
@@ -71,25 +71,23 @@ namespace phantom {
       '}',
   };
 
-  constexpr const TokenType ponctuation_type(char character);
-
   struct Token {
     TokenType type;
     std::string form;
-    long value;
+    long value{};
 
     Location location;
 
-    Token(TokenType token, const std::string& form, long value, Location location);
-    Token(TokenType token, const std::string& form, Location location);
+    Token(TokenType token, std::string  form, long value, Location location);
+    Token(TokenType token, std::string  form, Location location);
     Token(TokenType type, Location location);
-    Token(Location location);
+    explicit Token(Location location);
 
     Token& set_type(const TokenType& type);
     Token& set_form(const std::string& value);
     Token& set_value(long value);
 
-    constexpr static const TokenType punctuation_type(char character) {
+    constexpr static TokenType punctuation_type(char character) {
       switch (character) {
         case '(':
           return TokenType::OPEN_PARENTHESIS;
@@ -99,6 +97,8 @@ namespace phantom {
           return TokenType::STAR;
         case '+':
           return TokenType::PLUS;
+        case ',':
+          return TokenType::COMMA;
         case '-':
           return TokenType::MINUS;
         case '/':
@@ -113,8 +113,8 @@ namespace phantom {
           return TokenType::OPEN_CURLY_BRACE;
         case '}':
           return TokenType::CLOSE_CURLY_BRACE;
+        default: return TokenType::INVALID;
       }
-      return TokenType::INVALID;
     }
   };
 } // namespace phantom
