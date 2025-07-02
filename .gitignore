@@ -4,3 +4,5 @@ notes.txt
 test
 .idea
 cmake-build-release
+cmake-build-debug
+.vscode

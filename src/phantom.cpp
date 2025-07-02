@@ -1,87 +1,36 @@
+#include <Lexer/Lexer.hpp>
+#include <Parser/Parser.hpp>
+#include <LLVMVisitor/Visitor.hpp>
+
 #include <fstream>
-#include <iostream>
 #include <sstream>
 
-#include "../include/lexer/lexer.hpp"
-#include "../include/parser/parser.hpp"
+int main (int argc, char *argv[]) {
+  using namespace phantom;
 
-namespace phantom {
-  std::string toke_type(phantom::TokenType type) {
-    switch (type) {
-      case phantom::DATA_TYPE:
-        return "TYPE";
-      case phantom::KEYWORD:
-        return "KEYWORD";
-      case phantom::IDENTIFIER:
-        return "IDENTIFIER";
-      case phantom::COLON:
-        return "COLON";
-      case phantom::SEMI_COLON:
-        return "SEMI_COLON";
-      case phantom::OPEN_PARENTHESIS:
-        return "OPEN_PARENTHESIS";
-      case phantom::CLOSE_PARENTHESIS:
-        return "CLOSE_PARENTHESIS";
-      case phantom::OPEN_CURLY_BRACE:
-        return "OPEN_CURLY_BRACE";
-      case phantom::CLOSE_CURLY_BRACE:
-        return "CLOSE_CURLY_BRACE";
-      case phantom::EQUAL:
-        return "EQUAL";
-      case phantom::PLUS:
-        return "PLUS";
-      case phantom::MINUS:
-        return "MINUS";
-      case phantom::STAR:
-        return "STAR";
-      case phantom::SLASH:
-        return "SLASH";
-      case phantom::INTEGER_LITERAL:
-        return "INTEGER_LITERAL";
-      case phantom::EndOfFile:
-        return "EndOfFile";
-      case phantom::INVALID:
-        return "INVALID";
-      case phantom::COMMA:
-        return "COMMA";
-    };
-
-    return "IDK";
-  }
-} // namespace phantom
-
-int main(int argc, char* argv[]) {
   if (argc < 2) {
-    std::cout << "Not enough arguments\n";
+    std::cerr << "Not enough args\n";
     return 1;
   }
 
-  std::string content;
-  {
-    std::ifstream file(argv[1]);
-    std::stringstream ct;
-    ct << file.rdbuf();
+  std::string path = argv[1];
 
-    content = ct.str();
-  }
+  std::fstream file(argv[1]);
+  std::stringstream buff;
 
-  phantom::Lexer lexer(content);
-  auto tokens = lexer.tokenize();
+  buff << file.rdbuf();
 
-  if (!lexer.get_log().empty())
-    std::cerr << lexer.get_log() << '\n';
+  Lexer lexer(buff.str());
+  auto tokens = lexer.lex();
 
-  for (const phantom::Token& token : tokens) {
-    std::cout << toke_type(token.type) << ": `" << token.form << "`";
-    if (token.type == phantom::TokenType::INTEGER_LITERAL)
-      std::cout << ", value: " << token.value;
-
-    std::cout << '\n';
-  }
-
-  phantom::Parser parser(tokens);
+  Parser parser(tokens);
   auto stts = parser.parse();
 
-  std::cout << "statements size: " << stts.size() << '\n';
+  Visitor visitor(path.substr(path.find_last_of("/\\") + 1));
+
+  for (auto& stt : stts)
+    stt->accept(&visitor);
+
+  visitor.print_representation();
   return 0;
 }

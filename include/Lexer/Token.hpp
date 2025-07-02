@@ -1,18 +1,19 @@
 #ifndef PHANTOM_TOKEN_HPP
 #define PHANTOM_TOKEN_HPP
 
-#include "location.hpp"
+// #include "location.hpp"
+#include <Lexer/Location.hpp>
+
 #include <array>
-#include <string>
 #include <string_view>
 
 namespace phantom {
   enum TokenType {
     // types
-    DATA_TYPE, // int, float, double, char
+    DATA_TYPE, // int, float, ...
 
     // keywords
-    KEYWORD, // return
+    KEYWORD, // return, let, ...
 
     // identifiers
     IDENTIFIER, // var_name
@@ -30,10 +31,14 @@ namespace phantom {
     MINUS,             // -
     STAR,              // *
     SLASH,             // /
+    GREATER_THAN,      // >
+    LESS_THAN,         // <
 
     // numeric literals
     INTEGER_LITERAL,
-    // FLOAT_LITERAL,
+    STRING_LITERAL,
+    FLOAT_LITERAL,
+    CHAR_LITERAL,
 
     // enf of file flag
     EndOfFile,
@@ -42,21 +47,35 @@ namespace phantom {
     INVALID,
   };
 
-  constexpr const std::array<std::string_view, 4> keywords{
+  constexpr const std::array<std::string_view, 8> keywords{
+      "false",
       "fn",
       "if",
+      "let",
       "return",
+      "true",
       "while",
+      "write",
   };
 
-  constexpr const std::array<std::string_view, 4> types{
-      "char",
-      "double",
-      "float",
-      "int",
+  constexpr const std::array<std::string_view, 10> types{
+      "bool",   // 1-bit integer
+      "byte"
+      "char",   // 8-bit integer
+      "double", // 64-bit float
+      "float",  // 32-bit float
+
+      // "half",   // 16-bit float, removed currently
+      // "huge",   // 128-bit integer, removed currently
+      // because there's no way to store that value in c++
+
+      "int",   // 32-bit integer
+      "long",  // 64-bit integer
+      "quad",  // 128-bit float
+      "short", // 16-bit integer
   };
 
-  constexpr const std::array<char, 12> punctuation{
+  constexpr const std::array<char, 14> punctuation{
       '(',
       ')',
       '*',
@@ -66,7 +85,9 @@ namespace phantom {
       '/',
       ':',
       ';',
+      '<',
       '=',
+      '>',
       '{',
       '}',
   };
@@ -74,18 +95,14 @@ namespace phantom {
   struct Token {
     TokenType type;
     std::string form;
-    long value{};
-
     Location location;
 
-    Token(TokenType token, std::string  form, long value, Location location);
-    Token(TokenType token, std::string  form, Location location);
+    Token(TokenType token, std::string form, Location location);
     Token(TokenType type, Location location);
     explicit Token(Location location);
 
     Token& set_type(const TokenType& type);
     Token& set_form(const std::string& value);
-    Token& set_value(long value);
 
     constexpr static TokenType punctuation_type(char character) {
       switch (character) {
@@ -107,13 +124,18 @@ namespace phantom {
           return TokenType::COLON;
         case ';':
           return TokenType::SEMI_COLON;
+        case '<':
+          return TokenType::LESS_THAN;
         case '=':
           return TokenType::EQUAL;
+        case '>':
+          return TokenType::GREATER_THAN;
         case '{':
           return TokenType::OPEN_CURLY_BRACE;
         case '}':
           return TokenType::CLOSE_CURLY_BRACE;
-        default: return TokenType::INVALID;
+        default:
+          return TokenType::INVALID;
       }
     }
   };

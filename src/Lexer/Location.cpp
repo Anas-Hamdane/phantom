@@ -1,4 +1,5 @@
-#include "../../include/lexer/location.hpp"
+// #include "../../include/lexer/location.hpp"
+#include <Lexer/Location.hpp>
 
 namespace phantom {
   Location::Location(size_t line, size_t column)

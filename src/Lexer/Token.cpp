@@ -1,14 +1,9 @@
 #include <utility>
 
-#include "../../include/lexer/token.hpp"
+// #include "../../include/lexer/token.hpp"
+#include <Lexer/Token.hpp>
 
 namespace phantom {
-  Token::Token(TokenType type, std::string  form, long value, Location location)
-      : type(type),
-        form(std::move(form)),
-        value(value),
-        location(location) {}
-
   Token::Token(TokenType type, std::string  form, Location location)
       : type(type),
         form(std::move(form)),
@@ -28,11 +23,6 @@ namespace phantom {
 
   Token& Token::set_form(const std::string& form) {
     this->form = form;
-    return *this;
-  }
-
-  Token& Token::set_value(long value) {
-    this->value = value;
     return *this;
   }
 } // namespace phantom

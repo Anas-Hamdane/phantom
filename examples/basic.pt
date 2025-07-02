@@ -1,7 +1,9 @@
-int fn: func(int: argc, char: argv) {
-  int: y = 2;
-  char: c = 2;
-  return: 1;
+fn smt(x: int) => int {
+  x = 1;
 }
-int: x = 1;
-return: 0;
+
+fn main(arc: int) => int {
+  int x = 2;
+  smt(x);
+  return x;
+}
