@@ -118,9 +118,6 @@ namespace phantom {
       return nullptr;
 
     switch (expr->op) {
-      case TokenType::EQUAL: {
-      }
-
       case TokenType::PLUS:
         return builder->CreateAdd(left, right, "addtmp");
       case TokenType::MINUS:
@@ -175,11 +172,37 @@ namespace phantom {
     // current function return type
     llvm::Type* fn_return_type = currentBlock->getParent()->getReturnType();
 
-    // TODO: handle other types
-    if (return_value->getType() != fn_return_type)
-      return_value = builder->CreateIntCast(return_value, fn_return_type, true);
+    if (fn_return_type != return_value->getType())
+      return_value = cast(return_value, fn_return_type);
 
     return builder->CreateRet(return_value);
+  }
+
+  llvm::Value* Visitor::cast(llvm::Value* src, llvm::Type* dst) {
+    if (src->getType() == dst)
+      return src;
+
+    if (src->getType()->isIntegerTy() && dst->isIntegerTy())
+      return builder->CreateIntCast(src, dst, true);
+
+    else if (src->getType()->isIntegerTy() && dst->isFloatingPointTy())
+      return builder->CreateSIToFP(src, dst);
+
+    else if (src->getType()->isFloatingPointTy() && dst->isIntegerTy())
+      return builder->CreateFPToSI(src, dst);
+
+    else if (src->getType()->isFloatingPointTy() && dst->isFloatingPointTy())
+      return builder->CreateFPCast(src, dst);
+
+    else if (src->getType()->isPointerTy() && dst->isPointerTy())
+      return builder->CreateBitCast(src, dst);
+
+    else
+      Report("Invalid return type\nExpected: \"" + get_string_type(dst) +
+                 "\"\nGot: \"" + get_string_type(src->getType()) + "\"",
+             true);
+
+    return nullptr;
   }
 
   llvm::Value* Visitor::visit(ExprStt* stt) {
@@ -218,7 +241,7 @@ namespace phantom {
 
         // cast the value to the variable type
         if (variable_type != value->getType())
-          value = builder->CreateIntCast(value, variable_type, true);
+          value = cast(value, variable_type);
 
         constant_init = llvm::dyn_cast<llvm::Constant>(value);
       }
@@ -260,7 +283,7 @@ namespace phantom {
         value = stt->initializer->accept(this);
 
         if (value->getType() != variable_type)
-          value = builder->CreateIntCast(value, variable_type, true);
+          value = cast(value, variable_type);
       }
     }
     // initializer is not a nullptr
@@ -377,6 +400,7 @@ namespace phantom {
 
       if (ret_value->isVoidTy())
         builder->CreateRetVoid();
+
       else if (ret_value->isIntegerTy())
         // default return value if not specified:
         // 0 for i1, i8, i32, i64
@@ -397,7 +421,7 @@ namespace phantom {
     builder->ClearInsertionPoint();
 
     // Verify the function
-    if (llvm::verifyFunction(*fn)) {
+    if (llvm::verifyFunction(*fn, &llvm::errs())) {
       Report("Function verification failed for \"" +
              stt->declaration->type + "\": \"" + stt->declaration->name + "\"\n");
       fn->eraseFromParent();

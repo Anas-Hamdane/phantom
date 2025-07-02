@@ -51,7 +51,7 @@ namespace phantom {
         auto expr = parse_expression();
 
         if (!match(TokenType::CLOSE_PARENTHESIS))
-          Report("Expected \")\"");
+          Report("Expected \")\"", true);
 
         return std::move(expr);
       }
@@ -108,7 +108,7 @@ namespace phantom {
     auto expr = parse_expression();
 
     if (!match(TokenType::SEMI_COLON))
-      Report("Expected \";\" after return statement");
+      Report("Expected \";\" after return statement", true);
 
     consume(); // ;
 
@@ -364,7 +364,7 @@ namespace phantom {
     auto expr = parse_expression();
 
     if (!match(TokenType::SEMI_COLON))
-      Report("Expected \";\" after function call statement");
+      Report("Expected \";\" after function call statement", true);
 
     consume(); // ;
 

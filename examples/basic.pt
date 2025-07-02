@@ -1,9 +1,17 @@
-fn smt(x: int) => int {
-  x = 1;
-}
-
 fn main(arc: int) => int {
-  int x = 2;
-  smt(x);
-  return x;
+  byte a = 1;
+  char b = 2;
+
+  short d = 4;
+  int c = 3;
+  long h = 4;
+
+  bool ss = true;
+
+  float e = 1.01;
+  double f = 2.01;
+  quad g = 3.033333;
+
+  int z = 1 + 2 * 3 + 5 * 4 + 6 / 2;
+  return z;
 }
