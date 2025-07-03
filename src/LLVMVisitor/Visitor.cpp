@@ -2,6 +2,7 @@
 #include <global.hpp>
 
 namespace phantom {
+  // -------------constructor----------------
   Visitor::Visitor(const std::string& module_name) {
     context = std::make_unique<llvm::LLVMContext>();
     module = std::make_unique<llvm::Module>(module_name, *context);
@@ -9,10 +10,134 @@ namespace phantom {
     builder = std::make_unique<llvm::IRBuilder<>>(*context);
   }
 
+  // -------------helper functions----------------
+  llvm::Value* Visitor::cast(llvm::Value* src, llvm::Type* dst) {
+    if (src->getType() == dst)
+      return src;
+
+    if (src->getType()->isIntegerTy() && dst->isIntegerTy())
+      return builder->CreateIntCast(src, dst, true);
+
+    else if (src->getType()->isIntegerTy() && dst->isFloatingPointTy())
+      return builder->CreateSIToFP(src, dst);
+
+    else if (src->getType()->isFloatingPointTy() && dst->isIntegerTy())
+      return builder->CreateFPToSI(src, dst);
+
+    else if (src->getType()->isFloatingPointTy() && dst->isFloatingPointTy())
+      return builder->CreateFPCast(src, dst);
+
+    else if (src->getType()->isPointerTy() && dst->isPointerTy())
+      return builder->CreateBitCast(src, dst);
+
+    else
+      Report("Invalid type conversion\nExpected: \"" + get_string_type(dst) +
+                 "\"\nGot: \"" + get_string_type(src->getType()) + "\"",
+             true);
+
+    return nullptr;
+  }
+
+  llvm::Value* Visitor::global_var_dec(VarDecStt* stt) {
+    llvm::Constant* constant_init = nullptr;
+    llvm::Type* variable_type = nullptr;
+    llvm::Value* value = nullptr;
+
+    std::string type = stt->variable.get_type();
+    std::string name = stt->variable.get_name();
+
+    // no way to get the type of the variable
+    if (type.empty() && !stt->initializer)
+      Report("Can not initialize type for \"" + name + "\"\n", true);
+
+    // specified type
+    if (!type.empty()) {
+      variable_type = get_llvm_type(type);
+      if (stt->initializer) {
+        value = stt->initializer->accept(this);
+
+        // cast the value to the variable type
+        if (variable_type != value->getType())
+          value = cast(value, variable_type);
+
+        constant_init = llvm::dyn_cast<llvm::Constant>(value);
+      }
+    }
+    // initializer is not a nullptr
+    else {
+      value = stt->initializer->accept(this);
+      variable_type = value->getType();
+
+      constant_init = llvm::dyn_cast<llvm::Constant>(value);
+    }
+
+    // declare the global variable
+    llvm::GlobalVariable* global_variable = new llvm::GlobalVariable(
+        *module,                            // module
+        variable_type,                      // type
+        false,                              // constant
+        llvm::GlobalValue::ExternalLinkage, // linkage
+        constant_init,                      // Constant
+        name                           // name
+    );
+
+    stt->variable.set_alloca(global_variable);
+    stt->variable.set_llvm_type(variable_type);
+    stt->variable.set_global(true);
+
+    named_values[name] = stt->variable;
+    return global_variable;
+  }
+
+  llvm::Value* Visitor::local_var_dec(VarDecStt* stt) {
+    llvm::Type* variable_type = nullptr;
+    llvm::Value* value = nullptr;
+
+    std::string type = stt->variable.get_type();
+    std::string name = stt->variable.get_name();
+
+    // no way to get the variable type
+    if (type.empty() && !stt->initializer)
+      Report("Can not initialize type for \"" + name + "\"\n", true);
+
+    // specified type
+    if (!type.empty()) {
+      variable_type = get_llvm_type(type);
+      if (stt->initializer) {
+        value = stt->initializer->accept(this);
+
+        if (value->getType() != variable_type)
+          value = cast(value, variable_type);
+      }
+    }
+    // initializer is not a nullptr
+    else {
+      value = stt->initializer->accept(this);
+      variable_type = value->getType();
+    }
+
+    // create the alloca instruction
+    llvm::AllocaInst* alloca = builder->CreateAlloca(variable_type, nullptr);
+
+    stt->variable.set_alloca(alloca);
+    stt->variable.set_llvm_type(variable_type);
+
+    if (value)
+      builder->CreateStore(value, alloca);
+
+    // Store in symbol table for later lookups
+    named_values[name] = stt->variable;
+
+    // Return the alloca instruction (which is a Value*)
+    return alloca;
+  }
+
   void Visitor::print_representation() const {
     module->print(llvm::outs(), nullptr);
   }
 
+  // -------------visit functions----------------
+  // Integer Literal Expressions
   llvm::Value* Visitor::visit(IntLitExpr* expr) {
     llvm::Type* type = nullptr;
 
@@ -28,6 +153,7 @@ namespace phantom {
     return llvm::ConstantInt::get(type, expr->value);
   }
 
+  // Float Literal Expressions
   llvm::Value* Visitor::visit(FloatLitExpr* expr) {
     llvm::Type* type = nullptr;
 
@@ -54,42 +180,48 @@ namespace phantom {
     return llvm::ConstantFP::get(type, expr->value);
   }
 
-  llvm::Value* Visitor::visit(ByteLitExpr* expr) {
+  // Char Literal Expressions
+  llvm::Value* Visitor::visit(CharLitExpr* expr) {
     return llvm::ConstantInt::get(llvm::Type::getInt8Ty(*context), expr->value);
   }
 
+  // Bool Literal Expressions
   llvm::Value* Visitor::visit(BoolLitExpr* expr) {
     return llvm::ConstantInt::get(llvm::Type::getInt1Ty(*context), expr->value);
   }
 
+  // String Literal Expressions
   llvm::Value* Visitor::visit(StrLitExpr* expr) {
     return builder->CreateGlobalString(expr->value);
   }
 
-  llvm::Value* Visitor::visit(IDExpr* expr) {
-    llvm::Value* alloca = named_values[expr->name];
-
-    if (!alloca)
+  // Identifier Expressions
+  llvm::Value* Visitor::visit(IdentifierExpr* expr) {
+    if (named_values.find(expr->name) == named_values.end())
       Report("Use of undeclared identifier \"" + expr->name + "\"\n", true);
 
-    // local variable
-    if (llvm::isa<llvm::AllocaInst>(alloca)) {
-      llvm::AllocaInst* alloca_inst = llvm::cast<llvm::AllocaInst>(alloca);
-      llvm::Type* allocated_type = alloca_inst->getAllocatedType();
-      return builder->CreateLoad(allocated_type, alloca);
-    }
+    Variable variable = named_values[expr->name];
+    llvm::Value* value = variable.get_alloca();
 
     // global variable
-    else if (llvm::isa<llvm::GlobalVariable>(alloca)) {
-      llvm::GlobalVariable* global_variable = llvm::cast<llvm::GlobalVariable>(alloca);
+    if (variable.is_global()) {
+      llvm::GlobalVariable* global_variable = llvm::cast<llvm::GlobalVariable>(value);
       llvm::Type* value_type = global_variable->getValueType();
-      return builder->CreateLoad(value_type, alloca);
+      return builder->CreateLoad(value_type, value);
+    }
+
+    // locale variable
+    else {
+      llvm::AllocaInst* alloca_inst = llvm::cast<llvm::AllocaInst>(value);
+      llvm::Type* allocated_type = alloca_inst->getAllocatedType();
+      return builder->CreateLoad(allocated_type, value);
     }
 
     // others
-    return alloca;
+    return value;
   }
 
+  // Binary Operators Expressions
   llvm::Value* Visitor::visit(BinOpExpr* expr) {
     llvm::Value* right = expr->right->accept(this);
 
@@ -98,12 +230,12 @@ namespace phantom {
 
     // special case: assignment expression
     if (expr->op == TokenType::EQUAL) {
-      IDExpr* idexpr = dynamic_cast<IDExpr*>(expr->left.get());
+      IdentifierExpr* idexpr = dynamic_cast<IdentifierExpr*>(expr->left.get());
 
       if (!idexpr)
         Report("Invalid identifier in assignment expression\n", true);
 
-      llvm::Value* alloca = named_values[idexpr->name];
+      llvm::Value* alloca = named_values[idexpr->name].get_alloca();
 
       if (!alloca)
         Report("Invalid value of an identifier in assignment expression\n", true);
@@ -133,6 +265,17 @@ namespace phantom {
     return nullptr;
   }
 
+  // Address Expressions (&x)
+  llvm::Value* Visitor::visit(AddrExpr* expr) {
+    llvm::Value* pointer = named_values[expr->variable].get_alloca();
+
+    if (!pointer)
+      Report("Use of undeclared identifier \"" + expr->variable + "\"\n", true);
+
+    return pointer;
+  }
+
+  // Function Call Expressions
   llvm::Value* Visitor::visit(FnCallExpr* expr) {
     llvm::Function* calle_fn = module->getFunction(expr->name);
 
@@ -154,6 +297,7 @@ namespace phantom {
     return builder->CreateCall(calle_fn, args_values, expr->name);
   }
 
+  // Return Statements
   llvm::Value* Visitor::visit(ReturnStt* stt) {
     llvm::BasicBlock* currentBlock = builder->GetInsertBlock();
 
@@ -178,133 +322,25 @@ namespace phantom {
     return builder->CreateRet(return_value);
   }
 
-  llvm::Value* Visitor::cast(llvm::Value* src, llvm::Type* dst) {
-    if (src->getType() == dst)
-      return src;
-
-    if (src->getType()->isIntegerTy() && dst->isIntegerTy())
-      return builder->CreateIntCast(src, dst, true);
-
-    else if (src->getType()->isIntegerTy() && dst->isFloatingPointTy())
-      return builder->CreateSIToFP(src, dst);
-
-    else if (src->getType()->isFloatingPointTy() && dst->isIntegerTy())
-      return builder->CreateFPToSI(src, dst);
-
-    else if (src->getType()->isFloatingPointTy() && dst->isFloatingPointTy())
-      return builder->CreateFPCast(src, dst);
-
-    else if (src->getType()->isPointerTy() && dst->isPointerTy())
-      return builder->CreateBitCast(src, dst);
-
-    else
-      Report("Invalid return type\nExpected: \"" + get_string_type(dst) +
-                 "\"\nGot: \"" + get_string_type(src->getType()) + "\"",
-             true);
-
-    return nullptr;
-  }
-
+  // Expression Statements
   llvm::Value* Visitor::visit(ExprStt* stt) {
     return stt->expr->accept(this);
   }
 
+  // Variable Declaration Statements
   llvm::Value* Visitor::visit(VarDecStt* stt) {
-    if (named_values[stt->name])
-      Report("Variable redefinition for \"" + stt->name + "\"\n", true);
+    if (named_values.find(stt->variable.get_name()) != named_values.end())
+      Report("Variable redefinition for \"" + stt->variable.get_name() + "\"\n", true);
 
     if (!builder->GetInsertBlock())
       // global variable
       return global_var_dec(stt);
 
     // local variable
-    return locale_var_dec(stt);
+    return local_var_dec(stt);
   }
 
-  llvm::Value* Visitor::global_var_dec(VarDecStt* stt) {
-    if (module->getGlobalVariable(stt->name))
-      Report("Global Variable \"" + stt->name + "\" Already Exists\n", true);
-
-    llvm::Constant* constant_init = nullptr;
-    llvm::Type* variable_type = nullptr;
-    llvm::Value* value = nullptr;
-
-    // no way to get the type of the variable
-    if (stt->type.empty() && !stt->initializer)
-      Report("Can not initialize type for \"" + stt->name + "\"\n", true);
-
-    // specified type
-    if (!stt->type.empty()) {
-      variable_type = get_llvm_type(stt->type);
-      if (stt->initializer) {
-        value = stt->initializer->accept(this);
-
-        // cast the value to the variable type
-        if (variable_type != value->getType())
-          value = cast(value, variable_type);
-
-        constant_init = llvm::dyn_cast<llvm::Constant>(value);
-      }
-    }
-    // initializer is not a nullptr
-    else {
-      value = stt->initializer->accept(this);
-      variable_type = value->getType();
-
-      constant_init = llvm::dyn_cast<llvm::Constant>(value);
-    }
-
-    // declare the global variable
-    llvm::GlobalVariable* global_variable = new llvm::GlobalVariable(
-        *module,                            // module
-        variable_type,                      // type
-        false,                              // constant
-        llvm::GlobalValue::ExternalLinkage, // linkage
-        constant_init,                      // Constant
-        stt->name                           // name
-    );
-
-    named_values[stt->name] = global_variable;
-    return global_variable;
-  }
-
-  llvm::Value* Visitor::locale_var_dec(VarDecStt* stt) {
-    llvm::Type* variable_type = nullptr;
-    llvm::Value* value = nullptr;
-
-    // no way to get the variable type
-    if (stt->type.empty() && !stt->initializer)
-      Report("Can not initialize type for \"" + stt->name + "\"\n", true);
-
-    // specified type
-    if (!stt->type.empty()) {
-      variable_type = get_llvm_type(stt->type);
-      if (stt->initializer) {
-        value = stt->initializer->accept(this);
-
-        if (value->getType() != variable_type)
-          value = cast(value, variable_type);
-      }
-    }
-    // initializer is not a nullptr
-    else {
-      value = stt->initializer->accept(this);
-      variable_type = value->getType();
-    }
-
-    // create the alloca instruction
-    llvm::AllocaInst* alloca = builder->CreateAlloca(variable_type, nullptr);
-
-    if (value)
-      builder->CreateStore(value, alloca);
-
-    // Store in symbol table for later lookups
-    named_values[stt->name] = alloca;
-
-    // Return the alloca instruction (which is a Value*)
-    return alloca;
-  }
-
+  // Function Declaration Statements
   llvm::Function* Visitor::visit(FnDecStt* stt) {
     // Convert parameter types
     std::vector<llvm::Type*> param_types;
@@ -339,14 +375,10 @@ namespace phantom {
         stt->name,
         module.get());
 
-    // Set names for all arguments.
-    unsigned Idx = 0;
-    for (auto& arg : fn->args())
-      arg.setName(stt->params[Idx++].name);
-
     return fn;
   }
 
+  // Function Definition Statements
   llvm::Function* Visitor::visit(FnDefStt* stt) {
     llvm::Function* fn = module->getFunction(stt->declaration->name);
 
@@ -377,11 +409,14 @@ namespace phantom {
     auto old_named_values = named_values;
 
     // arguments handling
+    size_t idx = 0;
     for (auto& arg : fn->args()) {
-      llvm::AllocaInst* alloca = builder->CreateAlloca(arg.getType(), nullptr, arg.getName());
+      llvm::AllocaInst* alloca = builder->CreateAlloca(arg.getType());
       builder->CreateStore(&arg, alloca);
 
-      named_values[std::string(arg.getName())] = alloca;
+      std::string name = stt->declaration->params[idx].name;
+      named_values[name] = Variable(name, stt->declaration->params[idx].type, alloca, alloca->getType());
+      ++idx;
     }
 
     // Generate code for function body

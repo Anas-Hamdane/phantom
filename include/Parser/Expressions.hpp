@@ -30,12 +30,11 @@ public:
     llvm::Value* accept(Visitor* visitor) override;
   };
 
-  class ByteLitExpr : public Expression {
+  class CharLitExpr : public Expression {
 public:
-  // can be used as a char
-    int8_t value;
+    char value;
 
-    explicit ByteLitExpr(int8_t value);
+    explicit CharLitExpr(char value);
     llvm::Value* accept(Visitor* visitor) override;
   };
 
@@ -56,11 +55,12 @@ public:
     llvm::Value* accept(Visitor* visitor) override;
   };
 
-  class IDExpr : public Expression {
+  class IdentifierExpr : public Expression {
 public:
     std::string name;
+    bool positive;
 
-    explicit IDExpr(std::string name);
+    explicit IdentifierExpr(std::string name, bool positive = true);
     llvm::Value* accept(Visitor* visitor) override;
   };
 
@@ -71,6 +71,14 @@ public:
     TokenType op;
 
     BinOpExpr(std::unique_ptr<Expression> left, TokenType op, std::unique_ptr<Expression> right);
+    llvm::Value* accept(Visitor* visitor) override;
+  };
+
+  class AddrExpr : public Expression {
+public:
+    std::string variable;
+
+    AddrExpr(std::string variable);
     llvm::Value* accept(Visitor* visitor) override;
   };
 

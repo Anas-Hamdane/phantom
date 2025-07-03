@@ -20,7 +20,7 @@ namespace phantom {
     bool match(TokenType token, off_t offset = 0) const;
 
     // function call expression parsing
-    std::unique_ptr<Expression> parse_function_call_expression();
+    std::unique_ptr<Expression> parse_function_call_expression(std::string name);
 
     // Expression parsing
     std::unique_ptr<Expression> parse_primary();
@@ -34,9 +34,8 @@ namespace phantom {
     std::unique_ptr<Statement> parse_function();
 
     // variable declaration parsing
-    // starting with "let" or the type itself
-    std::unique_ptr<Statement> parse_variable_declaration_let();
-    std::unique_ptr<Statement> parse_variable_declaration_data_type();
+    // starting with "let"
+    std::unique_ptr<Statement> parse_variable_declaration();
 
     // keywords parsing
     std::unique_ptr<Statement> parse_keyword();

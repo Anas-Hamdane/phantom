@@ -33,6 +33,8 @@ namespace phantom {
     SLASH,             // /
     GREATER_THAN,      // >
     LESS_THAN,         // <
+    AND,               // &
+    OR,                // |
 
     // numeric literals
     INTEGER_LITERAL,
@@ -60,7 +62,7 @@ namespace phantom {
 
   constexpr const std::array<std::string_view, 10> types{
       "bool",   // 1-bit integer
-      "byte",    // 8-bit integer
+      "byte",   // 8-bit integer
       "char",   // 8-bit integer
       "double", // 64-bit float
       "float",  // 32-bit float
@@ -75,7 +77,8 @@ namespace phantom {
       "short", // 16-bit integer
   };
 
-  constexpr const std::array<char, 14> punctuation{
+  constexpr const std::array<char, 16> punctuation{
+      '&',
       '(',
       ')',
       '*',
@@ -89,6 +92,7 @@ namespace phantom {
       '=',
       '>',
       '{',
+      '|',
       '}',
   };
 
@@ -106,6 +110,8 @@ namespace phantom {
 
     constexpr static TokenType punctuation_type(char character) {
       switch (character) {
+        case '&':
+          return TokenType::AND;
         case '(':
           return TokenType::OPEN_PARENTHESIS;
         case ')':
@@ -132,6 +138,8 @@ namespace phantom {
           return TokenType::GREATER_THAN;
         case '{':
           return TokenType::OPEN_CURLY_BRACE;
+        case '|':
+          return TokenType::OR;
         case '}':
           return TokenType::CLOSE_CURLY_BRACE;
         default:

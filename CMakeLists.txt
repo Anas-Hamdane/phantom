@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
     "./src/Lexer/*.cpp"
     "./src/Parser/*.cpp"
+    "./src/Data/*.cpp"
     "./src/LLVMVisitor/*.cpp"
     "./src/*.cpp"
 )

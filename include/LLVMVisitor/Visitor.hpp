@@ -2,10 +2,10 @@
 #define PHANTOM_LLVM_VISITOR_HPP
 
 #include <llvm/IR/Verifier.h>
-#include <map>
 
 #include <Parser/Expressions.hpp>
 #include <Parser/Statements.hpp>
+#include <Data/Variable.hpp>
 
 namespace phantom {
   class Visitor {
@@ -13,7 +13,7 @@ namespace phantom {
     std::unique_ptr<llvm::IRBuilder<>> builder;
     std::unique_ptr<llvm::Module> module;
 
-    std::map<std::string, llvm::Value*> named_values;
+    std::unordered_map<std::string, Variable> named_values;
 
 public:
     Visitor(const std::string& module_name);
@@ -26,12 +26,13 @@ public:
     // visit methods
     llvm::Value* visit(IntLitExpr* expr);
     llvm::Value* visit(FloatLitExpr* expr);
-    llvm::Value* visit(ByteLitExpr* expr);
+    llvm::Value* visit(CharLitExpr* expr);
     llvm::Value* visit(BoolLitExpr* expr);
     llvm::Value* visit(StrLitExpr* expr);
 
-    llvm::Value* visit(IDExpr* expr);
+    llvm::Value* visit(IdentifierExpr* expr);
     llvm::Value* visit(BinOpExpr* expr);
+    llvm::Value* visit(AddrExpr* expr);
     llvm::Value* visit(FnCallExpr* expr);
 
     llvm::Value* visit(ReturnStt* stt);
@@ -39,7 +40,7 @@ public:
 
     llvm::Value* visit(VarDecStt* stt);
     llvm::Value* global_var_dec(VarDecStt* stt);
-    llvm::Value* locale_var_dec(VarDecStt* stt);
+    llvm::Value* local_var_dec(VarDecStt* stt);
 
     llvm::Function* visit(FnDecStt* stt);
     llvm::Function* visit(FnDefStt* stt);

@@ -1,21 +1,19 @@
 // #include "../../include/parser/parser.hpp"
-#include <global.hpp>
 #include <Parser/Parser.hpp>
+#include <global.hpp>
 
 namespace phantom {
   Parser::Parser(std::vector<Token> tokens) : tokens(std::move(tokens)), index(0) {}
 
-  std::unique_ptr<Expression> Parser::parse_function_call_expression() {
+  // takes the name to simplify parse_primary()
+  std::unique_ptr<Expression> Parser::parse_function_call_expression(std::string name) {
     /* Form:
      *   name(arg1, arg2, ...)
      */
-    std::string name;
 
     const std::string error_msg = "Incorrect function call, use:\n"
                                   "\"name(arg1, arg2, ...)\"\n"
                                   "Ensure the arguments match the function signature.";
-
-    name = consume().form;
 
     if (!match(TokenType::OPEN_PARENTHESIS))
       Report(error_msg);
@@ -35,19 +33,36 @@ namespace phantom {
   }
 
   std::unique_ptr<Expression> Parser::parse_primary() {
-    const Token token = peek();
+    Token token = consume();
+    bool negative = false;
+
+    if (token.type == TokenType::PLUS || token.type == TokenType::MINUS) {
+      negative = (token.type == TokenType::MINUS);
+      token = consume(); // next token
+    }
 
     switch (token.type) {
-      case TokenType::IDENTIFIER: {
-        if (peek(1).type != TokenType::OPEN_PARENTHESIS)
-          return std::make_unique<IDExpr>(consume().form);
+      case TokenType::AND:
+        if (!match(TokenType::IDENTIFIER))
+          Report("Expected variable after \"&\"\n");
+
+        return std::make_unique<AddrExpr>(consume().form);
+
+      case TokenType::IDENTIFIER:
+        if (match(TokenType::OPEN_PARENTHESIS))
+          return parse_function_call_expression(token.form);
+
+        // negative identifier expression
+        if (negative)
+          return std::make_unique<BinOpExpr>(
+              std::make_unique<IntLitExpr>("0"),
+              TokenType::MINUS,
+              std::make_unique<IdentifierExpr>(token.form));
 
         else
-          return parse_function_call_expression();
-      }
+          return std::make_unique<IdentifierExpr>(token.form);
 
       case TokenType::OPEN_PARENTHESIS: {
-        consume();
         auto expr = parse_expression();
 
         if (!match(TokenType::CLOSE_PARENTHESIS))
@@ -57,20 +72,20 @@ namespace phantom {
       }
 
       case TokenType::INTEGER_LITERAL:
-        return std::make_unique<IntLitExpr>(consume().form);
+        return std::make_unique<IntLitExpr>((negative ? "-" : "") + token.form);
 
       case TokenType::FLOAT_LITERAL:
-        return std::make_unique<FloatLitExpr>(consume().form);
+        return std::make_unique<FloatLitExpr>((negative ? "-" : "") + token.form);
 
       case TokenType::CHAR_LITERAL:
-        return std::make_unique<ByteLitExpr>(consume().form.at(0));
+        return std::make_unique<CharLitExpr>(token.form.at(0));
 
       case TokenType::STRING_LITERAL:
-        return std::make_unique<StrLitExpr>(consume().form);
+        return std::make_unique<StrLitExpr>(token.form);
 
       case TokenType::KEYWORD:
         if (token.form == "true" || token.form == "false")
-          return std::make_unique<BoolLitExpr>(consume().form);
+          return std::make_unique<BoolLitExpr>(token.form);
 
       default:
         return nullptr;
@@ -223,12 +238,12 @@ namespace phantom {
     return std::make_unique<FnDefStt>(std::move(declaration), std::move(body));
   }
 
-  std::unique_ptr<Statement> Parser::parse_variable_declaration_let() {
+  std::unique_ptr<Statement> Parser::parse_variable_declaration() {
     /*
      * Forms:
      *   let x = 1;
-     *   let(type) x = 1; // type is optional
      *   let(type) x; // type is required
+     *   let(type) x = 1; // type is optional
      */
     consume(); // let
 
@@ -237,8 +252,8 @@ namespace phantom {
 
     const std::string error_msg = "Incorrect variable declaration, use:\n"
                                   "\"let name = 1;\"\n"
-                                  "\"let(type) name = 1; // type is optional\"\n"
-                                  "\"let(type) name; // type is required\"\n";
+                                  "\"let(type) name; // type is required\"\n"
+                                  "\"let(type) name = 1; // type is optional\"\n";
 
     // check if type is specified
     if (match(TokenType::OPEN_PARENTHESIS)) {
@@ -265,7 +280,7 @@ namespace phantom {
       if (type.empty())
         Report(error_msg);
 
-      return std::make_unique<VarDecStt>(name, type, nullptr);
+      return std::make_unique<VarDecStt>(Variable(name, type), nullptr);
     }
 
     if (!match(TokenType::EQUAL))
@@ -279,63 +294,7 @@ namespace phantom {
 
     consume(); // ;
 
-    return std::make_unique<VarDecStt>(name, type, std::move(expr));
-  }
-
-  std::unique_ptr<Statement> Parser::parse_variable_declaration_data_type() {
-    /*
-     * Forms:
-     *   type x;
-     *   type x = something;
-     *
-     * where something matches the type.
-     * Details:
-     *   int -> integer value: 1
-     *   long -> long integer value: 1L
-     *   float -> single-precision float value: 1.00001f
-     *   double -> double-precision float value: 1.00000000000001
-     *   char -> character value: 'a'
-     *   bool -> boolean value: true/false
-     */
-
-    std::string type;
-    std::string name;
-
-    const std::string error_msg = "Incorrect variable declaration, use:\n"
-                                  "\"type x;\"\n"
-                                  "\"type x = something;\" where something matches the type.\n"
-                                  "Details:\n"
-                                  "  int -> integer value: 1\n"
-                                  "  long -> long integer value: 1L\n"
-                                  "  float -> single-precision float value: 1.00001f\n"
-                                  "  double -> double-precision float value: 1.00000000000001\n"
-                                  "  char -> character value: 'a'\n"
-                                  "  bool -> boolean value: true/false\n";
-
-    type = consume().form;
-
-    if (!match(TokenType::IDENTIFIER))
-      Report(error_msg);
-
-    name = consume().form;
-
-    if (match(TokenType::SEMI_COLON)) {
-      consume(); // ;
-      return std::make_unique<VarDecStt>(name, type, nullptr);
-    }
-
-    if (!match(TokenType::EQUAL))
-      Report(error_msg);
-
-    consume(); // =
-
-    auto expr = parse_expression();
-
-    if (!match(TokenType::SEMI_COLON))
-      Report(error_msg);
-
-    consume(); // ;
-    return std::make_unique<VarDecStt>(name, type, std::move(expr));
+    return std::make_unique<VarDecStt>(Variable(name, type), std::move(expr));
   }
 
   std::unique_ptr<Statement> Parser::parse_keyword() {
@@ -347,7 +306,7 @@ namespace phantom {
     else if (identifier.form == "fn")
       return parse_function();
     else if (identifier.form == "let")
-      return parse_variable_declaration_let();
+      return parse_variable_declaration();
     else
       Report("Undefined keyword");
 
@@ -375,9 +334,6 @@ namespace phantom {
     switch (peek().type) {
       case TokenType::KEYWORD:
         return parse_keyword();
-
-      case TokenType::DATA_TYPE:
-        return parse_variable_declaration_data_type();
 
       case TokenType::IDENTIFIER:
         return parse_identifier();

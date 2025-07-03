@@ -2,6 +2,7 @@
 #define PHANTOM_STATEMENTS_HPP
 
 #include <Parser/Expressions.hpp>
+#include <Data/Variable.hpp>
 #include <global.hpp>
 
 namespace phantom {
@@ -37,11 +38,10 @@ public:
 
   class VarDecStt : public Statement {
 public:
-    std::string name;
-    std::string type;
+    Variable variable;
     std::unique_ptr<Expression> initializer;
 
-    VarDecStt(std::string name, std::string type, std::unique_ptr<Expression> initializer);
+    VarDecStt(Variable variable, std::unique_ptr<Expression> initializer);
     llvm::Value* accept(Visitor* visitor) override;
     llvm::Value* global_var_dec();
     llvm::Value* local_var_dec();
