@@ -71,8 +71,9 @@ namespace phantom {
       // "huge",   // 128-bit integer, removed currently
       // because there's no way to store that value in c++
 
-      "int",   // 32-bit integer
-      "long",  // 64-bit integer
+      "int",  // 32-bit integer
+      "long", // 64-bit integer
+      "ptr",
       "quad",  // 128-bit float
       "short", // 16-bit integer
   };

@@ -44,9 +44,27 @@ namespace phantom {
     switch (token.type) {
       case TokenType::AND:
         if (!match(TokenType::IDENTIFIER))
-          Report("Expected variable after \"&\"\n");
+          Report("Expected identifier after reference operator\n", true);
 
-        return std::make_unique<AddrExpr>(consume().form);
+        return std::make_unique<RefExpr>(std::make_unique<IdentifierExpr>(consume().form));
+
+      case TokenType::STAR:
+        if (!match(TokenType::OPEN_PARENTHESIS)) {
+          if (!match(TokenType::IDENTIFIER))
+            Report("Expected identifier or open parenthesis after dereference operator\n", true);
+
+          return std::make_unique<DeRefExpr>(std::make_unique<IdentifierExpr>(consume().form));
+        }
+
+        else {
+          consume(); // OPEN_PARENTHESIS
+          auto expr = parse_expression();
+
+          if (!match(TokenType::CLOSE_PARENTHESIS))
+            Report("Expected \")\"", true);
+
+          return std::make_unique<DeRefExpr>(std::move(expr));
+        }
 
       case TokenType::IDENTIFIER:
         if (match(TokenType::OPEN_PARENTHESIS))
@@ -130,7 +148,7 @@ namespace phantom {
     return std::make_unique<ReturnStt>(std::move(expr));
   }
 
-  Parameter Parser::parse_param() {
+  Variable Parser::parse_param() {
     /*
      * Form:
      *   arg: type
@@ -176,9 +194,10 @@ namespace phantom {
      *   fn name(arg: type); // default return_type = void
      *   fn name(arg: type) {} // default return_type = void
      */
+
     std::string name;
     std::string type;
-    std::vector<Parameter> params;
+    std::vector<Variable> params;
 
     const std::string error_msg = "Incorrect function signature use: "
                                   "\n\"fn name(arg: type) => return_type;\" or:"
@@ -313,7 +332,7 @@ namespace phantom {
     return nullptr;
   }
 
-  std::unique_ptr<Statement> Parser::parse_identifier() {
+  std::unique_ptr<Statement> Parser::parse_expr_stt() {
     /* Forms:
      *   function call: name(args);
      *   assignment statement: name = value;
@@ -336,7 +355,8 @@ namespace phantom {
         return parse_keyword();
 
       case TokenType::IDENTIFIER:
-        return parse_identifier();
+      case TokenType::STAR:
+        return parse_expr_stt();
 
       default:
         return nullptr;

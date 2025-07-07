@@ -6,3 +6,5 @@ test
 cmake-build-release
 cmake-build-debug
 .vscode
+todo.txt
+old

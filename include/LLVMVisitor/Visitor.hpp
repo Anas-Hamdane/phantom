@@ -5,7 +5,6 @@
 
 #include <Parser/Expressions.hpp>
 #include <Parser/Statements.hpp>
-#include <Data/Variable.hpp>
 
 namespace phantom {
   class Visitor {
@@ -13,66 +12,81 @@ namespace phantom {
     std::unique_ptr<llvm::IRBuilder<>> builder;
     std::unique_ptr<llvm::Module> module;
 
-    std::unordered_map<std::string, Variable> named_values;
+    std::unordered_map<std::string, Variable> named_variables;
 
 public:
     Visitor(const std::string& module_name);
 
+    // helper function for casting
+    ExpressionInfo global_var_dec(VarDecStt* stt);
+    ExpressionInfo local_var_dec(VarDecStt* stt);
     void print_representation() const;
 
-    // helper function for casting
-    llvm::Value* cast(llvm::Value* src, llvm::Type* dst);
+    ExpressionInfo create_addition(ExpressionInfo left, ExpressionInfo right);
+    ExpressionInfo create_substraction(ExpressionInfo left, ExpressionInfo right);
+    ExpressionInfo create_multiplication(ExpressionInfo left, ExpressionInfo right);
+    ExpressionInfo create_division(ExpressionInfo left, ExpressionInfo right);
+
+    ExpressionInfo assign(IdentifierExpr* left, ExpressionInfo right);
+    ExpressionInfo assign(DeRefExpr* left, ExpressionInfo right);
+    ExpressionInfo handle_assignment(Expression* left, ExpressionInfo right);
+
+    llvm::Value* cast(llvm::Value* src, llvm::Type* dst, std::string error_msg);
 
     // visit methods
-    llvm::Value* visit(IntLitExpr* expr);
-    llvm::Value* visit(FloatLitExpr* expr);
-    llvm::Value* visit(CharLitExpr* expr);
-    llvm::Value* visit(BoolLitExpr* expr);
-    llvm::Value* visit(StrLitExpr* expr);
+    ExpressionInfo visit(IntLitExpr* expr);
+    ExpressionInfo visit(FloatLitExpr* expr);
+    ExpressionInfo visit(CharLitExpr* expr);
+    ExpressionInfo visit(BoolLitExpr* expr);
+    ExpressionInfo visit(StrLitExpr* expr);
 
-    llvm::Value* visit(IdentifierExpr* expr);
-    llvm::Value* visit(BinOpExpr* expr);
-    llvm::Value* visit(AddrExpr* expr);
-    llvm::Value* visit(FnCallExpr* expr);
+    ExpressionInfo visit(IdentifierExpr* expr);
+    ExpressionInfo visit(BinOpExpr* expr);
+    ExpressionInfo visit(RefExpr* expr);
+    ExpressionInfo visit(DeRefExpr* expr);
+    ExpressionInfo visit(FnCallExpr* expr);
 
-    llvm::Value* visit(ReturnStt* stt);
-    llvm::Value* visit(ExprStt* stt);
+    ExpressionInfo visit(ReturnStt* stt);
+    ExpressionInfo visit(ExprStt* stt);
+    ExpressionInfo visit(VarDecStt* stt);
 
-    llvm::Value* visit(VarDecStt* stt);
-    llvm::Value* global_var_dec(VarDecStt* stt);
-    llvm::Value* local_var_dec(VarDecStt* stt);
+    ExpressionInfo visit(FnDecStt* stt);
+    ExpressionInfo visit(FnDefStt* stt);
 
-    llvm::Function* visit(FnDecStt* stt);
-    llvm::Function* visit(FnDefStt* stt);
-
-    llvm::Type* get_llvm_type(std::string type) const {
-      if (type == "void")
-        return llvm::Type::getVoidTy(*(context));
+    llvm::Type* get_llvm_type(std::string type, bool pointer = false) const {
+      if (type == "ptr")
+        return llvm::PointerType::get(*context, 0);
+      else if (type == "void")
+        return llvm::Type::getVoidTy(*context);
       else if (type == "bool")
-        return llvm::Type::getInt1Ty(*(context));
+        return llvm::Type::getInt1Ty(*context);
       else if (type == "char" || type == "byte")
-        return llvm::Type::getInt8Ty(*(context));
+        return llvm::Type::getInt8Ty(*context);
       else if (type == "short")
-        return llvm::Type::getIntNTy(*(context), 16);
+        return llvm::Type::getInt16Ty(*context);
       else if (type == "int")
-        return llvm::Type::getInt32Ty(*(context));
+        return llvm::Type::getInt32Ty(*context);
       else if (type == "long")
-        return llvm::Type::getInt64Ty(*(context));
+        return llvm::Type::getInt64Ty(*context);
       else if (type == "float")
-        return llvm::Type::getFloatTy(*(context));
+        return llvm::Type::getFloatTy(*context);
       else if (type == "double")
-        return llvm::Type::getDoubleTy(*(context));
+        return llvm::Type::getDoubleTy(*context);
       else if (type == "quad")
         return llvm::Type::getFP128Ty(*context);
       else
-        return nullptr;
+        Report("Unidentified data type: \"" + type + "\"\n");
+
+      return nullptr;
     }
 
     std::string get_string_type(llvm::Type* type) const {
-      if (type->isIntegerTy(1))
+      if (type->isPointerTy())
+        return "ptr";
+      else if (type->isIntegerTy(1))
         return "bool";
       else if (type->isIntegerTy(8))
-        return "byte";
+        return "char";
       else if (type->isIntegerTy(16))
         return "short";
       else if (type->isIntegerTy(32))
@@ -88,7 +102,9 @@ public:
       else if (type->isVoidTy())
         return "void";
       else
-        return nullptr;
+        Report("Unexpected llvm type\n");
+
+      return "";
     }
   };
 } // namespace phantom

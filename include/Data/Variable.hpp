@@ -4,39 +4,30 @@
 #include <llvm/IR/Value.h>
 
 namespace phantom {
-  class Variable {
-    llvm::Value* alloca_inst = nullptr;
-    llvm::Type* llvm_type = nullptr;
+  struct Variable {
+    // llvm::AllocaInst or llvm::GlobalVariable
+    llvm::Value* value;
 
+    // variable type
+    llvm::Type* type;
+
+    // pointer-to type (for pointers)
+    llvm::Type* ptr_to_type;
+
+    // variable name
     std::string name;
-    std::string type;
+    std::string raw_type; // in parsing stage
 
-    bool pointer = false;
-    bool global = false;
+    // flag
+    bool global;
 
-public:
-    Variable();
-    Variable(std::string name, std::string type,
-             llvm::Value* value = nullptr, llvm::Type* llvm_type = nullptr,
-             bool global = false, bool pointer = false);
+    Variable(std::string name, llvm::Value* value = nullptr,
+             llvm::Type* type = nullptr, llvm::Type* ptr_to_type = nullptr, bool global = false)
+      : name(name), value(value), type(type), ptr_to_type(ptr_to_type), global(global) {}
 
-    bool is_pointer() const;
-    bool is_global() const;
+    Variable(std::string name, std::string raw_type) : name(name), raw_type(raw_type) {}
 
-    std::string get_name() const;
-    std::string get_type() const;
-
-    llvm::Value* get_alloca() const;
-    llvm::Type* get_llvm_type() const;
-
-    void set_pointer(bool pointer);
-    void set_global(bool global);
-
-    void set_name(std::string name);
-    void set_type(std::string type);
-
-    void set_alloca(llvm::Value* value);
-    void set_llvm_type(llvm::Type* llvm_type);
+    Variable() = default;
   };
 } // namespace phantom
 

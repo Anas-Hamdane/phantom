@@ -30,7 +30,7 @@ namespace phantom {
     std::unique_ptr<Statement> parse_return();
 
     // function parsing
-    Parameter parse_param();
+    Variable parse_param();
     std::unique_ptr<Statement> parse_function();
 
     // variable declaration parsing
@@ -41,7 +41,7 @@ namespace phantom {
     std::unique_ptr<Statement> parse_keyword();
 
     // statements starting with an identifier
-    std::unique_ptr<Statement> parse_identifier();
+    std::unique_ptr<Statement> parse_expr_stt();
 
     // statements parsing
     std::unique_ptr<Statement> parse_statement();
