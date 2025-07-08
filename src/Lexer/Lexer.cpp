@@ -1,22 +1,35 @@
 // #include "../../include/lexer/lexer.hpp"
-#include <global.hpp>
 #include <Lexer/Lexer.hpp>
+#include <global.hpp>
 
 namespace phantom {
-  char Lexer::peek() const {
-    if (index >= source.length())
+  char Lexer::peek(const off_t offset) const {
+    if ((index + offset) >= source.length())
       return '\0';
 
-    return source[index];
+    return source[index + offset];
   }
 
-  char Lexer::consume() {
-    char this_character = source[index];
+  char Lexer::consume(const off_t offset) {
+    char this_character;
+
+    if (index >= source.length())
+      this_character = '\0';
+    else
+      this_character = source[index];
+
     if (new_line(this_character))
       line_number++;
 
-    index++;
+    index += offset;
     return this_character;
+  }
+
+  bool Lexer::match(const char character, const off_t offset) const {
+    if ((index + offset) >= source.length())
+      return false;
+
+    return (source[index + offset] == character);
   }
 
   // used to track line_number in `consume()`
@@ -26,7 +39,7 @@ namespace phantom {
 
   bool Lexer::whitespace(char character) {
     return (character == 9 ||  // '\t'
-            character == 10 || //  '\n'
+            character == 10 || // '\n'
             character == 11 || // '\v'
             character == 12 || // '\f'
             character == 13 || // '\r'
@@ -159,7 +172,7 @@ namespace phantom {
 
     if (peek() != '\'')
       Report("Expected closing single quote after character literal: got '" +
-                         std::string(1, peek()) + "'");
+             std::string(1, peek()) + "'");
 
     consume(); // '
 
@@ -197,6 +210,25 @@ namespace phantom {
       if (character == '\0') {
         tokens.emplace_back(TokenType::EndOfFile, Location(line_number, index));
         break;
+      }
+
+      // line comment
+      else if (character == '/' && match('/', 1)) {
+        consume(2);
+        while (!match('\0') && !match('\n'))
+          consume();
+      }
+
+      else if (character == '/' && match('*', 1)) {
+        consume(2);
+        while (!match('\0') && !(match('*') && match('/', 1)))
+          consume();
+
+        if (match('\0'))
+          Report("Unterminated comment block\n");
+
+        else
+          consume(2); // '*/'
       }
 
       // whitespace includes new_line

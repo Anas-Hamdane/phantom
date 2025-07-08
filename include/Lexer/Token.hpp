@@ -62,7 +62,6 @@ namespace phantom {
 
   constexpr const std::array<std::string_view, 10> types{
       "bool",   // 1-bit integer
-      "byte",   // 8-bit integer
       "char",   // 8-bit integer
       "double", // 64-bit float
       "float",  // 32-bit float

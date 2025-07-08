@@ -86,6 +86,7 @@ namespace phantom {
         if (!match(TokenType::CLOSE_PARENTHESIS))
           Report("Expected \")\"", true);
 
+        consume(); // )
         return std::move(expr);
       }
 
@@ -279,37 +280,38 @@ namespace phantom {
       consume(); // (
 
       if (!(match(TokenType::DATA_TYPE) || match(TokenType::CLOSE_PARENTHESIS)))
-        Report(error_msg);
+        Report(error_msg, true);
 
       if (match(TokenType::DATA_TYPE))
         type = consume().form;
 
       if (!match(TokenType::CLOSE_PARENTHESIS))
-        Report(error_msg);
+        Report(error_msg, true);
 
       consume(); // )
     }
 
     if (!match(TokenType::IDENTIFIER))
-      Report(error_msg);
+      Report(error_msg, true);
 
     name = consume().form;
 
     if (match(TokenType::SEMI_COLON)) {
       if (type.empty())
-        Report(error_msg);
+        Report(error_msg, true);
 
+      consume(); // ;
       return std::make_unique<VarDecStt>(Variable(name, type), nullptr);
     }
 
     if (!match(TokenType::EQUAL))
-      Report(error_msg);
+      Report(error_msg, true);
 
     consume(); // "="
     auto expr = parse_expression();
 
     if (!match(TokenType::SEMI_COLON))
-      Report(error_msg);
+      Report(error_msg, true);
 
     consume(); // ;
 

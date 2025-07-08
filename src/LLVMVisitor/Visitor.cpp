@@ -39,8 +39,7 @@ namespace phantom {
     }
 
     else if (left_val->getType()->isPointerTy() && right_val->getType()->isIntegerTy()) {
-      // for pointers they return the ptr_to_type in ExpressionInfo.type
-      llvm::Type* ptr_to_type = left.type;
+      llvm::Type* ptr_to_type = left.variable->ptr_to_type;
 
       if (!ptr_to_type)
         Report("Internal compiler error: Unexpected pointer-to type\n");
@@ -50,7 +49,7 @@ namespace phantom {
 
     else if (left_val->getType()->isIntegerTy() && right_val->getType()->isPointerTy()) {
       // for pointers they return the ptr_to_type in ExpressionInfo.type
-      llvm::Type* ptr_to_type = right.type;
+      llvm::Type* ptr_to_type = right.variable->ptr_to_type;
 
       if (!ptr_to_type)
         Report("Internal compiler error: Unexpected pointer-to type\n");
@@ -95,9 +94,8 @@ namespace phantom {
 
     // distance between pointers
     else if (left_val->getType()->isPointerTy() && right_val->getType()->isPointerTy()) {
-      // for pointers they return the ptr_to_type in ExpressionInfo.type
-      llvm::Type* left_type = left.type;
-      llvm::Type* right_type = right.type;
+      llvm::Type* left_type = left.variable->ptr_to_type;
+      llvm::Type* right_type = right.variable->ptr_to_type;
 
       if (!left_type || !right_type)
         Report("Unknown pointer-to type\n", true);
@@ -116,7 +114,7 @@ namespace phantom {
     }
 
     else if (left_val->getType()->isPointerTy() && right_val->getType()->isIntegerTy()) {
-      llvm::Type* type = left.type;
+      llvm::Type* type = left.variable->ptr_to_type;
 
       if (!type)
         Report("Undefined pointer-to type\n", true);
@@ -175,13 +173,23 @@ namespace phantom {
     return {result, result->getType()};
   }
 
+  // TODO: handle casting
   ExpressionInfo Visitor::assign(IdentifierExpr* left, ExpressionInfo right) {
     if (named_variables.find(left->name) == named_variables.end())
       Report("Use of undeclared identifier \"" + left->name + "\"\n", true);
 
     Variable* variable = &named_variables[left->name];
-    builder->CreateStore(right.value, variable->value);
 
+    if (!right.value || !right.type)
+      Report("Internal compiler error: not enough informations for dereference assignment expression\n", true);
+
+    if (!variable || !variable->value || !variable->type)
+      Report("Undefined dereference to variable \"" + left->name + "\"\n", true);
+
+    if (variable->type->isPointerTy() && right.type->isPointerTy())
+      variable->ptr_to_type = right.variable->ptr_to_type;
+
+    builder->CreateStore(right.value, variable->value);
     return right;
   }
 
@@ -191,6 +199,9 @@ namespace phantom {
     if (!ide)
       Report("Dereferencing operations only supports direct identifiers\n", true);
 
+    if (!right.value || !right.type)
+      Report("Internal compiler error: not enough informations for dereference assignment expression\n", true);
+
     Variable* variable = &named_variables[ide->name];
 
     if (!variable || !variable->value || !variable->type)
@@ -199,10 +210,10 @@ namespace phantom {
     if (!variable->type->isPointerTy())
       Report("Trying to dereference a non-pointer type \"" + ide->name + "\"\n", true);
 
+    variable->ptr_to_type = right.type;
     llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
 
     builder->CreateStore(right.value, ptr_value);
-
     return right;
   }
 
@@ -299,7 +310,7 @@ namespace phantom {
     stt->variable.global = true;
 
     named_variables[name] = stt->variable;
-    return {global_variable, variable_type};
+    return {global_variable, variable_type, &named_variables[name]};
   }
 
   ExpressionInfo Visitor::local_var_dec(VarDecStt* stt) {
@@ -351,7 +362,7 @@ namespace phantom {
     named_variables[name] = stt->variable;
 
     // Return the alloca instruction (which is a Value*)
-    return {alloca, variable_type};
+    return {alloca, variable_type, &named_variables[name]};
   }
 
   // ----------------------- visit functions -------------------------- //
@@ -469,8 +480,7 @@ namespace phantom {
       Report("Trying to dereference a non-pointer type \"" + ide->name + "\"\n", true);
 
     llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
-
-    return {builder->CreateLoad(variable->ptr_to_type, ptr_value), variable->ptr_to_type};
+    return {builder->CreateLoad(variable->ptr_to_type, ptr_value), variable->ptr_to_type, variable};
   }
 
   ExpressionInfo Visitor::visit(FnCallExpr* expr) {

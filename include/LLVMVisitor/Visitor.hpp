@@ -60,7 +60,7 @@ public:
         return llvm::Type::getVoidTy(*context);
       else if (type == "bool")
         return llvm::Type::getInt1Ty(*context);
-      else if (type == "char" || type == "byte")
+      else if (type == "char")
         return llvm::Type::getInt8Ty(*context);
       else if (type == "short")
         return llvm::Type::getInt16Ty(*context);

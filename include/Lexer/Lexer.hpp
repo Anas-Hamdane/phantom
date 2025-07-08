@@ -13,9 +13,11 @@ namespace phantom {
     size_t line_number;
     size_t index;
 
-    char peek() const;
+    char peek(const off_t offset = 0) const;
 
-    char consume();
+    char consume(const off_t offset = 1);
+
+    bool match(const char character, const off_t offset = 0) const;
 
     constexpr static int recognize_punctuation(const char character) {
       int begin = 0;
