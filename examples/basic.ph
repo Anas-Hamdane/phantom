@@ -1,4 +1,12 @@
-fn main(argc: int) => int {
-  let x = 5 * (1 + 2);
-  return x;
+fn main() => int {
+  let x: short = 9;
+  let y: int = 2;
+
+  let z = y + x;
+  let a = &z;
+
+  *a = 20;
+  let b = &a;
+  **b = 30;
+  return **b;
 }

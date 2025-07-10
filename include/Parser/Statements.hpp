@@ -39,6 +39,17 @@ public:
     ExpressionInfo local_var_dec();
   };
 
+  class ArrDecStt : public Statement {
+public:
+    Variable variable;
+    std::unique_ptr<Expression> initializer;
+
+    ArrDecStt(Variable variable, std::unique_ptr<Expression> initializer);
+    ExpressionInfo accept(Visitor* visitor) override;
+    ExpressionInfo global_var_dec();
+    ExpressionInfo local_var_dec();
+  };
+
   class FnDecStt : public Statement {
 public:
     std::string name;

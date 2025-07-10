@@ -9,7 +9,7 @@ file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
     "./src/Lexer/*.cpp"
     "./src/Parser/*.cpp"
     "./src/Data/*.cpp"
-    "./src/LLVMVisitor/*.cpp"
+    "./src/LLVMCodeGen/*.cpp"
     "./src/*.cpp"
 )
 include_directories(${CMAKE_SOURCE_DIR}/include)

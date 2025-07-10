@@ -1,7 +1,6 @@
 #ifndef PHANTOM_EXPRESSION_INFO_HPP
 #define PHANTOM_EXPRESSION_INFO_HPP
 
-#include <llvm/IR/Value.h>
 #include <Data/Variable.hpp>
 
 namespace phantom {

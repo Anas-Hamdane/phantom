@@ -3,16 +3,19 @@
 
 #include <llvm/IR/Verifier.h>
 
+#include <LLVMCodeGen/Operation.hpp>
 #include <Parser/Expressions.hpp>
 #include <Parser/Statements.hpp>
 
 namespace phantom {
   class Visitor {
     std::unique_ptr<llvm::LLVMContext> context;
-    std::unique_ptr<llvm::IRBuilder<>> builder;
     std::unique_ptr<llvm::Module> module;
 
     std::unordered_map<std::string, Variable> named_variables;
+
+    std::shared_ptr<llvm::IRBuilder<>> builder;
+    Operation operation;
 
 public:
     Visitor(const std::string& module_name);
@@ -21,30 +24,40 @@ public:
     ExpressionInfo global_var_dec(VarDecStt* stt);
     ExpressionInfo local_var_dec(VarDecStt* stt);
     void print_representation() const;
-
-    ExpressionInfo create_addition(ExpressionInfo left, ExpressionInfo right);
-    ExpressionInfo create_substraction(ExpressionInfo left, ExpressionInfo right);
-    ExpressionInfo create_multiplication(ExpressionInfo left, ExpressionInfo right);
-    ExpressionInfo create_division(ExpressionInfo left, ExpressionInfo right);
-
-    ExpressionInfo assign(IdentifierExpr* left, ExpressionInfo right);
-    ExpressionInfo assign(DeRefExpr* left, ExpressionInfo right);
-    ExpressionInfo handle_assignment(Expression* left, ExpressionInfo right);
-
     llvm::Value* cast(llvm::Value* src, llvm::Type* dst, std::string error_msg);
 
-    // visit methods
-    ExpressionInfo visit(IntLitExpr* expr);
-    ExpressionInfo visit(FloatLitExpr* expr);
-    ExpressionInfo visit(CharLitExpr* expr);
-    ExpressionInfo visit(BoolLitExpr* expr);
-    ExpressionInfo visit(StrLitExpr* expr);
+    ExpressionInfo rvalue(DataTypeExpr* expr);
+    ExpressionInfo lvalue(DataTypeExpr* expr);
 
-    ExpressionInfo visit(IdentifierExpr* expr);
-    ExpressionInfo visit(BinOpExpr* expr);
-    ExpressionInfo visit(RefExpr* expr);
-    ExpressionInfo visit(DeRefExpr* expr);
-    ExpressionInfo visit(FnCallExpr* expr);
+    ExpressionInfo rvalue(IntLitExpr* expr);
+    ExpressionInfo lvalue(IntLitExpr* expr);
+
+    ExpressionInfo rvalue(FloatLitExpr* expr);
+    ExpressionInfo lvalue(FloatLitExpr* expr);
+
+    ExpressionInfo rvalue(CharLitExpr* expr);
+    ExpressionInfo lvalue(CharLitExpr* expr);
+
+    ExpressionInfo rvalue(BoolLitExpr* expr);
+    ExpressionInfo lvalue(BoolLitExpr* expr);
+
+    ExpressionInfo rvalue(StrLitExpr* expr);
+    ExpressionInfo lvalue(StrLitExpr* expr);
+
+    ExpressionInfo rvalue(IdentifierExpr* expr);
+    ExpressionInfo lvalue(IdentifierExpr* expr);
+
+    ExpressionInfo rvalue(BinOpExpr* expr);
+    ExpressionInfo lvalue(BinOpExpr* expr);
+
+    ExpressionInfo rvalue(RefExpr* expr);
+    ExpressionInfo lvalue(RefExpr* expr);
+
+    ExpressionInfo rvalue(DeRefExpr* expr);
+    ExpressionInfo lvalue(DeRefExpr* expr);
+
+    ExpressionInfo rvalue(FnCallExpr* expr);
+    ExpressionInfo lvalue(FnCallExpr* expr);
 
     ExpressionInfo visit(ReturnStt* stt);
     ExpressionInfo visit(ExprStt* stt);

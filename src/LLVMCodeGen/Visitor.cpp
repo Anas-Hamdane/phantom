@@ -1,234 +1,14 @@
-#include <LLVMVisitor/Visitor.hpp>
+#include <LLVMCodeGen/Visitor.hpp>
 
 namespace phantom {
-  Visitor::Visitor(const std::string& module_name) {
-    context = std::make_unique<llvm::LLVMContext>();
-    module = std::make_unique<llvm::Module>(module_name, *context);
-
-    builder = std::make_unique<llvm::IRBuilder<>>(*context);
-  }
+  Visitor::Visitor(const std::string& module_name)
+      : context(std::make_unique<llvm::LLVMContext>()),
+        module(std::make_unique<llvm::Module>(module_name, *context)),
+        builder(std::make_shared<llvm::IRBuilder<>>(*context)),
+        operation(builder) {}
 
   void Visitor::print_representation() const {
     module->print(llvm::outs(), nullptr);
-  }
-
-  ExpressionInfo Visitor::create_addition(ExpressionInfo left, ExpressionInfo right) {
-    llvm::Value* left_val = left.value;
-    llvm::Value* right_val = right.value;
-
-    llvm::Value* result = nullptr;
-
-    if (!left_val || !right_val)
-      return nullptr;
-
-    if (left_val->getType()->isFloatingPointTy() && right_val->getType()->isPointerTy() ||
-        left_val->getType()->isPointerTy() && right_val->getType()->isFloatingPointTy())
-      Report("Invalid pointer arithmetic expression: (ptr +- f) or (f +- ptr) is undefined\n", true);
-
-    else if (left_val->getType()->isIntegerTy() && right_val->getType()->isIntegerTy())
-      result = builder->CreateAdd(left_val, right_val);
-
-    else if (left_val->getType()->isFloatingPointTy() || right_val->getType()->isFloatingPointTy()) {
-      if (left_val->getType()->isIntegerTy())
-        left_val = builder->CreateSIToFP(left_val, builder->getFloatTy());
-
-      if (right_val->getType()->isIntegerTy())
-        right_val = builder->CreateSIToFP(right_val, builder->getFloatTy());
-
-      result = builder->CreateFAdd(left_val, right_val);
-    }
-
-    else if (left_val->getType()->isPointerTy() && right_val->getType()->isIntegerTy()) {
-      llvm::Type* ptr_to_type = left.variable->ptr_to_type;
-
-      if (!ptr_to_type)
-        Report("Internal compiler error: Unexpected pointer-to type\n");
-
-      result = builder->CreateGEP(ptr_to_type, left_val, right_val);
-    }
-
-    else if (left_val->getType()->isIntegerTy() && right_val->getType()->isPointerTy()) {
-      // for pointers they return the ptr_to_type in ExpressionInfo.type
-      llvm::Type* ptr_to_type = right.variable->ptr_to_type;
-
-      if (!ptr_to_type)
-        Report("Internal compiler error: Unexpected pointer-to type\n");
-
-      result = builder->CreateGEP(ptr_to_type, right_val, left_val);
-    }
-
-    else if (left_val->getType()->isPointerTy() && right_val->getType()->isPointerTy())
-      Report("Invalid pointer arithmetic expression: ptr + ptr is undefined\n", true);
-
-    if (!result)
-      Report("Unhandled types for left and right of an assignment expression\n", true);
-
-    return {result, result->getType()};
-  }
-
-  ExpressionInfo Visitor::create_substraction(ExpressionInfo left, ExpressionInfo right) {
-    llvm::Value* left_val = left.value;
-    llvm::Value* right_val = right.value;
-
-    llvm::Value* result = nullptr;
-
-    if (!left_val || !right_val)
-      return nullptr;
-
-    if (left_val->getType()->isFloatingPointTy() && right_val->getType()->isPointerTy() ||
-        left_val->getType()->isPointerTy() && right_val->getType()->isFloatingPointTy())
-      Report("Invalid pointer arithmetic expression: (ptr +- f) or (f +- ptr) is undefined\n", true);
-
-    else if (left_val->getType()->isIntegerTy() && right_val->getType()->isIntegerTy())
-      result = builder->CreateSub(left_val, right_val);
-
-    if (left_val->getType()->isFloatingPointTy() || right_val->getType()->isFloatingPointTy()) {
-      if (left_val->getType()->isIntegerTy())
-        left_val = builder->CreateSIToFP(left_val, builder->getFloatTy());
-
-      if (right_val->getType()->isIntegerTy())
-        right_val = builder->CreateSIToFP(right_val, builder->getFloatTy());
-
-      result = builder->CreateFSub(left_val, right_val);
-    }
-
-    // distance between pointers
-    else if (left_val->getType()->isPointerTy() && right_val->getType()->isPointerTy()) {
-      llvm::Type* left_type = left.variable->ptr_to_type;
-      llvm::Type* right_type = right.variable->ptr_to_type;
-
-      if (!left_type || !right_type)
-        Report("Unknown pointer-to type\n", true);
-
-      if (left_type != right_type)
-        Report("Invalid pointer arithmetic expression: ptr - ptr for different pointed data types is undefined\n", true);
-
-      llvm::Value* left_int = builder->CreatePtrToInt(left_val, builder->getInt64Ty());
-      llvm::Value* right_int = builder->CreatePtrToInt(right_val, builder->getInt64Ty());
-      llvm::Value* byte_diff = builder->CreateSub(left_int, right_int);
-
-      uint64_t element_size = module->getDataLayout().getTypeAllocSize(left_type);
-      llvm::Value* size_value = llvm::ConstantInt::get(builder->getInt64Ty(), element_size);
-
-      result = builder->CreateSDiv(byte_diff, size_value);
-    }
-
-    else if (left_val->getType()->isPointerTy() && right_val->getType()->isIntegerTy()) {
-      llvm::Type* type = left.variable->ptr_to_type;
-
-      if (!type)
-        Report("Undefined pointer-to type\n", true);
-
-      result = builder->CreateGEP(type, left_val, builder->CreateNeg(right_val));
-    }
-
-    else if (left_val->getType()->isIntegerTy() && right_val->getType()->isPointerTy())
-      Report("Invalid pointer arithmetic expression: n - ptr is undefined\n", true);
-
-    if (!result)
-      Report("Unhandled types for left and right of an assignment expression\n", true);
-
-    return {result, result->getType()};
-  }
-
-  ExpressionInfo Visitor::create_multiplication(ExpressionInfo left, ExpressionInfo right) {
-    llvm::Value* left_val = left.value;
-    llvm::Value* right_val = right.value;
-
-    llvm::Value* result = nullptr;
-
-    if (!left_val || !right_val)
-      return nullptr;
-
-    if (left_val->getType()->isPointerTy() || right_val->getType()->isPointerTy())
-      Report("Invalid pointer arithmetic expression: ptr * n/f/ptr is undefined\n", true);
-
-    else if (left_val->getType()->isIntegerTy() && right_val->getType()->isIntegerTy())
-      result = builder->CreateMul(left_val, right_val);
-
-    else if (left_val->getType()->isFloatingPointTy() || right_val->getType()->isFloatingPointTy())
-      result = builder->CreateFMul(left_val, right_val);
-
-    return {result, result->getType()};
-  }
-
-  ExpressionInfo Visitor::create_division(ExpressionInfo left, ExpressionInfo right) {
-    llvm::Value* left_val = left.value;
-    llvm::Value* right_val = right.value;
-
-    llvm::Value* result = nullptr;
-
-    if (!left_val || !right_val)
-      return nullptr;
-
-    if (left_val->getType()->isPointerTy() || right_val->getType()->isPointerTy())
-      Report("Invalid pointer arithmetic expression: ptr / n/f/ptr is undefined\n", true);
-
-    if (left_val->getType()->isIntegerTy() && right_val->getType()->isIntegerTy())
-      result = builder->CreateSDiv(left_val, right_val);
-
-    if (left_val->getType()->isFloatingPointTy() || right_val->getType()->isFloatingPointTy())
-      result = builder->CreateFDiv(left_val, right_val);
-
-    return {result, result->getType()};
-  }
-
-  // TODO: handle casting
-  ExpressionInfo Visitor::assign(IdentifierExpr* left, ExpressionInfo right) {
-    if (named_variables.find(left->name) == named_variables.end())
-      Report("Use of undeclared identifier \"" + left->name + "\"\n", true);
-
-    Variable* variable = &named_variables[left->name];
-
-    if (!right.value || !right.type)
-      Report("Internal compiler error: not enough informations for dereference assignment expression\n", true);
-
-    if (!variable || !variable->value || !variable->type)
-      Report("Undefined dereference to variable \"" + left->name + "\"\n", true);
-
-    if (variable->type->isPointerTy() && right.type->isPointerTy())
-      variable->ptr_to_type = right.variable->ptr_to_type;
-
-    builder->CreateStore(right.value, variable->value);
-    return right;
-  }
-
-  ExpressionInfo Visitor::assign(DeRefExpr* left, ExpressionInfo right) {
-    IdentifierExpr* ide = dynamic_cast<IdentifierExpr*>(left->ptr_expr.get());
-
-    if (!ide)
-      Report("Dereferencing operations only supports direct identifiers\n", true);
-
-    if (!right.value || !right.type)
-      Report("Internal compiler error: not enough informations for dereference assignment expression\n", true);
-
-    Variable* variable = &named_variables[ide->name];
-
-    if (!variable || !variable->value || !variable->type)
-      Report("Undefined dereference to variable \"" + ide->name + "\"\n", true);
-
-    if (!variable->type->isPointerTy())
-      Report("Trying to dereference a non-pointer type \"" + ide->name + "\"\n", true);
-
-    variable->ptr_to_type = right.type;
-    llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
-
-    builder->CreateStore(right.value, ptr_value);
-    return right;
-  }
-
-  ExpressionInfo Visitor::handle_assignment(Expression* left, ExpressionInfo right) {
-    llvm::Value* ptr = nullptr;
-
-    if (auto* ide = dynamic_cast<IdentifierExpr*>(left))
-      return ide->assign(right, this);
-
-    else if (auto* deref = dynamic_cast<DeRefExpr*>(left))
-      return deref->assign(right, this);
-
-    Report("Unexpected assignment operation: left side is not assignable\n", true);
-
-    return nullptr;
   }
 
   llvm::Value* Visitor::cast(llvm::Value* src, llvm::Type* dst, std::string error_msg) {
@@ -271,7 +51,7 @@ namespace phantom {
       variable_type = get_llvm_type(raw_type);
 
     if (stt->initializer) {
-      ExpressionInfo init = stt->initializer->accept(this);
+      ExpressionInfo init = stt->initializer->rvalue(this);
 
       if (!init.value || !init.type)
         Report("Internal compiler error: not enough informations about variable\"" + name + "\"\n", true);
@@ -279,10 +59,15 @@ namespace phantom {
       value = init.value;
 
       if (!variable_type)
-        variable_type = value->getType();
+        variable_type = init.type;
 
-      if (variable_type->isPointerTy())
-        stt->variable.ptr_to_type = init.type;
+      if (variable_type->isPointerTy() && init.variable) {
+        if (init.variable->type->isPointerTy())
+          stt->variable.ptr_to_type = init.variable->ptr_to_type;
+
+        else
+          stt->variable.ptr_to_type = init.variable->type;
+      }
 
       else if (variable_type != value->getType()) {
         std::string cast_error = "Invalid operation: casting \"" +
@@ -327,7 +112,7 @@ namespace phantom {
       variable_type = get_llvm_type(raw_type);
 
     if (stt->initializer) {
-      ExpressionInfo init = stt->initializer->accept(this);
+      ExpressionInfo init = stt->initializer->rvalue(this);
 
       if (!init.value || !init.type)
         Report("Internal compiler error: not enough informations about variable\"" + name + "\"\n", true);
@@ -335,10 +120,15 @@ namespace phantom {
       value = init.value;
 
       if (!variable_type)
-        variable_type = value->getType();
+        variable_type = init.type;
 
-      if (variable_type->isPointerTy())
-        stt->variable.ptr_to_type = init.type;
+      if (variable_type->isPointerTy() && init.variable) {
+        if (init.variable->type->isPointerTy())
+          stt->variable.ptr_to_type = init.variable->ptr_to_type;
+
+        else
+          stt->variable.ptr_to_type = init.variable->type;
+      }
 
       else if (variable_type != value->getType()) {
         std::string cast_error = "Invalid operation: casting \"" +
@@ -352,11 +142,11 @@ namespace phantom {
     // create the alloca instruction
     llvm::AllocaInst* alloca = builder->CreateAlloca(variable_type, nullptr);
 
-    stt->variable.value = alloca;
-    stt->variable.type = variable_type;
-
     if (value)
       builder->CreateStore(value, alloca);
+
+    stt->variable.value = alloca;
+    stt->variable.type = variable_type;
 
     // Store in symbol table for later lookups
     named_variables[name] = stt->variable;
@@ -365,9 +155,33 @@ namespace phantom {
     return {alloca, variable_type, &named_variables[name]};
   }
 
-  // ----------------------- visit functions -------------------------- //
+  ExpressionInfo Visitor::rvalue(DataTypeExpr* expr) {
+    llvm::Value* value = nullptr;
+    llvm::Type* type = get_llvm_type(expr->form);
 
-  ExpressionInfo Visitor::visit(IntLitExpr* expr) {
+    if (expr->value)
+      value = expr->value->rvalue(this).value;
+
+    if (value)
+      return {value, type};
+
+    if (type->isIntegerTy())
+      value = llvm::ConstantInt::get(type, 0);
+
+    else if (type->isFloatingPointTy())
+      value = llvm::ConstantFP::get(type, 0.0);
+
+    else if (type->isPointerTy())
+      value = llvm::Constant::getNullValue(type);
+
+    else
+      Report("Unknown variable type: \"" + expr->form + "\"\n", true);
+
+    return {value, type};
+  }
+  ExpressionInfo Visitor::lvalue(DataTypeExpr* expr) { return {}; }
+
+  ExpressionInfo Visitor::rvalue(IntLitExpr* expr) {
     llvm::Type* type = nullptr;
 
     if (expr->value >= INT_MIN_VAL && expr->value <= INT_MAX_VAL)
@@ -381,13 +195,12 @@ namespace phantom {
 
     return {llvm::ConstantInt::get(type, expr->value), type};
   }
+  ExpressionInfo Visitor::lvalue(IntLitExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(FloatLitExpr* expr) {
+  ExpressionInfo Visitor::rvalue(FloatLitExpr* expr) {
     llvm::Type* type = nullptr;
 
-    char last_character = expr->form.back();
-
-    if (last_character == 'f' || last_character == 'F')
+    if (const char last_character = expr->form.back(); last_character == 'f' || last_character == 'F')
       type = llvm::Type::getFloatTy(*context);
 
     else if (last_character == 'd' || last_character == 'D')
@@ -407,23 +220,27 @@ namespace phantom {
 
     return {llvm::ConstantFP::get(type, expr->value), type};
   }
+  ExpressionInfo Visitor::lvalue(FloatLitExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(CharLitExpr* expr) {
+  ExpressionInfo Visitor::rvalue(CharLitExpr* expr) {
     llvm::Type* type = llvm::Type::getInt8Ty(*context);
     return {llvm::ConstantInt::get(type, expr->value), type};
   }
+  ExpressionInfo Visitor::lvalue(CharLitExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(BoolLitExpr* expr) {
+  ExpressionInfo Visitor::rvalue(BoolLitExpr* expr) {
     llvm::Type* type = llvm::Type::getInt1Ty(*context);
     return {llvm::ConstantInt::get(type, expr->value), type};
   }
+  ExpressionInfo Visitor::lvalue(BoolLitExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(StrLitExpr* expr) {
+  ExpressionInfo Visitor::rvalue(StrLitExpr* expr) {
     // TODO: double check this
     return builder->CreateGlobalString(expr->value);
   }
+  ExpressionInfo Visitor::lvalue(StrLitExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(IdentifierExpr* expr) {
+  ExpressionInfo Visitor::rvalue(IdentifierExpr* expr) {
     if (named_variables.find(expr->name) == named_variables.end())
       Report("Use of undeclared identifier \"" + expr->name + "\"\n", true);
 
@@ -433,28 +250,40 @@ namespace phantom {
 
     return {builder->CreateLoad(type, value), type, variable};
   }
+  ExpressionInfo Visitor::lvalue(IdentifierExpr* expr) {
+    if (named_variables.find(expr->name) == named_variables.end())
+      Report("Use of undeclared identifier \"" + expr->name + "\"\n", true);
 
-  ExpressionInfo Visitor::visit(BinOpExpr* expr) {
+    Variable* variable = &named_variables[expr->name];
+    llvm::Value* value = variable->value;
+    llvm::Type* type = variable->type;
+
+    // don't load
+    return {value, type, variable};
+  }
+
+  ExpressionInfo Visitor::rvalue(BinOpExpr* expr) {
     if (expr->op == TokenType::EQUAL)
-      return handle_assignment(expr->left.get(), expr->right->accept(this));
+      return operation.asgn(expr->left->lvalue(this), expr->right->rvalue(this));
 
     switch (expr->op) {
       case TokenType::PLUS:
-        return create_addition(expr->left->accept(this), expr->right->accept(this));
+        return operation.add(expr->left->rvalue(this), expr->right->rvalue(this));
       case TokenType::MINUS:
-        return create_substraction(expr->left->accept(this), expr->right->accept(this));
+        return operation.sub(expr->left->rvalue(this), expr->right->rvalue(this));
       case TokenType::STAR:
-        return create_multiplication(expr->left->accept(this), expr->right->accept(this));
+        return operation.mul(expr->left->rvalue(this), expr->right->rvalue(this));
       case TokenType::SLASH:
-        return create_division(expr->left->accept(this), expr->right->accept(this));
+        return operation.div(expr->left->rvalue(this), expr->right->rvalue(this));
       default:
         Report("invalid binary operator", true);
     }
 
     return nullptr;
   }
+  ExpressionInfo Visitor::lvalue(BinOpExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(RefExpr* expr) {
+  ExpressionInfo Visitor::rvalue(RefExpr* expr) {
     Variable* variable = &named_variables[expr->ide->name];
     llvm::Value* ptr = variable->value;
     llvm::Type* type = variable->type;
@@ -462,28 +291,46 @@ namespace phantom {
     if (!ptr)
       Report("Use of undeclared identifier \"" + expr->ide->name + "\"\n", true);
 
-    return {ptr, type, variable};
+    return {ptr, ptr->getType(), variable};
   }
+  ExpressionInfo Visitor::lvalue(RefExpr* expr) { return {}; }
 
-  ExpressionInfo Visitor::visit(DeRefExpr* expr) {
-    IdentifierExpr* ide = dynamic_cast<IdentifierExpr*>(expr->ptr_expr.get());
+  ExpressionInfo Visitor::rvalue(DeRefExpr* expr) {
+    ExpressionInfo expr_inf = expr->ptr_expr->lvalue(this);
 
-    if (!ide)
+    if (!expr_inf.variable)
       Report("Dereferencing operations only supports direct identifiers\n", true);
 
-    Variable* variable = &named_variables[ide->name];
+    Variable* variable = expr_inf.variable;
 
     if (!variable || !variable->value || !variable->type)
-      Report("Undefined dereference to variable \"" + ide->name + "\"\n", true);
+      Report("Undefined dereference to variable \"" + variable->name + "\"\n", true);
 
     if (!variable->type->isPointerTy())
-      Report("Trying to dereference a non-pointer type \"" + ide->name + "\"\n", true);
+      Report("Trying to dereference a non-pointer type \"" + variable->name + "\"\n", true);
 
     llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
     return {builder->CreateLoad(variable->ptr_to_type, ptr_value), variable->ptr_to_type, variable};
   }
+  ExpressionInfo Visitor::lvalue(DeRefExpr* expr) {
+    ExpressionInfo expr_inf = expr->ptr_expr->lvalue(this);
 
-  ExpressionInfo Visitor::visit(FnCallExpr* expr) {
+    if (!expr_inf.variable)
+      Report("Dereferencing operations only supports direct identifiers\n", true);
+
+    Variable* variable = expr_inf.variable;
+
+    if (!variable || !variable->value || !variable->type)
+      Report("Undefined dereference to variable \"" + variable->name + "\"\n", true);
+
+    if (!variable->type->isPointerTy())
+      Report("Trying to dereference a non-pointer type \"" + variable->name + "\"\n", true);
+
+    llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
+    return {ptr_value, variable->type, variable};
+  }
+
+  ExpressionInfo Visitor::rvalue(FnCallExpr* expr) {
     llvm::Function* calle_fn = module->getFunction(expr->name);
 
     if (!calle_fn)
@@ -496,7 +343,7 @@ namespace phantom {
     args_values.reserve(expr->args.size());
 
     for (size_t i = 0; i < expr->args.size(); ++i) {
-      ExpressionInfo arg_expr = expr->args[i]->accept(this);
+      ExpressionInfo arg_expr = expr->args[i]->rvalue(this);
 
       if (!arg_expr.value)
         Report("Unidentified argument value for function \"" + expr->name + "\"\n", true);
@@ -506,6 +353,7 @@ namespace phantom {
 
     return {builder->CreateCall(calle_fn, args_values, expr->name), calle_fn->getReturnType()};
   }
+  ExpressionInfo Visitor::lvalue(FnCallExpr* expr) { return {}; }
 
   ExpressionInfo Visitor::visit(ReturnStt* stt) {
     llvm::BasicBlock* current_block = builder->GetInsertBlock();
@@ -522,7 +370,7 @@ namespace phantom {
       return {builder->CreateRetVoid(), llvm::Type::getVoidTy(*context)};
 
     // return value
-    ExpressionInfo return_expr = stt->expr->accept(this);
+    ExpressionInfo return_expr = stt->expr->rvalue(this);
 
     if (!return_expr.value)
       Report("Unexpected error in return statement for function \"" + std::string(current_function->getName()) + "\"\n", true);
@@ -548,7 +396,7 @@ namespace phantom {
   }
 
   ExpressionInfo Visitor::visit(ExprStt* stt) {
-    return stt->expr->accept(this);
+    return stt->expr->rvalue(this);
   }
 
   ExpressionInfo Visitor::visit(VarDecStt* stt) {

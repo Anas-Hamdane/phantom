@@ -6,7 +6,7 @@ namespace phantom {
   Parser::Parser(std::vector<Token> tokens) : tokens(std::move(tokens)), index(0) {}
 
   // takes the name to simplify parse_primary()
-  std::unique_ptr<Expression> Parser::parse_function_call_expression(std::string name) {
+  std::unique_ptr<Expression> Parser::parse_function_call_expression(const std::string& name) {
     /* Form:
      *   name(arg1, arg2, ...)
      */
@@ -48,23 +48,20 @@ namespace phantom {
 
         return std::make_unique<RefExpr>(std::make_unique<IdentifierExpr>(consume().form));
 
-      case TokenType::STAR:
-        if (!match(TokenType::OPEN_PARENTHESIS)) {
-          if (!match(TokenType::IDENTIFIER))
-            Report("Expected identifier or open parenthesis after dereference operator\n", true);
+      case TokenType::STAR: {
+        auto expr = parse_primary();
+        return std::make_unique<DeRefExpr>(std::move(expr));
+      }
 
-          return std::make_unique<DeRefExpr>(std::make_unique<IdentifierExpr>(consume().form));
-        }
-
-        else {
-          consume(); // OPEN_PARENTHESIS
+      case TokenType::DATA_TYPE:
+        if (match(TokenType::EQUAL)) {
+          consume(); // =
           auto expr = parse_expression();
 
-          if (!match(TokenType::CLOSE_PARENTHESIS))
-            Report("Expected \")\"", true);
-
-          return std::make_unique<DeRefExpr>(std::move(expr));
+          return std::make_unique<DataTypeExpr>(std::move(expr), token.form);
         }
+
+        return std::make_unique<DataTypeExpr>(nullptr, token.form);
 
       case TokenType::IDENTIFIER:
         if (match(TokenType::OPEN_PARENTHESIS))
@@ -261,9 +258,8 @@ namespace phantom {
   std::unique_ptr<Statement> Parser::parse_variable_declaration() {
     /*
      * Forms:
-     *   let x = 1;
-     *   let(type) x; // type is required
-     *   let(type) x = 1; // type is optional
+     *   let x = 1; // type is not required (automatically detected)
+     *   let x: int; // type is required (can't be detected)
      */
     consume(); // let
 
@@ -271,43 +267,18 @@ namespace phantom {
     std::string type;
 
     const std::string error_msg = "Incorrect variable declaration, use:\n"
-                                  "\"let name = 1;\"\n"
-                                  "\"let(type) name; // type is required\"\n"
-                                  "\"let(type) name = 1; // type is optional\"\n";
-
-    // check if type is specified
-    if (match(TokenType::OPEN_PARENTHESIS)) {
-      consume(); // (
-
-      if (!(match(TokenType::DATA_TYPE) || match(TokenType::CLOSE_PARENTHESIS)))
-        Report(error_msg, true);
-
-      if (match(TokenType::DATA_TYPE))
-        type = consume().form;
-
-      if (!match(TokenType::CLOSE_PARENTHESIS))
-        Report(error_msg, true);
-
-      consume(); // )
-    }
+                                  "\"let x = 1; // type is not required\"\n"
+                                  "\"let x: int; // type is required\"\n";
 
     if (!match(TokenType::IDENTIFIER))
       Report(error_msg, true);
 
     name = consume().form;
 
-    if (match(TokenType::SEMI_COLON)) {
-      if (type.empty())
-        Report(error_msg, true);
-
-      consume(); // ;
-      return std::make_unique<VarDecStt>(Variable(name, type), nullptr);
-    }
-
-    if (!match(TokenType::EQUAL))
+    if (!match(TokenType::EQUAL) && !match(TokenType::COLON))
       Report(error_msg, true);
 
-    consume(); // "="
+    consume(); // = or :
     auto expr = parse_expression();
 
     if (!match(TokenType::SEMI_COLON))
@@ -361,6 +332,7 @@ namespace phantom {
         return parse_expr_stt();
 
       default:
+        consume(); // advance one token to avoid endless loops
         return nullptr;
     };
   }

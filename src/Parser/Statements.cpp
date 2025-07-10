@@ -1,4 +1,4 @@
-#include <LLVMVisitor/Visitor.hpp>
+#include <LLVMCodeGen/Visitor.hpp>
 #include <Parser/Statements.hpp>
 
 namespace phantom {

@@ -20,7 +20,7 @@ namespace phantom {
     bool match(TokenType token, off_t offset = 0) const;
 
     // function call expression parsing
-    std::unique_ptr<Expression> parse_function_call_expression(std::string name);
+    std::unique_ptr<Expression> parse_function_call_expression(const std::string& name);
 
     // Expression parsing
     std::unique_ptr<Expression> parse_primary();
@@ -46,7 +46,7 @@ namespace phantom {
     // statements parsing
     std::unique_ptr<Statement> parse_statement();
 
-    const static int precedence(const TokenType type) {
+    static int precedence(const TokenType type) {
       switch (type) {
         case TokenType::EQUAL:
           return 5;
@@ -61,7 +61,7 @@ namespace phantom {
       }
     }
 
-    const static bool right_associative(const TokenType type) {
+    static bool right_associative(const TokenType type) {
       return type == TokenType::EQUAL;
     }
 

@@ -1,6 +1,6 @@
 #include <Lexer/Lexer.hpp>
 #include <Parser/Parser.hpp>
-#include <LLVMVisitor/Visitor.hpp>
+#include <LLVMCodeGen/Visitor.hpp>
 
 #include <fstream>
 #include <sstream>

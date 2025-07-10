@@ -56,14 +56,13 @@ C-like rules:
 ### Variable Declaration
 ```
 // declaration without initialization
-let(type) x; // type is required
+let x: type; // type is required
 
 // declaration with initialization
-let(int) x = 1; // type is optional
 let x = 1; // automatically set to `int`
 
 // referencing
-let(ptr) y;
+let y: ptr;
 let y = &x;
 
 // dereferencing

@@ -127,7 +127,7 @@ namespace phantom {
   Token Lexer::handle_words() {
     std::string lexeme;
 
-    while (alpha_digit(peek()))
+    while (alpha_digit(peek()) || peek() == '_')
       lexeme.push_back(consume());
 
     Token token(Location(line_number, index));
