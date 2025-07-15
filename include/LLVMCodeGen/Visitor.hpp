@@ -1,6 +1,8 @@
 #ifndef PHANTOM_LLVM_VISITOR_HPP
 #define PHANTOM_LLVM_VISITOR_HPP
 
+#include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/IR/Verifier.h>
 
 #include <LLVMCodeGen/Operation.hpp>
@@ -9,21 +11,34 @@
 
 namespace phantom {
   class Visitor {
-    std::unique_ptr<llvm::LLVMContext> context;
-    std::unique_ptr<llvm::Module> module;
+    std::shared_ptr<llvm::LLVMContext> context;
+    std::shared_ptr<llvm::IRBuilder<>> builder;
+    std::shared_ptr<llvm::Module> module;
 
     std::unordered_map<std::string, Variable> named_variables;
+    std::unique_ptr<Operation> operation;
 
-    std::shared_ptr<llvm::IRBuilder<>> builder;
-    Operation operation;
+    // optimizations
+    std::shared_ptr<llvm::FunctionPassManager> FPM = nullptr;
+    std::shared_ptr<llvm::FunctionAnalysisManager> FAM = nullptr;
+    std::shared_ptr<llvm::LoopAnalysisManager> LAM = nullptr;
+    std::shared_ptr<llvm::ModuleAnalysisManager> MAM = nullptr;
+    std::shared_ptr<llvm::CGSCCAnalysisManager> CGAM = nullptr;
 
 public:
-    Visitor(const std::string& module_name);
+    Visitor(std::shared_ptr<llvm::LLVMContext> context,
+            std::shared_ptr<llvm::IRBuilder<>> builder,
+            std::shared_ptr<llvm::Module> module);
+
+    void set_optimizations(std::shared_ptr<llvm::FunctionPassManager> FPM = nullptr,
+                           std::shared_ptr<llvm::FunctionAnalysisManager> FAM = nullptr,
+                           std::shared_ptr<llvm::LoopAnalysisManager> LAM = nullptr,
+                           std::shared_ptr<llvm::ModuleAnalysisManager> MAM = nullptr,
+                           std::shared_ptr<llvm::CGSCCAnalysisManager> CGAM = nullptr);
 
     // helper function for casting
     ExpressionInfo global_var_dec(VarDecStt* stt);
     ExpressionInfo local_var_dec(VarDecStt* stt);
-    void print_representation() const;
     llvm::Value* cast(llvm::Value* src, llvm::Type* dst, std::string error_msg);
 
     ExpressionInfo rvalue(DataTypeExpr* expr);

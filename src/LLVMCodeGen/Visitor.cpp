@@ -1,14 +1,23 @@
 #include <LLVMCodeGen/Visitor.hpp>
 
 namespace phantom {
-  Visitor::Visitor(const std::string& module_name)
-      : context(std::make_unique<llvm::LLVMContext>()),
-        module(std::make_unique<llvm::Module>(module_name, *context)),
-        builder(std::make_shared<llvm::IRBuilder<>>(*context)),
-        operation(builder) {}
+  Visitor::Visitor(std::shared_ptr<llvm::LLVMContext> context,
+                   std::shared_ptr<llvm::IRBuilder<>> builder,
+                   std::shared_ptr<llvm::Module> module)
+      : context(context), builder(builder), module(module),
+        operation(std::make_unique<Operation>(builder)) {}
 
-  void Visitor::print_representation() const {
-    module->print(llvm::outs(), nullptr);
+  void Visitor::set_optimizations(std::shared_ptr<llvm::FunctionPassManager> FPM,
+                                  std::shared_ptr<llvm::FunctionAnalysisManager> FAM,
+                                  std::shared_ptr<llvm::LoopAnalysisManager> LAM,
+                                  std::shared_ptr<llvm::ModuleAnalysisManager> MAM,
+                                  std::shared_ptr<llvm::CGSCCAnalysisManager> CGAM) {
+
+    this->FPM = FPM;
+    this->FAM = FAM;
+    this->LAM = LAM;
+    this->MAM = MAM;
+    this->CGAM = CGAM;
   }
 
   llvm::Value* Visitor::cast(llvm::Value* src, llvm::Type* dst, std::string error_msg) {
@@ -42,43 +51,31 @@ namespace phantom {
     llvm::Value* value = nullptr;
 
     std::string name = stt->variable.name;
-    std::string raw_type = stt->variable.raw_type;
 
-    if (raw_type.empty() && !stt->initializer)
+    if (!stt->initializer)
       Report("Can not initialize type for variable \"" + name + "\"\n", true);
 
-    if (!raw_type.empty())
-      variable_type = get_llvm_type(raw_type);
+    // initializer available
+    ExpressionInfo init = stt->initializer->rvalue(this);
 
-    if (stt->initializer) {
-      ExpressionInfo init = stt->initializer->rvalue(this);
+    if (!init.value || !init.type)
+      Report("Internal compiler error: not enough informations about variable\"" + name + "\"\n", true);
 
-      if (!init.value || !init.type)
-        Report("Internal compiler error: not enough informations about variable\"" + name + "\"\n", true);
+    value = init.value;
+    variable_type = init.type;
 
-      value = init.value;
+    if (variable_type->isPointerTy() && init.variable)
+      stt->variable.ptr_to_variable = init.variable;
 
-      if (!variable_type)
-        variable_type = init.type;
+    else if (variable_type != value->getType()) {
+      std::string cast_error = "Invalid operation: casting \"" +
+                               get_string_type(value->getType()) + "\" to \"" +
+                               get_string_type(variable_type) + "\", for variable \"" + name + "\"\n";
 
-      if (variable_type->isPointerTy() && init.variable) {
-        if (init.variable->type->isPointerTy())
-          stt->variable.ptr_to_type = init.variable->ptr_to_type;
-
-        else
-          stt->variable.ptr_to_type = init.variable->type;
-      }
-
-      else if (variable_type != value->getType()) {
-        std::string cast_error = "Invalid operation: casting \"" +
-                                 get_string_type(value->getType()) + "\" to \"" +
-                                 get_string_type(variable_type) + "\", for variable \"" + name + "\"\n";
-
-        value = cast(value, variable_type, cast_error);
-      }
-
-      constant_init = llvm::dyn_cast<llvm::Constant>(value);
+      value = cast(value, variable_type, cast_error);
     }
+
+    constant_init = llvm::dyn_cast<llvm::Constant>(value);
 
     // declare the global variable
     llvm::GlobalVariable* global_variable = new llvm::GlobalVariable(
@@ -103,40 +100,28 @@ namespace phantom {
     llvm::Value* value = nullptr;
 
     std::string name = stt->variable.name;
-    std::string raw_type = stt->variable.raw_type;
 
-    if (raw_type.empty() && !stt->initializer)
+    if (!stt->initializer)
       Report("Can not initialize type for variable \"" + name + "\"\n", true);
 
-    if (!raw_type.empty())
-      variable_type = get_llvm_type(raw_type);
+    // initializer available
+    ExpressionInfo init = stt->initializer->rvalue(this);
 
-    if (stt->initializer) {
-      ExpressionInfo init = stt->initializer->rvalue(this);
+    if (!init.value || !init.type)
+      Report("Internal compiler error: not enough informations about variable\"" + name + "\"\n", true);
 
-      if (!init.value || !init.type)
-        Report("Internal compiler error: not enough informations about variable\"" + name + "\"\n", true);
+    value = init.value;
+    variable_type = init.type;
 
-      value = init.value;
+    if (variable_type->isPointerTy() && init.variable)
+      stt->variable.ptr_to_variable = init.variable;
 
-      if (!variable_type)
-        variable_type = init.type;
+    else if (variable_type != value->getType()) {
+      std::string cast_error = "Invalid operation: casting \"" +
+                               get_string_type(value->getType()) + "\" to \"" +
+                               get_string_type(variable_type) + "\", for variable \"" + name + "\"\n";
 
-      if (variable_type->isPointerTy() && init.variable) {
-        if (init.variable->type->isPointerTy())
-          stt->variable.ptr_to_type = init.variable->ptr_to_type;
-
-        else
-          stt->variable.ptr_to_type = init.variable->type;
-      }
-
-      else if (variable_type != value->getType()) {
-        std::string cast_error = "Invalid operation: casting \"" +
-                                 get_string_type(value->getType()) + "\" to \"" +
-                                 get_string_type(variable_type) + "\", for variable \"" + name + "\"\n";
-
-        value = cast(value, variable_type, cast_error);
-      }
+      value = cast(value, variable_type, cast_error);
     }
 
     // create the alloca instruction
@@ -264,17 +249,17 @@ namespace phantom {
 
   ExpressionInfo Visitor::rvalue(BinOpExpr* expr) {
     if (expr->op == TokenType::EQUAL)
-      return operation.asgn(expr->left->lvalue(this), expr->right->rvalue(this));
+      return operation->asgn(expr->left->lvalue(this), expr->right->rvalue(this));
 
     switch (expr->op) {
       case TokenType::PLUS:
-        return operation.add(expr->left->rvalue(this), expr->right->rvalue(this));
+        return operation->add(expr->left->rvalue(this), expr->right->rvalue(this));
       case TokenType::MINUS:
-        return operation.sub(expr->left->rvalue(this), expr->right->rvalue(this));
+        return operation->sub(expr->left->rvalue(this), expr->right->rvalue(this));
       case TokenType::STAR:
-        return operation.mul(expr->left->rvalue(this), expr->right->rvalue(this));
+        return operation->mul(expr->left->rvalue(this), expr->right->rvalue(this));
       case TokenType::SLASH:
-        return operation.div(expr->left->rvalue(this), expr->right->rvalue(this));
+        return operation->div(expr->left->rvalue(this), expr->right->rvalue(this));
       default:
         Report("invalid binary operator", true);
     }
@@ -296,38 +281,32 @@ namespace phantom {
   ExpressionInfo Visitor::lvalue(RefExpr* expr) { return {}; }
 
   ExpressionInfo Visitor::rvalue(DeRefExpr* expr) {
-    ExpressionInfo expr_inf = expr->ptr_expr->lvalue(this);
+    // loaded value
+    ExpressionInfo pointer_expr = expr->ptr_expr->rvalue(this);
 
-    if (!expr_inf.variable)
+    if (!pointer_expr.variable)
       Report("Dereferencing operations only supports direct identifiers\n", true);
 
-    Variable* variable = expr_inf.variable;
+    if (!pointer_expr.variable->ptr_to_variable)
+      Report("Trying to dereference a non-pointer type \"" + pointer_expr.variable->name + "\"\n", true);
 
-    if (!variable || !variable->value || !variable->type)
-      Report("Undefined dereference to variable \"" + variable->name + "\"\n", true);
+    Variable* variable = pointer_expr.variable->ptr_to_variable;
 
-    if (!variable->type->isPointerTy())
-      Report("Trying to dereference a non-pointer type \"" + variable->name + "\"\n", true);
-
-    llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
-    return {builder->CreateLoad(variable->ptr_to_type, ptr_value), variable->ptr_to_type, variable};
+    return {builder->CreateLoad(variable->type, pointer_expr.value), variable->type, variable};
   }
   ExpressionInfo Visitor::lvalue(DeRefExpr* expr) {
-    ExpressionInfo expr_inf = expr->ptr_expr->lvalue(this);
+    // do not load
+    ExpressionInfo pointer_expr = expr->ptr_expr->lvalue(this);
 
-    if (!expr_inf.variable)
+    if (!pointer_expr.variable)
       Report("Dereferencing operations only supports direct identifiers\n", true);
 
-    Variable* variable = expr_inf.variable;
+    if (!pointer_expr.variable->ptr_to_variable)
+      Report("Trying to dereference a non-pointer type \"" + pointer_expr.variable->name + "\"\n", true);
 
-    if (!variable || !variable->value || !variable->type)
-      Report("Undefined dereference to variable \"" + variable->name + "\"\n", true);
+    Variable* next_variable = pointer_expr.variable->ptr_to_variable;
 
-    if (!variable->type->isPointerTy())
-      Report("Trying to dereference a non-pointer type \"" + variable->name + "\"\n", true);
-
-    llvm::Value* ptr_value = builder->CreateLoad(variable->type, variable->value);
-    return {ptr_value, variable->type, variable};
+    return {builder->CreateLoad(pointer_expr.type, pointer_expr.value), pointer_expr.type, next_variable};
   }
 
   ExpressionInfo Visitor::rvalue(FnCallExpr* expr) {
@@ -417,11 +396,13 @@ namespace phantom {
     param_types.reserve(stt->params.size());
 
     for (auto& param : stt->params) {
-      param.type = get_llvm_type(param.raw_type);
-      llvm::Type* param_type = param.type;
+      ExpressionInfo param_info = param->initializer->rvalue(this);
+
+      param->variable.type = param_info.type;
+      llvm::Type* param_type = param->variable.type;
 
       if (!param_type)
-        Report("Unrecognized data type \"" + param.raw_type + "\": \"" + param.name + "\"\n", true);
+        Report("Unrecognized data type \"" + get_string_type(param_type) + "\": \"" + param->variable.name + "\"\n", true);
 
       param_types.push_back(param_type);
     }
@@ -480,7 +461,7 @@ namespace phantom {
       llvm::AllocaInst* alloca = builder->CreateAlloca(arg.getType());
       builder->CreateStore(&arg, alloca);
 
-      std::string name = stt->declaration->params[idx].name;
+      std::string name = stt->declaration->params[idx]->variable.name;
       named_variables[name] = Variable(name, alloca, alloca->getAllocatedType());
       ++idx;
     }
@@ -529,6 +510,10 @@ namespace phantom {
       fn->eraseFromParent();
       return nullptr;
     }
+
+    // optimize the function
+    if (FPM && FAM)
+      FPM->run(*fn, *FAM);
 
     return {fn};
   }

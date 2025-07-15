@@ -5,9 +5,6 @@
  */
 
 #include <iostream>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
 
 namespace phantom {
   // 8-bit integer
@@ -41,6 +38,8 @@ namespace phantom {
   // 128-bit float (quad)
   constexpr long double QUAD_MAX_VAL = 1.189731495357231765e+4932Q;
   constexpr long double QUAD_MIN_VAL = (-QUAD_MAX_VAL);
+
+  constexpr char compiler_metadata[] = "phantom";
 
   // clang-format off
   #if defined(_WIN32) || defined(_WIN64)

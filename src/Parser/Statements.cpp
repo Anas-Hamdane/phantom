@@ -21,7 +21,7 @@ namespace phantom {
   ExpressionInfo FnDefStt::accept(Visitor* visitor) { return visitor->visit(this); }
 
   FnDecStt::FnDecStt(std::string name, std::string type,
-                     std::vector<Variable> params)
+                     std::vector<std::unique_ptr<VarDecStt>> params)
       : name(name), type(type), params(std::move(params)) {}
   ExpressionInfo FnDecStt::accept(Visitor* visitor) { return visitor->visit(this); }
 } // namespace phantom

@@ -90,7 +90,7 @@ namespace phantom {
     }
 
     else if (left.type->isPointerTy() && right.type->isIntegerTy()) {
-      llvm::Type* ptr_to_type = left.variable->ptr_to_type;
+      llvm::Type* ptr_to_type = left.variable->ptr_to_variable->type;
 
       if (!ptr_to_type)
         Report("Internal compiler error: Unexpected pointer-to type\n");
@@ -100,7 +100,7 @@ namespace phantom {
     }
 
     else if (left.type->isIntegerTy() && right.type->isPointerTy()) {
-      llvm::Type* ptr_to_type = right.variable->ptr_to_type;
+      llvm::Type* ptr_to_type = right.variable->ptr_to_variable->type;
 
       if (!ptr_to_type)
         Report("Internal compiler error: Unexpected pointer-to type\n");
@@ -116,8 +116,8 @@ namespace phantom {
   }
 
   ExpressionInfo Operation::sub(ExpressionInfo left, ExpressionInfo right) {
-    if (!left.value || right.value)
-      Report("Invalid pointer arithmetic: addition for null values\n", true);
+    if (!left.value || !right.value)
+      Report("Invalid pointer arithmetic: substraction for null values\n", true);
 
     if (left.type->isFloatingPointTy() && right.type->isPointerTy() ||
         left.type->isPointerTy() && right.type->isFloatingPointTy())
@@ -146,7 +146,7 @@ namespace phantom {
       Report("ptr - ptr is not implemented yet\n", true);
 
     else if (left.type->isPointerTy() && right.type->isIntegerTy()) {
-      llvm::Type* ptr_to_type = left.variable->ptr_to_type;
+      llvm::Type* ptr_to_type = left.variable->ptr_to_variable->type;
 
       if (!ptr_to_type)
         Report("Internal compiler error: Unexpected pointer-to type\n");
@@ -166,7 +166,7 @@ namespace phantom {
 
   ExpressionInfo Operation::mul(ExpressionInfo left, ExpressionInfo right) {
     if (!left.value || !right.value)
-      Report("Invalid pointer arithmetic: addition for null values\n", true);
+      Report("Invalid pointer arithmetic: multiplication for null values\n", true);
 
     if (left.type->isPointerTy() || right.type->isPointerTy())
       Report("Invalid pointer arithmetic expression: ptr * n/f/ptr is undefined\n", true);
@@ -195,7 +195,7 @@ namespace phantom {
 
   ExpressionInfo Operation::div(ExpressionInfo left, ExpressionInfo right) {
     if (!left.value || !right.value)
-      Report("Invalid pointer arithmetic: addition for null values\n", true);
+      Report("Invalid pointer arithmetic: division for null values\n", true);
 
     if (left.type->isPointerTy() || right.type->isPointerTy())
       Report("Invalid pointer arithmetic expression: ptr / n/f/ptr is undefined\n", true);

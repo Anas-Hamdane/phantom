@@ -146,7 +146,7 @@ namespace phantom {
     return std::make_unique<ReturnStt>(std::move(expr));
   }
 
-  Variable Parser::parse_param() {
+  std::unique_ptr<VarDecStt> Parser::parse_param() {
     /*
      * Form:
      *   arg: type
@@ -181,7 +181,7 @@ namespace phantom {
         consume(); // ,
     }
 
-    return {name, type};
+    return std::make_unique<VarDecStt>(Variable(name), std::make_unique<DataTypeExpr>(nullptr, type));
   }
 
   std::unique_ptr<Statement> Parser::parse_function() {
@@ -195,7 +195,7 @@ namespace phantom {
 
     std::string name;
     std::string type;
-    std::vector<Variable> params;
+    std::vector<std::unique_ptr<VarDecStt>> params;
 
     const std::string error_msg = "Incorrect function signature use: "
                                   "\n\"fn name(arg: type) => return_type;\" or:"
@@ -217,7 +217,7 @@ namespace phantom {
     consume(); // '('
 
     while (peek().type != TokenType::CLOSE_PARENTHESIS)
-      params.push_back(parse_param());
+      params.push_back(std::move(parse_param()));
 
     consume(); // ')'
 
@@ -239,7 +239,7 @@ namespace phantom {
       Report(error_msg);
 
     // now we have completed the declaration
-    auto declaration = std::make_unique<FnDecStt>(name, type, params);
+    auto declaration = std::make_unique<FnDecStt>(name, type, std::move(params));
 
     // just declaration
     if (match(TokenType::SEMI_COLON)) return std::move(declaration);
@@ -264,8 +264,6 @@ namespace phantom {
     consume(); // let
 
     std::string name;
-    std::string type;
-
     const std::string error_msg = "Incorrect variable declaration, use:\n"
                                   "\"let x = 1; // type is not required\"\n"
                                   "\"let x: int; // type is required\"\n";
@@ -286,7 +284,7 @@ namespace phantom {
 
     consume(); // ;
 
-    return std::make_unique<VarDecStt>(Variable(name, type), std::move(expr));
+    return std::make_unique<VarDecStt>(Variable(name), std::move(expr));
   }
 
   std::unique_ptr<Statement> Parser::parse_keyword() {

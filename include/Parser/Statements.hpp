@@ -54,10 +54,10 @@ public:
 public:
     std::string name;
     std::string type;
-    std::vector<Variable> params;
+    std::vector<std::unique_ptr<VarDecStt>> params;
 
     FnDecStt(std::string name, std::string type,
-             std::vector<Variable> params);
+             std::vector<std::unique_ptr<VarDecStt>> params);
     ExpressionInfo accept(Visitor* visitor) override;
   };
 
