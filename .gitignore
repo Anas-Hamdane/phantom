@@ -1,10 +1,9 @@
 build
 .cache
 notes.txt
-test
 .idea
 cmake-build-release
 cmake-build-debug
 .vscode
 todo.txt
-old
+garbage

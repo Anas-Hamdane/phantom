@@ -10,7 +10,7 @@ namespace phantom {
     const std::string source;
     const Logger& logger;
     size_t line_number;
-    size_t line_column;
+    size_t column_number;
     size_t index;
 
     char peek(const off_t offset = 0) const;
@@ -53,7 +53,7 @@ namespace phantom {
 
 public:
     explicit Lexer(const std::string& source, const Logger& logger)
-      : source(source), logger(logger), line_number(1), line_column(0), index(0) {}
+      : source(source), logger(logger), line_number(1), column_number(1), index(0) {}
 
     std::vector<Token> lex();
   };

@@ -24,6 +24,8 @@ namespace phantom {
     COMMA,             // ,
     OPEN_PARENTHESIS,  // (
     CLOSE_PARENTHESIS, // )
+    OPEN_BRACKET,      // [
+    CLOSE_BRACKET,     // ]
     OPEN_CURLY_BRACE,  // {
     CLOSE_CURLY_BRACE, // }
     EQUAL,             // =
@@ -77,7 +79,7 @@ namespace phantom {
       "short", // 16-bit integer
   };
 
-  constexpr const std::array<char, 16> punctuation{
+  constexpr const std::array<char, 18> punctuation{
       '&',
       '(',
       ')',
@@ -91,6 +93,8 @@ namespace phantom {
       '<',
       '=',
       '>',
+      '[',
+      ']',
       '{',
       '|',
       '}',
@@ -141,6 +145,10 @@ namespace phantom {
           return TokenType::BAR;
         case '}':
           return TokenType::CLOSE_CURLY_BRACE;
+        case '[':
+          return TokenType::OPEN_BRACKET;
+        case ']':
+          return TokenType::CLOSE_BRACKET;
         default:
           return TokenType::INVALID;
       }
@@ -198,6 +206,10 @@ namespace phantom {
           return "OPEN_PARENTHESIS";
         case TokenType::INVALID:
           return "INVALID";
+        case TokenType::OPEN_BRACKET:
+          return "OPEN_BRACKET";
+        case TokenType::CLOSE_BRACKET:
+          return "CLOSE_BRACKET";
         default:
           return "UNKNOWN";
       }

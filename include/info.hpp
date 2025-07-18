@@ -6,12 +6,12 @@
 
 namespace phantom {
   struct FileInfo {
-    std::string file_path;
+    std::string path;
     std::string content;
     std::vector<std::string> content_lines;
 
     FileInfo(const std::string& file_path, const std::string& content, const std::vector<std::string>& content_lines)
-      : file_path(file_path), content(content), content_lines(content_lines) {}
+      : path(file_path), content(content), content_lines(content_lines) {}
   };
 
   struct Location {

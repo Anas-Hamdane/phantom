@@ -9,6 +9,10 @@ namespace phantom {
     return source[index + offset];
   }
 
+  /*
+   * TODO: i think there may be a problem for column_number
+   * if we consume +1 characters.
+   */
   char Lexer::consume(const off_t offset) {
     char this_character;
 
@@ -19,11 +23,11 @@ namespace phantom {
 
     if (new_line(this_character)) {
       line_number++;
-      line_column = 1;
+      column_number = 0;
     }
 
     index += offset;
-    line_column += offset;
+    column_number += offset;
     return this_character;
   }
 
@@ -127,7 +131,7 @@ namespace phantom {
   }
 
   Token Lexer::invalid_token(std::string form) {
-    return Token(TokenType::INVALID, form, Location(line_number, index));
+    return Token(TokenType::INVALID, form, Location(line_number, column_number));
   }
 
   Token Lexer::handle_numerics() {
@@ -153,22 +157,22 @@ namespace phantom {
 
     // Checking for errors
     if (invalid_characters != 0) {
-      logger.log(Logger::Level::ERROR, "Invalid character in number literal", {line_number, line_column});
+      logger.log(Logger::Level::ERROR, "Invalid character in number literal", {line_number, column_number});
       return invalid_token(lexeme);
     }
 
     if (dots > 1) {
-      logger.log(Logger::Level::ERROR, "One '.' allowed in number literal", {line_number, line_column});
+      logger.log(Logger::Level::ERROR, "One '.' allowed in number literal", {line_number, column_number});
       return invalid_token(lexeme);
     }
 
     if (suffixes > 1) {
-      logger.log(Logger::Level::ERROR, "One suffixe allowed in number literal", {line_number, line_column});
+      logger.log(Logger::Level::ERROR, "One suffixe allowed in number literal", {line_number, column_number});
       return invalid_token(lexeme);
     }
 
     else if (suffixes == 1 && (!float_suffix(lexeme.back()) && !double_suffixe(lexeme.back()))) {
-      logger.log(Logger::Level::ERROR, "Suffixes only allowed at the end of a number literal", {line_number, line_column});
+      logger.log(Logger::Level::ERROR, "Suffixes only allowed at the end of a number literal", {line_number, column_number});
       return invalid_token(lexeme);
     }
 
@@ -176,11 +180,11 @@ namespace phantom {
 
     // float and double case
     if (dots != 0 || suffixes != 0)
-      return Token(TokenType::FLOAT_LITERAL, lexeme, Location(line_number, index));
+      return Token(TokenType::FLOAT_LITERAL, lexeme, Location(line_number, column_number));
 
     // int case
     else
-      return Token(TokenType::INTEGER_LITERAL, lexeme, Location(line_number, index));
+      return Token(TokenType::INTEGER_LITERAL, lexeme, Location(line_number, column_number));
   }
 
   Token Lexer::handle_words() {
@@ -197,7 +201,7 @@ namespace phantom {
     else
       type = IDENTIFIER;
 
-    return Token(type, lexeme, {line_number, line_column});
+    return Token(type, lexeme, {line_number, column_number});
   }
 
   bool Lexer::escaped(size_t pos) {
@@ -228,11 +232,11 @@ namespace phantom {
       lexeme.push_back(consume()); // char
 
     if (peek() != '\'')
-      logger.log(Logger::Level::ERROR, "Expected closing single quote after character literal: got '" + std::string(1, peek()) + "'", {line_number, line_column});
+      logger.log(Logger::Level::ERROR, "Expected closing single quote after character literal: got '" + std::string(1, peek()) + "'", {line_number, column_number});
 
     consume(); // '
 
-    return Token(TokenType::CHAR_LITERAL, lexeme, Location(line_number, index));
+    return Token(TokenType::CHAR_LITERAL, lexeme, Location(line_number, column_number));
   }
 
   Token Lexer::eat_string() {
@@ -248,23 +252,22 @@ namespace phantom {
     }
 
     if (peek() != '"')
-      logger.log(Logger::Level::ERROR, "Unterminated string literal", {line_number, line_column});
+      logger.log(Logger::Level::ERROR, "Unterminated string literal", {line_number, column_number});
 
     consume(); // "
 
-    return Token(TokenType::STRING_LITERAL, lexeme, Location(line_number, index));
+    return Token(TokenType::STRING_LITERAL, lexeme, Location(line_number, column_number));
   }
 
   std::vector<Token> Lexer::lex() {
     std::vector<Token> tokens;
 
-    std::string lexeme;
     while (true) {
       char character = peek();
 
       // base case
       if (character == '\0') {
-        tokens.emplace_back(TokenType::ENDOFFILE, Location(line_number, index));
+        tokens.emplace_back(TokenType::ENDOFFILE, Location(line_number, column_number));
         break;
       }
 
@@ -281,7 +284,7 @@ namespace phantom {
           consume();
 
         if (match('\0'))
-          logger.log(Logger::Level::WARNING, "Unterminated comment block", {line_number, line_column});
+          logger.log(Logger::Level::WARNING, "Unterminated comment block", {line_number, column_number});
 
         else
           consume(2); // '*/'
@@ -297,10 +300,11 @@ namespace phantom {
       else if (character == '\"')
         tokens.push_back(eat_string());
 
-      else if (recognize_punctuation(character) != -1)
-        tokens.emplace_back(Token::punctuation_type(character),
-                            std::string(1, consume()),
-                            Location(line_number, index));
+      else if (recognize_punctuation(character) != -1) {
+        TokenType type = Token::punctuation_type(character);
+        tokens.emplace_back(type, std::string(1, character), Location(line_number, column_number));
+        consume();
+      }
 
       else if (digit(character))
         tokens.push_back(handle_numerics());
@@ -311,7 +315,7 @@ namespace phantom {
       else
         tokens.emplace_back(TokenType::INVALID,
                             std::string(1, consume()),
-                            Location(line_number, index));
+                            Location(line_number, column_number));
     }
 
     return tokens;

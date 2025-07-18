@@ -35,7 +35,7 @@ private:
     std::string log_level(Level level) const;
     std::string log_level_formatted(Level level) const;
 
-    std::string file_path(Level level, const std::string& path) const;
+    std::string file_path(Level level, const Location& path) const;
   };
 } // namespace phantom
 

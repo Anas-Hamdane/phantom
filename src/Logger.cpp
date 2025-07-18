@@ -55,38 +55,42 @@ namespace phantom {
     return "";
   }
 
-  std::string Logger::file_path(Level level, const std::string& path) const {
+  std::string Logger::file_path(Level level, const Location& location) const {
     std::string result;
     if (colored)
       result += std::string(this->UNDERLINE) + level_color(level);
 
-    result += path;
+    result += location.file.path;
+
+    if (location.line != 0) result += ':' + std::to_string(location.line);
+    if (location.column != 0) result += ':' + std::to_string(location.column);
 
     if (colored)
       result += std::string(this->RESET);
+
+    result += '\n';
 
     return result;
   }
 
   void Logger::log(Level level, const std::string& message, const Location& location, const bool exit_, FILE* stream) const {
-    std::string complete_message = "[" + log_level(level) + "] -> " + file_path(level, location.file.file_path);
+    std::string complete_message = "[" + log_level(level) + "] -> " + file_path(level, location);
 
     std::string line = std::to_string(location.line);
-    if (location.line != 0) complete_message += line + ":";
-    if (location.column != 0) complete_message += std::to_string(location.column) + "\n";
 
-    if (location.line != 0 && (location.line < location.file.content.size())) {
-      complete_message += std::string(" ", line.length() + 1) + "|\n";
-      complete_message += line + " | " + location.file.content[location.line] + "\n";
-      complete_message += std::string(" ", line.length() + 1) + "| ";
+    if (location.line != 0 && ((location.line - 1) < location.file.content.size())) {
+      complete_message += std::string(line.length() + 1, ' ') + "|\n";
+      complete_message += line + " | " + location.file.content_lines[location.line - 1] + "\n";
+      complete_message += std::string(line.length() + 1, ' ') + "| ";
 
       if (location.column != 0)
-        complete_message += std::string(" ", location.column - 1) + "^";
+        complete_message += std::string(location.column - 1, ' ') + "^";
 
-      complete_message.push_back('\n');
+      complete_message += '\n';
     }
 
-    complete_message += colored ? std::string(this->BOLD) : "" + message + "\n";
+    complete_message += colored ? (std::string(this->BOLD) + message) : message;
+    complete_message += '\n';
 
     if (stream)
       fwrite(complete_message.c_str(), 1, complete_message.length(), stream);
