@@ -14,6 +14,7 @@ file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
 )
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# 20.1.8
 find_package(LLVM REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")

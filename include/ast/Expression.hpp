@@ -18,11 +18,24 @@ public:
 
   class DataTypeExpr : public Expression {
 public:
-    const std::string form;
+    const std::string type;
     std::unique_ptr<Expression> value;
 
-    explicit DataTypeExpr(std::unique_ptr<Expression> value, const std::string& form)
-        : value(std::move(value)), form(form) {}
+    explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expression> value)
+        : type(type), value(std::move(value)) {}
+
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
+  };
+
+  class ArrTypeExpr : public Expression {
+public:
+    const std::string type;
+    std::unique_ptr<Expression> length;
+    std::unique_ptr<Expression> value;
+
+    explicit ArrTypeExpr(const std::string& type, std::unique_ptr<Expression> length, std::unique_ptr<Expression> value)
+        : type(type), length(std::move(length)), value(std::move(value)) {}
 
     ExprInfo rvalue(Visitor* visitor) override;
     ExprInfo lvalue(Visitor* visitor) override;
@@ -33,7 +46,7 @@ public:
     const std::string form;
     long long value; // always 8 bytes
 
-    explicit IntLitExpr(const std::string& form) : form(form) {}
+    explicit IntLitExpr(const std::string& form) : form(form), value(std::stol(form)) {}
 
     ExprInfo rvalue(Visitor* visitor) override;
     ExprInfo lvalue(Visitor* visitor) override;
@@ -44,7 +57,7 @@ public:
     const std::string form;
     long double value; // largest possible
 
-    explicit FloatLitExpr(const std::string& form) : form(form) {}
+    explicit FloatLitExpr(const std::string& form) : form(form), value(std::stold(form)) {}
 
     ExprInfo rvalue(Visitor* visitor) override;
     ExprInfo lvalue(Visitor* visitor) override;
@@ -65,7 +78,7 @@ public:
     const std::string form;
     bool value;
 
-    explicit BoolLitExpr(const std::string& form) : form(form) {}
+    explicit BoolLitExpr(const std::string& form) : form(form), value(form == "true") {}
 
     ExprInfo rvalue(Visitor* visitor) override;
     ExprInfo lvalue(Visitor* visitor) override;
@@ -76,6 +89,17 @@ public:
     const std::string value;
 
     explicit StrLitExpr(const std::string& value) : value(value) {}
+
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
+  };
+
+  class ArrLitExpr : public Expression {
+public:
+    std::vector<std::unique_ptr<Expression>> elements;
+
+    explicit ArrLitExpr(std::vector<std::unique_ptr<Expression>> elements)
+        : elements(std::move(elements)) {}
 
     ExprInfo rvalue(Visitor* visitor) override;
     ExprInfo lvalue(Visitor* visitor) override;

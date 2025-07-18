@@ -111,7 +111,7 @@ namespace phantom {
       ExprInfo init = stt->initializer->rvalue(this);
 
       if (!init.value || !init.type)
-        logger.log(Logger::Level::ERROR, "Internal compiler error: not enough informations about variable '" + name + "'", true);
+        logger.log(Logger::Level::FATAL, "Internal compiler error: not enough informations about variable '" + name + "'", true);
 
       value = init.value;
       variable_type = init.type;
@@ -160,7 +160,7 @@ namespace phantom {
       ExprInfo init = stt->initializer->rvalue(this);
 
       if (!init.value || !init.type)
-        logger.log(Logger::Level::ERROR, "Internal compiler error: not enough informations about variable '" + name + "'", true);
+        logger.log(Logger::Level::FATAL, "Internal compiler error: not enough informations about variable '" + name + "'", true);
 
       value = init.value;
       variable_type = init.type;
@@ -169,11 +169,11 @@ namespace phantom {
         stt->variable.ptr_to_variable = init.variable;
 
       else if (variable_type != value->getType()) {
-          std::string cast_error = "Invalid operation: casting \"" +
-                                   get_string_type(value->getType()) + "\" to \"" +
-                                   get_string_type(variable_type) + "\", for variable \"" + name + "\"\n";
+        std::string cast_error = "Invalid operation: casting \"" +
+                                 get_string_type(value->getType()) + "\" to \"" +
+                                 get_string_type(variable_type) + "\", for variable \"" + name + "\"\n";
 
-          value = cast(value, variable_type, cast_error);
+        value = cast(value, variable_type, cast_error);
       }
 
       // create the alloca instruction
@@ -194,7 +194,7 @@ namespace phantom {
 
     ExprInfo Visitor::rvalue(DataTypeExpr* expr) {
       llvm::Value* value = nullptr;
-      llvm::Type* type = get_llvm_type(expr->form);
+      llvm::Type* type = get_llvm_type(expr->type);
 
       if (expr->value)
         value = expr->value->rvalue(this).value;
@@ -212,11 +212,16 @@ namespace phantom {
         value = llvm::Constant::getNullValue(type);
 
       else
-        logger.log(Logger::Level::ERROR, "Unknown variable type: '" + expr->form + "'", true);
+        logger.log(Logger::Level::ERROR, "Unknown variable type: '" + expr->type + "'", true);
 
       return {value, type};
     }
     ExprInfo Visitor::lvalue(DataTypeExpr* expr) { return {}; }
+
+    ExprInfo Visitor::rvalue(ArrTypeExpr* expr) {
+      return {};
+    }
+    ExprInfo Visitor::lvalue(ArrTypeExpr* expr) { return {}; }
 
     ExprInfo Visitor::rvalue(IntLitExpr* expr) {
       llvm::Type* type = nullptr;
@@ -276,6 +281,66 @@ namespace phantom {
       return builder->CreateGlobalString(expr->value);
     }
     ExprInfo Visitor::lvalue(StrLitExpr* expr) { return {}; }
+
+    ExprInfo Visitor::rvalue(ArrLitExpr* expr) {
+      if (expr->elements.size() == 0) {
+        logger.log(Logger::Level::ERROR, "Empty array literals are not allowed");
+        return {};
+      }
+
+      bool can_be_const = true;
+      std::vector<llvm::Value*> values;
+      std::vector<llvm::Constant*> constants;
+
+      values.reserve(expr->elements.size());
+      constants.reserve(expr->elements.size());
+
+      llvm::Type* ref_type = expr->elements[0]->rvalue(this).type;
+
+      if (!ref_type)
+        logger.log(Logger::Level::FATAL, "internal compiler error: can't evaluate array literal reference type", true);
+
+      for (auto& element : expr->elements) {
+        ExprInfo expr = element->rvalue(this);
+
+        if (expr.type != ref_type) {
+          logger.log(Logger::Level::ERROR, "Array Literals can't have different data types");
+          return {};
+        }
+
+        if (!expr.value)
+          logger.log(Logger::Level::ERROR, "internal compiler error: can't evaluate array literal member value type", true);
+
+        values.push_back(expr.value);
+
+        if (can_be_const) {
+          if (auto constant = llvm::dyn_cast<llvm::Constant>(expr.value))
+            constants.push_back(constant);
+          else
+            can_be_const = false;
+        }
+      }
+
+      llvm::ArrayType* arr_type = llvm::ArrayType::get(ref_type, expr->elements.size());
+      if (can_be_const)
+        return {llvm::ConstantArray::get(arr_type, constants), arr_type};
+
+      // non-const arrays
+      if (!builder->GetInsertBlock()) {
+        logger.log(Logger::Level::ERROR, "non-const global arrays are not allowed");
+        return {};
+      }
+
+      llvm::AllocaInst* arr = builder->CreateAlloca(arr_type);
+
+      for (size_t i = 0; i < values.size(); ++i) {
+        llvm::Value* element_ptr = builder->CreateConstInBoundsGEP2_32(arr_type, arr, 0, i);
+        builder->CreateStore(values[i], element_ptr);
+      }
+
+      return {arr, arr_type};
+    }
+    ExprInfo Visitor::lvalue(ArrLitExpr* expr) { return {}; }
 
     ExprInfo Visitor::rvalue(IdeExpr* expr) {
       if (named_variables.find(expr->name) == named_variables.end())
@@ -374,9 +439,9 @@ namespace phantom {
       args_values.reserve(expr->args.size());
 
       for (size_t i = 0; i < expr->args.size(); ++i) {
-          ExprInfo arg_expr = expr->args[i]->rvalue(this);
+        ExprInfo arg_expr = expr->args[i]->rvalue(this);
 
-          if (!arg_expr.value)
+        if (!arg_expr.value)
           logger.log(Logger::Level::ERROR, "Unidentified argument value for function '" + expr->name + "'", true);
 
         args_values.push_back(arg_expr.value);
@@ -510,12 +575,12 @@ namespace phantom {
       // arguments handling
       size_t idx = 0;
       for (auto& arg : fn->args()) {
-          llvm::AllocaInst* alloca = builder->CreateAlloca(arg.getType());
-          builder->CreateStore(&arg, alloca);
+        llvm::AllocaInst* alloca = builder->CreateAlloca(arg.getType());
+        builder->CreateStore(&arg, alloca);
 
-          std::string name = stt->declaration->params[idx]->variable.name;
-          named_variables[name] = Variable(name, false, alloca, alloca->getAllocatedType());
-          ++idx;
+        std::string name = stt->declaration->params[idx]->variable.name;
+        named_variables[name] = Variable(name, false, alloca, alloca->getAllocatedType());
+        ++idx;
       }
 
       // Generate code for function body
@@ -528,24 +593,24 @@ namespace phantom {
       // adjust return value stuff
       llvm::BasicBlock* currentBlock = builder->GetInsertBlock();
       if (currentBlock && !currentBlock->getTerminator()) {
-          llvm::Type* ret_value = fn->getReturnType();
+        llvm::Type* ret_value = fn->getReturnType();
 
-          if (ret_value->isVoidTy())
-            builder->CreateRetVoid();
+        if (ret_value->isVoidTy())
+          builder->CreateRetVoid();
 
-          else if (ret_value->isIntegerTy())
-            // default return value if not specified:
-            // 0 for i1, i8, i32, i64
-            builder->CreateRet(llvm::ConstantInt::get(ret_value, 0));
+        else if (ret_value->isIntegerTy())
+          // default return value if not specified:
+          // 0 for i1, i8, i32, i64
+          builder->CreateRet(llvm::ConstantInt::get(ret_value, 0));
 
-          else if (ret_value->isFloatingPointTy())
-            builder->CreateRet(llvm::ConstantFP::get(ret_value, 0.0));
+        else if (ret_value->isFloatingPointTy())
+          builder->CreateRet(llvm::ConstantFP::get(ret_value, 0.0));
 
-          else if (ret_value->isPointerTy())
-            builder->CreateRet(llvm::Constant::getNullValue(ret_value));
+        else if (ret_value->isPointerTy())
+          builder->CreateRet(llvm::Constant::getNullValue(ret_value));
 
-          else
-            builder->CreateUnreachable();
+        else
+          builder->CreateUnreachable();
       }
 
       // clear this scope's variables

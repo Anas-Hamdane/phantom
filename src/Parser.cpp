@@ -1,29 +1,6 @@
 #include <Parser.hpp>
 
 namespace phantom {
-  // takes the name to simplify parse_primary()
-  std::unique_ptr<Expression> Parser::parse_function_call_expression(const std::string& name) {
-    /* Form:
-     *   name(arg1, arg2, ...)
-     */
-
-    if (!match(TokenType::OPEN_PARENTHESIS))
-      logger.log(Logger::Level::ERROR, "Expected '(' after function call '" + name + "'", peek().location);
-
-    consume(); // (
-
-    std::vector<std::unique_ptr<Expression>> args;
-    while (!match(TokenType::CLOSE_PARENTHESIS)) {
-      args.push_back(parse_expression());
-
-      if (match(TokenType::COMMA))
-        consume();
-    }
-
-    consume(); // )
-    return std::make_unique<FnCallExpr>(name, std::move(args));
-  }
-
   std::unique_ptr<Expression> Parser::parse_primary() {
     bool negative = false;
 
@@ -35,71 +12,127 @@ namespace phantom {
 
     Token token = consume();
 
-    switch (token.type) {
-      case TokenType::AMPERSAND:
-        if (!match(TokenType::IDENTIFIER))
-          logger.log(Logger::Level::ERROR, "Expected identifier after reference operator", peek().location);
+    // literals
+    if (token.type == INTEGER_LITERAL)
+      return std::make_unique<IntLitExpr>((negative ? "-" : "") + token.form);
+    else if (token.type == FLOAT_LITERAL)
+      return std::make_unique<FloatLitExpr>((negative ? "-" : "") + token.form);
+    else if (token.type == CHAR_LITERAL)
+      return std::make_unique<CharLitExpr>(token.form.at(0));
+    else if (token.type == STRING_LITERAL)
+      return std::make_unique<StrLitExpr>(token.form);
 
-        return std::make_unique<RefExpr>(std::make_unique<IdeExpr>(consume().form));
+    // array literal
+    else if(token.type == OPEN_BRACKET) {
+      std::vector<std::unique_ptr<Expression>> elements;
+      do {
+        if (match(COMMA)) 
+          consume(); // ,
+                     
+        elements.push_back(parse_expression());
+      }while (match(COMMA));
 
-      case TokenType::STAR: {
-        auto expr = parse_primary();
-        return std::make_unique<DeRefExpr>(std::move(expr));
-      }
+      if (!match(CLOSE_BRACKET))
+        logger.log(Logger::Level::ERROR, "Exprected ']'", peek().location);
+      else
+        consume(); // ]
 
-      case TokenType::DATA_TYPE:
-        if (match(TokenType::EQUAL)) {
+      return std::make_unique<ArrLitExpr>(std::move(elements));
+    }
+
+    // data type:
+    // int = 1, int[5] = [1, 2, 3, 4, 5]
+    else if (token.type == DATA_TYPE) {
+      std::unique_ptr<Expression> value = nullptr;
+
+      // array handling
+      if (match(OPEN_BRACKET)) {
+        consume(); // [
+        std::unique_ptr<Expression> length = parse_expression();
+
+        if (!match(TokenType::CLOSE_BRACKET))
+          logger.log(Logger::Level::ERROR, "Expected ']' after an opening bracket", peek().location);
+        else
+          consume(); // ]
+
+        if (match(EQUAL)) {
           consume(); // =
-          auto expr = parse_expression();
-
-          return std::make_unique<DataTypeExpr>(std::move(expr), token.form);
+          value = parse_expression();
         }
 
-        return std::make_unique<DataTypeExpr>(nullptr, token.form);
+        if (!value && !length)
+          logger.log(Logger::Level::ERROR, "Illegal array declaration expression: could not determine array size", Location(peek().location.line, 0));
 
-      case TokenType::IDENTIFIER:
-        if (match(TokenType::OPEN_PARENTHESIS))
-          return parse_function_call_expression(token.form);
-
-        // negative identifier expression
-        if (negative)
-          return std::make_unique<BinOpExpr>(
-              std::make_unique<IntLitExpr>("0"),
-              TokenType::MINUS,
-              std::make_unique<IdeExpr>(token.form));
-
-        else
-          return std::make_unique<IdeExpr>(token.form);
-
-      case TokenType::OPEN_PARENTHESIS: {
-        auto expr = parse_expression();
-
-        if (!match(TokenType::CLOSE_PARENTHESIS))
-          logger.log(Logger::Level::ERROR, "Expected ')' after an expression", peek().location);
-
-        consume(); // )
-        return std::move(expr);
+        return std::make_unique<ArrTypeExpr>(token.form, std::move(length), std::move(value));
       }
 
-      case TokenType::INTEGER_LITERAL:
-        return std::make_unique<IntLitExpr>((negative ? "-" : "") + token.form);
+      if (match(EQUAL)) {
+        consume();
+        value = parse_expression();
+      }
 
-      case TokenType::FLOAT_LITERAL:
-        return std::make_unique<FloatLitExpr>((negative ? "-" : "") + token.form);
-
-      case TokenType::CHAR_LITERAL:
-        return std::make_unique<CharLitExpr>(token.form.at(0));
-
-      case TokenType::STRING_LITERAL:
-        return std::make_unique<StrLitExpr>(token.form);
-
-      case TokenType::KEYWORD:
-        if (token.form == "true" || token.form == "false")
-          return std::make_unique<BoolLitExpr>(token.form);
-
-      default:
-        return nullptr;
+      return std::make_unique<DataTypeExpr>(token.form, std::move(value));
     }
+
+    // unary stuff
+    else if (token.type == AMPERSAND) {
+      if (!match(TokenType::IDENTIFIER))
+        logger.log(Logger::Level::ERROR, "Expected identifier after reference operator", peek().location);
+
+      return std::make_unique<RefExpr>(std::make_unique<IdeExpr>(token.form));
+    } else if (token.type == STAR) {
+      auto expr = parse_primary(); // could be an IdeExpr or a BinOpExpr
+
+      return std::make_unique<DeRefExpr>(std::move(expr));
+    }
+
+    // other stuff
+    // TODO: use UnaryExpr instead of BinOpExpr
+    else if (token.type == IDENTIFIER) {
+      // function call case
+      if (match(TokenType::OPEN_PARENTHESIS)) {
+        consume(); // (
+
+        std::vector<std::unique_ptr<Expression>> args;
+
+        do {
+          if (match(COMMA))
+            consume(); // ,
+
+          args.push_back(parse_expression());
+        } while (match(COMMA));
+
+        if (!match(CLOSE_PARENTHESIS))
+          logger.log(Logger::Level::ERROR, "Expected ')' after function call arguments", peek().location);
+        else
+          consume(); // )
+
+        return std::make_unique<FnCallExpr>(token.form, std::move(args));
+      }
+
+      // negative identifer: -x
+      if (negative) {
+        auto temp = std::make_unique<IntLitExpr>("0");
+        auto ide = std::make_unique<IdeExpr>(token.form);
+
+        return std::make_unique<BinOpExpr>(std::move(temp), MINUS, std::move(ide));
+      }
+
+      return std::make_unique<IdeExpr>(token.form);
+    } else if (token.type == OPEN_PARENTHESIS) {
+      auto expr = parse_expression();
+
+      if (!match(TokenType::CLOSE_PARENTHESIS))
+        logger.log(Logger::Level::ERROR, "Expected ')'", peek().location);
+
+      consume(); // )
+      return std::move(expr);
+    } else if (token.type == KEYWORD) {
+      if (token.form == "true" || token.form == "false")
+        return std::make_unique<BoolLitExpr>(token.form);
+    }
+
+    return nullptr;
   }
 
   // pratt parsing
@@ -172,7 +205,7 @@ namespace phantom {
         consume(); // ,
     }
 
-    return std::make_unique<VarDecStt>(Variable(name), std::make_unique<DataTypeExpr>(nullptr, type));
+    return std::make_unique<VarDecStt>(Variable(name), std::make_unique<DataTypeExpr>(type, nullptr));
   }
 
   std::unique_ptr<Statement> Parser::parse_function() {

@@ -10,10 +10,12 @@
 
 namespace phantom {
   class DataTypeExpr;
+  class ArrTypeExpr;
   class IntLitExpr;
   class FloatLitExpr;
   class CharLitExpr;
   class StrLitExpr;
+  class ArrLitExpr;
   class IdeExpr;
   class RefExpr;
   class DeRefExpr;
@@ -61,6 +63,9 @@ namespace phantom {
       ExprInfo rvalue(DataTypeExpr* expr);
       ExprInfo lvalue(DataTypeExpr* expr);
 
+      ExprInfo rvalue(ArrTypeExpr* expr);
+      ExprInfo lvalue(ArrTypeExpr* expr);
+
       ExprInfo rvalue(IntLitExpr* expr);
       ExprInfo lvalue(IntLitExpr* expr);
 
@@ -75,6 +80,9 @@ namespace phantom {
 
       ExprInfo rvalue(StrLitExpr* expr);
       ExprInfo lvalue(StrLitExpr* expr);
+
+      ExprInfo rvalue(ArrLitExpr* expr);
+      ExprInfo lvalue(ArrLitExpr* expr);
 
       ExprInfo rvalue(IdeExpr* expr);
       ExprInfo lvalue(IdeExpr* expr);

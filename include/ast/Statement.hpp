@@ -37,17 +37,6 @@ public:
     ExprInfo local_var_dec();
   };
 
-  class ArrDecStt : public Statement {
-public:
-    Variable variable;
-    std::unique_ptr<Expression> initializer;
-
-    ArrDecStt(Variable variable, std::unique_ptr<Expression> initializer);
-    ExprInfo accept(Visitor* visitor) override;
-    ExprInfo global_var_dec();
-    ExprInfo local_var_dec();
-  };
-
   class FnDecStt : public Statement {
 public:
     std::string name;

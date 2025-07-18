@@ -4,6 +4,9 @@ namespace phantom {
   ExprInfo DataTypeExpr::rvalue(Visitor* visitor) { return visitor->rvalue(this); }
   ExprInfo DataTypeExpr::lvalue(Visitor* visitor) { return visitor->lvalue(this); }
 
+  ExprInfo ArrTypeExpr::rvalue(Visitor* visitor) { return visitor->rvalue(this); }
+  ExprInfo ArrTypeExpr::lvalue(Visitor* visitor) { return visitor->lvalue(this); }
+
   ExprInfo IntLitExpr::rvalue(Visitor* visitor) { return visitor->rvalue(this); }
   ExprInfo IntLitExpr::lvalue(Visitor* visitor) { return visitor->lvalue(this); }
 
@@ -18,6 +21,9 @@ namespace phantom {
 
   ExprInfo StrLitExpr::rvalue(Visitor* visitor) { return visitor->rvalue(this); }
   ExprInfo StrLitExpr::lvalue(Visitor* visitor) { return visitor->lvalue(this); }
+
+  ExprInfo ArrLitExpr::rvalue(Visitor* visitor) { return visitor->rvalue(this); }
+  ExprInfo ArrLitExpr::lvalue(Visitor* visitor) { return visitor->lvalue(this); }
 
   ExprInfo IdeExpr::rvalue(Visitor* visitor) { return visitor->rvalue(this); }
   ExprInfo IdeExpr::lvalue(Visitor* visitor) { return visitor->lvalue(this); }
