@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 project(phantom)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
-    "./src/Lexer/*.cpp"
-    "./src/Parser/*.cpp"
-    "./src/Data/*.cpp"
-    "./src/LLVMCodeGen/*.cpp"
+    "./src/ast/*.cpp"
+    "./src/llvm_codegen/*.cpp"
+    "./src/llvm_codegen/data/*.cpp"
+    "./src/driver/*.cpp"
     "./src/*.cpp"
 )
 include_directories(${CMAKE_SOURCE_DIR}/include)
