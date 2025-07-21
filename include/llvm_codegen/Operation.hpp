@@ -1,29 +1,36 @@
 #ifndef PHANTOM_OPERATION_HPP
 #define PHANTOM_OPERATION_HPP
 
-#include "data/ExprInfo.hpp"
 #include "llvm/IR/IRBuilder.h"
+#include "data/VarInfo.hpp"
 #include <Logger.hpp>
 
 namespace phantom {
   namespace llvm_codegen {
     class Operation {
-      std::shared_ptr<llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>> builder;
-      const Logger& logger;
-
-      static int type_precedence(llvm::Type* type);
-      llvm::Value* cast(llvm::Value* src, llvm::Type* type);
-      void prec_cast(ExprInfo& left, ExprInfo& right);
-
   public:
       Operation(std::shared_ptr<llvm::IRBuilder<>>& builder, const Logger& logger)
           : builder(builder), logger(logger) {}
 
-      ExprInfo add(ExprInfo left, ExprInfo right);
-      ExprInfo sub(ExprInfo left, ExprInfo right);
-      ExprInfo mul(ExprInfo left, ExprInfo right);
-      ExprInfo div(ExprInfo left, ExprInfo right);
-      ExprInfo asgn(ExprInfo left, ExprInfo right);
+      llvm::Value** resolve_value(llvm::Value* value);
+      llvm::Value** cast(llvm::Value** src, llvm::Type* type);
+
+      llvm::Value* load(llvm::Value** value, llvm::Type* type);
+      llvm::Value* store(llvm::Value** left, llvm::Value** ptr);
+      llvm::Value* call(llvm::Function* fn, std::vector<llvm::Value**> args);
+
+      llvm::Value* add(llvm::Value* left, llvm::Value* right);
+      llvm::Value* sub(llvm::Value* left, llvm::Value* right);
+      llvm::Value* mul(llvm::Value* left, llvm::Value* right);
+      llvm::Value* div(llvm::Value* left, llvm::Value* right);
+      llvm::Value* asgn(llvm::Value* left, llvm::Value* right);
+
+  private:
+      std::shared_ptr<llvm::IRBuilder<>> builder;
+      const Logger& logger;
+
+      static int type_precedence(llvm::Type* type);
+      void prec_cast(llvm::Value*& left, llvm::Value*& right);
     };
   } // namespace llvm_codegen
 } // namespace phantom

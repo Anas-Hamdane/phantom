@@ -3,13 +3,11 @@
 
 #include <cstdint>
 
-#include "llvm_codegen/data/ExprInfo.hpp"
-#include "llvm_codegen/data/Variable.hpp"
 #include "llvm_codegen/Visitor.hpp"
+#include "llvm_codegen/data/Value.hpp"
 
 namespace phantom {
-  using Variable = llvm_codegen::Variable;
-  using ExprInfo = llvm_codegen::ExprInfo;
+  using Value = llvm_codegen::Value;
   using Visitor = llvm_codegen::Visitor;
 
   // 8-bit integer
@@ -45,40 +43,6 @@ namespace phantom {
   constexpr long double QUAD_MIN_VAL = (-QUAD_MAX_VAL);
 
   constexpr char compiler_metadata[] = "phantom";
-
-  // error reporting
-  // inline void Report(std::string rep_string, bool error = false) {
-  //   bool colored = is_stderr_tty_colored();
-  //
-  //   std::string constructed_msg;
-  //
-  //   if (error) {
-  //     if (colored)
-  //       constructed_msg += "\x1b[1;31m";
-  //
-  //     constructed_msg += "Error:";
-  //
-  //     if (colored)
-  //       constructed_msg += "\x1b[0m";
-  //   } else {
-  //     if (colored)
-  //       constructed_msg += "\x1b[1;33m";
-  //
-  //     constructed_msg += "Warning:";
-  //
-  //     if (colored)
-  //       constructed_msg += "\x1b[0m";
-  //   }
-  //
-  //   constructed_msg += '\n';
-  //
-  //   constructed_msg += rep_string;
-  //
-  //   std::cerr << constructed_msg;
-  //
-  //   if (error)
-  //     exit(EXIT_FAILURE);
-  // }
 } // namespace phantom
 
 #endif // !PHANTOM_COMMON_HPP

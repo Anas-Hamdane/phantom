@@ -42,7 +42,6 @@ namespace phantom {
     Token invalid_token(std::string form);
 
     Token handle_numerics();
-
     Token handle_words();
 
     bool escaped(size_t pos);

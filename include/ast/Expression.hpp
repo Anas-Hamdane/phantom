@@ -9,155 +9,181 @@
 #include <common.hpp>
 
 namespace phantom {
-  class Expression {
-public:
-    virtual ~Expression() = default;
-    virtual ExprInfo rvalue(Visitor* visitor) = 0;
-    virtual ExprInfo lvalue(Visitor* visitor) = 0;
+  enum class ExprType {
+    Type,
+
+    IntLit,
+    FloatLit,
+    CharLit,
+    BoolLit,
+    StrLit,
+    ArrLit,
+
+    Ide,
+    BinOp,
+    Ref,
+    DeRef,
+
+    VarDec,
+    FnCall,
   };
 
-  class DataTypeExpr : public Expression {
+  class Expr {
+public:
+    virtual ~Expr() = default;
+    virtual ExprType expr_type() const = 0;
+    virtual Value gen(Visitor* visitor) = 0;
+  };
+
+  class TypeExpr : public Expr {
 public:
     const std::string type;
-    std::unique_ptr<Expression> value;
+    std::unique_ptr<Expr> value;
 
-    explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expression> value)
-        : type(type), value(std::move(value)) {}
+    // for arrays
+    std::unique_ptr<Expr> length;
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    explicit TypeExpr(const std::string& type, std::unique_ptr<Expr> value, std::unique_ptr<Expr> length = nullptr)
+        : type(type), value(std::move(value)), length(std::move(length)) {}
+
+    ExprType expr_type() const override { return ExprType::Type; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class ArrTypeExpr : public Expression {
-public:
-    const std::string type;
-    std::unique_ptr<Expression> length;
-    std::unique_ptr<Expression> value;
-
-    explicit ArrTypeExpr(const std::string& type, std::unique_ptr<Expression> length, std::unique_ptr<Expression> value)
-        : type(type), length(std::move(length)), value(std::move(value)) {}
-
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
-  };
-
-  class IntLitExpr : public Expression {
+  class IntLitExpr : public Expr {
 public:
     const std::string form;
-    long long value; // always 8 bytes
+    long long value;
 
-    explicit IntLitExpr(const std::string& form) : form(form), value(std::stol(form)) {}
+    explicit IntLitExpr(const std::string& form) : form(form), value(std::stoll(form)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::IntLit; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class FloatLitExpr : public Expression {
+  class FloatLitExpr : public Expr {
 public:
     const std::string form;
-    long double value; // largest possible
+    long double value;
 
     explicit FloatLitExpr(const std::string& form) : form(form), value(std::stold(form)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::FloatLit; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class CharLitExpr : public Expression {
+  class CharLitExpr : public Expr {
 public:
     char value;
 
     explicit CharLitExpr(char value) : value(value) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::CharLit; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class BoolLitExpr : public Expression {
+  class BoolLitExpr : public Expr {
 public:
     const std::string form;
     bool value;
 
     explicit BoolLitExpr(const std::string& form) : form(form), value(form == "true") {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::BoolLit; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class StrLitExpr : public Expression {
+  class StrLitExpr : public Expr {
 public:
     const std::string value;
 
     explicit StrLitExpr(const std::string& value) : value(value) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::StrLit; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class ArrLitExpr : public Expression {
+  class ArrLitExpr : public Expr {
 public:
-    std::vector<std::unique_ptr<Expression>> elements;
+    std::vector<std::unique_ptr<Expr>> elements;
 
-    explicit ArrLitExpr(std::vector<std::unique_ptr<Expression>> elements)
+    explicit ArrLitExpr(std::vector<std::unique_ptr<Expr>> elements)
         : elements(std::move(elements)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::ArrLit; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class IdeExpr : public Expression {
+  class IdeExpr : public Expr {
 public:
     const std::string name;
 
     explicit IdeExpr(const std::string& name) : name(name) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::Ide; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class BinOpExpr : public Expression {
+  class BinOpExpr : public Expr {
 public:
-    std::unique_ptr<Expression> left;
-    std::unique_ptr<Expression> right;
+    std::unique_ptr<Expr> left;
+    std::unique_ptr<Expr> right;
     const TokenType op;
 
-    explicit BinOpExpr(std::unique_ptr<Expression> left, const TokenType& op, std::unique_ptr<Expression> right)
+    explicit BinOpExpr(std::unique_ptr<Expr> left, const TokenType& op, std::unique_ptr<Expr> right)
         : left(std::move(left)), op(op), right(std::move(right)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::BinOp; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class RefExpr : public Expression {
+  class RefExpr : public Expr {
 public:
-    std::unique_ptr<IdeExpr> ide;
+    std::unique_ptr<Expr> ide;
 
-    explicit RefExpr(std::unique_ptr<IdeExpr> ide) : ide(std::move(ide)) {}
+    explicit RefExpr(std::unique_ptr<Expr> ide) : ide(std::move(ide)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::Ref; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class DeRefExpr : public Expression {
+  class DeRefExpr : public Expr {
 public:
-    std::unique_ptr<Expression> ptr_expr;
+    std::unique_ptr<Expr> pointer;
 
-    explicit DeRefExpr(std::unique_ptr<Expression> ptr_expr) : ptr_expr(std::move(ptr_expr)) {}
+    explicit DeRefExpr(std::unique_ptr<Expr> ptr_expr) : pointer(std::move(ptr_expr)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::DeRef; };
+    Value gen(Visitor* visitor) override;
   };
 
-  class FnCallExpr : public Expression {
+  /*
+   * TODO:
+   *   implement const/static stuff
+   */
+
+  class VarDecExpr : public Expr {
+public:
+    std::string name;
+    std::unique_ptr<Expr> initializer;
+
+    VarDecExpr(const std::string& name, std::unique_ptr<Expr> initializer)
+        : name(name), initializer(std::move(initializer)) {}
+
+    ExprType expr_type() const override { return ExprType::VarDec; };
+    Value gen(Visitor* visitor) override;
+  };
+
+  class FnCallExpr : public Expr {
 public:
     const std::string name;
-    std::vector<std::unique_ptr<Expression>> args;
+    std::vector<std::unique_ptr<Expr>> args;
 
-    explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expression>> args)
+    explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expr>> args)
         : name(name), args(std::move(args)) {}
 
-    ExprInfo rvalue(Visitor* visitor) override;
-    ExprInfo lvalue(Visitor* visitor) override;
+    ExprType expr_type() const override { return ExprType::FnCall; };
+    Value gen(Visitor* visitor) override;
   };
 } // namespace phantom
 

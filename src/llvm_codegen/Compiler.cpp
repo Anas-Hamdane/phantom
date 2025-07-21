@@ -69,7 +69,7 @@ namespace phantom {
       visitor.set_optimizations(FPM, FAM, LAM, MAM, CGAM);
 
       for (auto& stt : ast)
-        stt->accept(&visitor);
+        stt->gen(&visitor);
 
       std::error_code err_code;
       llvm::raw_fd_ostream file(opts.output_file, err_code, llvm::sys::fs::OF_None);
