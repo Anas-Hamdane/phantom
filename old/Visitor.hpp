@@ -2,7 +2,6 @@
 #define PHANTOM_LLVM_VISITOR_HPP
 
 #include "Operation.hpp"
-#include "data/Variable.hpp"
 #include <unordered_map>
 
 #include "llvm/Analysis/CGSCCPassManager.h"
@@ -21,19 +20,21 @@ namespace phantom {
   class DeRefExpr;
   class ExprStt;
   class ReturnStt;
-  class VarDecStt;
   class FnCallExpr;
   class BoolLitExpr;
   class BinOpExpr;
+  class VarDecExpr;
+  class ArrDecExpr;
   class FnDefStt;
   class FnDecStt;
   namespace llvm_codegen {
     class Visitor {
+      bool inside_function = false;
       std::shared_ptr<llvm::LLVMContext> context;
       std::shared_ptr<llvm::IRBuilder<>> builder;
       std::shared_ptr<llvm::Module> module;
 
-      std::unordered_map<std::string, Variable> named_variables;
+      std::unordered_map<std::string, Data> symbol_table;
       std::unique_ptr<Operation> operation;
 
       // optimizations
@@ -49,7 +50,9 @@ namespace phantom {
       Visitor(std::shared_ptr<llvm::LLVMContext> context,
               std::shared_ptr<llvm::IRBuilder<>> builder,
               std::shared_ptr<llvm::Module> module,
-              const Logger& logger) : context(context), builder(builder), module(module), logger(logger) {}
+              const Logger& logger)
+          : context(context), builder(builder), module(module), logger(logger),
+            operation(std::make_unique<Operation>(builder, logger)) {}
 
       void set_optimizations(std::shared_ptr<llvm::FunctionPassManager> FPM = nullptr,
                              std::shared_ptr<llvm::FunctionAnalysisManager> FAM = nullptr,
@@ -57,63 +60,62 @@ namespace phantom {
                              std::shared_ptr<llvm::ModuleAnalysisManager> MAM = nullptr,
                              std::shared_ptr<llvm::CGSCCAnalysisManager> CGAM = nullptr);
 
-      // helper function for casting
-      llvm::Value* cast(llvm::Value* src, llvm::Type* dst, std::string error_msg);
+      Data rvalue(DataTypeExpr* expr);
+      Data lvalue(DataTypeExpr* expr);
 
-      ExprInfo rvalue(DataTypeExpr* expr);
-      ExprInfo lvalue(DataTypeExpr* expr);
+      Data rvalue(ArrTypeExpr* expr);
+      Data lvalue(ArrTypeExpr* expr);
 
-      ExprInfo rvalue(ArrTypeExpr* expr);
-      ExprInfo lvalue(ArrTypeExpr* expr);
+      Data rvalue(IntLitExpr* expr);
+      Data lvalue(IntLitExpr* expr);
 
-      ExprInfo rvalue(IntLitExpr* expr);
-      ExprInfo lvalue(IntLitExpr* expr);
+      Data rvalue(FloatLitExpr* expr);
+      Data lvalue(FloatLitExpr* expr);
 
-      ExprInfo rvalue(FloatLitExpr* expr);
-      ExprInfo lvalue(FloatLitExpr* expr);
+      Data rvalue(CharLitExpr* expr);
+      Data lvalue(CharLitExpr* expr);
 
-      ExprInfo rvalue(CharLitExpr* expr);
-      ExprInfo lvalue(CharLitExpr* expr);
+      Data rvalue(BoolLitExpr* expr);
+      Data lvalue(BoolLitExpr* expr);
 
-      ExprInfo rvalue(BoolLitExpr* expr);
-      ExprInfo lvalue(BoolLitExpr* expr);
+      Data rvalue(StrLitExpr* expr);
+      Data lvalue(StrLitExpr* expr);
 
-      ExprInfo rvalue(StrLitExpr* expr);
-      ExprInfo lvalue(StrLitExpr* expr);
+      Data rvalue(ArrLitExpr* expr);
+      Data lvalue(ArrLitExpr* expr);
 
-      ExprInfo rvalue(ArrLitExpr* expr);
-      ExprInfo lvalue(ArrLitExpr* expr);
+      Data rvalue(IdeExpr* expr);
+      Data lvalue(IdeExpr* expr);
 
-      ExprInfo rvalue(IdeExpr* expr);
-      ExprInfo lvalue(IdeExpr* expr);
+      Data rvalue(BinOpExpr* expr);
+      Data lvalue(BinOpExpr* expr);
 
-      ExprInfo rvalue(BinOpExpr* expr);
-      ExprInfo lvalue(BinOpExpr* expr);
+      Data rvalue(VarDecExpr* expr);
+      Data lvalue(VarDecExpr* expr);
+      Data create_global_variable(VarDecExpr* stt);
+      Data create_local_variable(VarDecExpr* stt);
 
-      ExprInfo rvalue(RefExpr* expr);
-      ExprInfo lvalue(RefExpr* expr);
+      Data rvalue(ArrDecExpr* expr);
+      Data lvalue(ArrDecExpr* expr);
+      Data create_global_array(ArrDecExpr* stt);
+      Data create_local_array(ArrDecExpr* stt);
 
-      ExprInfo rvalue(DeRefExpr* expr);
-      ExprInfo lvalue(DeRefExpr* expr);
+      Data rvalue(RefExpr* expr);
+      Data lvalue(RefExpr* expr);
 
-      ExprInfo rvalue(FnCallExpr* expr);
-      ExprInfo lvalue(FnCallExpr* expr);
+      Data rvalue(DeRefExpr* expr);
+      Data lvalue(DeRefExpr* expr);
 
-      ExprInfo visit(ReturnStt* stt);
+      Data rvalue(FnCallExpr* expr);
+      Data lvalue(FnCallExpr* expr);
 
-      ExprInfo visit(ExprStt* stt);
+      Data visit(ReturnStt* stt);
 
-      ExprInfo global_var_dec(VarDecStt* stt);
-      ExprInfo local_var_dec(VarDecStt* stt);
-      ExprInfo visit(VarDecStt* stt);
+      Data visit(ExprStt* stt);
 
-      ExprInfo visit(FnDecStt* stt);
+      Data visit(FnDecStt* stt);
 
-      ExprInfo visit(FnDefStt* stt);
-
-      llvm::Type* get_llvm_type(std::string type, bool pointer = false) const;
-
-      std::string get_string_type(llvm::Type* type) const;
+      Data visit(FnDefStt* stt);
     };
   } // namespace llvm_codegen
 } // namespace phantom

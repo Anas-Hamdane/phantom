@@ -2,7 +2,6 @@ build
 .cache
 notes.txt
 .idea
-old
 cmake-build-release
 cmake-build-debug
 .vscode

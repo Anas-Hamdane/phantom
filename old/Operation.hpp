@@ -1,9 +1,9 @@
 #ifndef PHANTOM_OPERATION_HPP
 #define PHANTOM_OPERATION_HPP
 
-#include "data/ExprInfo.hpp"
-#include "llvm/IR/IRBuilder.h"
 #include <Logger.hpp>
+#include "data/Data.hpp"
+#include "llvm/IR/IRBuilder.h"
 
 namespace phantom {
   namespace llvm_codegen {
@@ -12,18 +12,18 @@ namespace phantom {
       const Logger& logger;
 
       static int type_precedence(llvm::Type* type);
-      llvm::Value* cast(llvm::Value* src, llvm::Type* type);
-      void prec_cast(ExprInfo& left, ExprInfo& right);
+      void prec_cast(Data& left, Data& right);
 
   public:
       Operation(std::shared_ptr<llvm::IRBuilder<>>& builder, const Logger& logger)
           : builder(builder), logger(logger) {}
 
-      ExprInfo add(ExprInfo left, ExprInfo right);
-      ExprInfo sub(ExprInfo left, ExprInfo right);
-      ExprInfo mul(ExprInfo left, ExprInfo right);
-      ExprInfo div(ExprInfo left, ExprInfo right);
-      ExprInfo asgn(ExprInfo left, ExprInfo right);
+      llvm::Value* cast(llvm::Value* src, llvm::Type* type);
+      Data add(Data left, Data right);
+      Data sub(Data left, Data right);
+      Data mul(Data left, Data right);
+      Data div(Data left, Data right);
+      Data asgn(Data left, Data right);
     };
   } // namespace llvm_codegen
 } // namespace phantom

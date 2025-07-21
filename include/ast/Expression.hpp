@@ -9,181 +9,155 @@
 #include <common.hpp>
 
 namespace phantom {
-  enum class ExprType {
-    Type,
-
-    IntLit,
-    FloatLit,
-    CharLit,
-    BoolLit,
-    StrLit,
-    ArrLit,
-
-    Ide,
-    BinOp,
-    Ref,
-    DeRef,
-
-    VarDec,
-    FnCall,
-  };
-
-  class Expr {
+  class Expression {
 public:
-    virtual ~Expr() = default;
-    virtual ExprType expr_type() const = 0;
-    virtual Value gen(Visitor* visitor) = 0;
+    virtual ~Expression() = default;
+    virtual ExprInfo rvalue(Visitor* visitor) = 0;
+    virtual ExprInfo lvalue(Visitor* visitor) = 0;
   };
 
-  class TypeExpr : public Expr {
+  class DataTypeExpr : public Expression {
 public:
     const std::string type;
-    std::unique_ptr<Expr> value;
+    std::unique_ptr<Expression> value;
 
-    // for arrays
-    std::unique_ptr<Expr> length;
+    explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expression> value)
+        : type(type), value(std::move(value)) {}
 
-    explicit TypeExpr(const std::string& type, std::unique_ptr<Expr> value, std::unique_ptr<Expr> length = nullptr)
-        : type(type), value(std::move(value)), length(std::move(length)) {}
-
-    ExprType expr_type() const override { return ExprType::Type; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class IntLitExpr : public Expr {
+  class ArrTypeExpr : public Expression {
 public:
-    const std::string form;
-    long long value;
+    const std::string type;
+    std::unique_ptr<Expression> length;
+    std::unique_ptr<Expression> value;
 
-    explicit IntLitExpr(const std::string& form) : form(form), value(std::stoll(form)) {}
+    explicit ArrTypeExpr(const std::string& type, std::unique_ptr<Expression> length, std::unique_ptr<Expression> value)
+        : type(type), length(std::move(length)), value(std::move(value)) {}
 
-    ExprType expr_type() const override { return ExprType::IntLit; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class FloatLitExpr : public Expr {
+  class IntLitExpr : public Expression {
 public:
     const std::string form;
-    long double value;
+    long long value; // always 8 bytes
+
+    explicit IntLitExpr(const std::string& form) : form(form), value(std::stol(form)) {}
+
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
+  };
+
+  class FloatLitExpr : public Expression {
+public:
+    const std::string form;
+    long double value; // largest possible
 
     explicit FloatLitExpr(const std::string& form) : form(form), value(std::stold(form)) {}
 
-    ExprType expr_type() const override { return ExprType::FloatLit; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class CharLitExpr : public Expr {
+  class CharLitExpr : public Expression {
 public:
     char value;
 
     explicit CharLitExpr(char value) : value(value) {}
 
-    ExprType expr_type() const override { return ExprType::CharLit; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class BoolLitExpr : public Expr {
+  class BoolLitExpr : public Expression {
 public:
     const std::string form;
     bool value;
 
     explicit BoolLitExpr(const std::string& form) : form(form), value(form == "true") {}
 
-    ExprType expr_type() const override { return ExprType::BoolLit; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class StrLitExpr : public Expr {
+  class StrLitExpr : public Expression {
 public:
     const std::string value;
 
     explicit StrLitExpr(const std::string& value) : value(value) {}
 
-    ExprType expr_type() const override { return ExprType::StrLit; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class ArrLitExpr : public Expr {
+  class ArrLitExpr : public Expression {
 public:
-    std::vector<std::unique_ptr<Expr>> elements;
+    std::vector<std::unique_ptr<Expression>> elements;
 
-    explicit ArrLitExpr(std::vector<std::unique_ptr<Expr>> elements)
+    explicit ArrLitExpr(std::vector<std::unique_ptr<Expression>> elements)
         : elements(std::move(elements)) {}
 
-    ExprType expr_type() const override { return ExprType::ArrLit; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class IdeExpr : public Expr {
+  class IdeExpr : public Expression {
 public:
     const std::string name;
 
     explicit IdeExpr(const std::string& name) : name(name) {}
 
-    ExprType expr_type() const override { return ExprType::Ide; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class BinOpExpr : public Expr {
+  class BinOpExpr : public Expression {
 public:
-    std::unique_ptr<Expr> left;
-    std::unique_ptr<Expr> right;
+    std::unique_ptr<Expression> left;
+    std::unique_ptr<Expression> right;
     const TokenType op;
 
-    explicit BinOpExpr(std::unique_ptr<Expr> left, const TokenType& op, std::unique_ptr<Expr> right)
+    explicit BinOpExpr(std::unique_ptr<Expression> left, const TokenType& op, std::unique_ptr<Expression> right)
         : left(std::move(left)), op(op), right(std::move(right)) {}
 
-    ExprType expr_type() const override { return ExprType::BinOp; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class RefExpr : public Expr {
+  class RefExpr : public Expression {
 public:
-    std::unique_ptr<Expr> ide;
+    std::unique_ptr<IdeExpr> ide;
 
-    explicit RefExpr(std::unique_ptr<Expr> ide) : ide(std::move(ide)) {}
+    explicit RefExpr(std::unique_ptr<IdeExpr> ide) : ide(std::move(ide)) {}
 
-    ExprType expr_type() const override { return ExprType::Ref; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  class DeRefExpr : public Expr {
+  class DeRefExpr : public Expression {
 public:
-    std::unique_ptr<Expr> pointer;
+    std::unique_ptr<Expression> ptr_expr;
 
-    explicit DeRefExpr(std::unique_ptr<Expr> ptr_expr) : pointer(std::move(ptr_expr)) {}
+    explicit DeRefExpr(std::unique_ptr<Expression> ptr_expr) : ptr_expr(std::move(ptr_expr)) {}
 
-    ExprType expr_type() const override { return ExprType::DeRef; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 
-  /*
-   * TODO:
-   *   implement const/static stuff
-   */
-
-  class VarDecExpr : public Expr {
-public:
-    std::string name;
-    std::unique_ptr<Expr> initializer;
-
-    VarDecExpr(const std::string& name, std::unique_ptr<Expr> initializer)
-        : name(name), initializer(std::move(initializer)) {}
-
-    ExprType expr_type() const override { return ExprType::VarDec; };
-    Value gen(Visitor* visitor) override;
-  };
-
-  class FnCallExpr : public Expr {
+  class FnCallExpr : public Expression {
 public:
     const std::string name;
-    std::vector<std::unique_ptr<Expr>> args;
+    std::vector<std::unique_ptr<Expression>> args;
 
-    explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expr>> args)
+    explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expression>> args)
         : name(name), args(std::move(args)) {}
 
-    ExprType expr_type() const override { return ExprType::FnCall; };
-    Value gen(Visitor* visitor) override;
+    ExprInfo rvalue(Visitor* visitor) override;
+    ExprInfo lvalue(Visitor* visitor) override;
   };
 } // namespace phantom
 

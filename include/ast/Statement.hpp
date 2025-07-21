@@ -7,35 +7,45 @@ namespace phantom {
   class Statement {
 public:
     virtual ~Statement();
-    virtual Value gen(Visitor* visitor) = 0;
+    virtual ExprInfo accept(Visitor* visitor) = 0;
   };
 
   class ReturnStt : public Statement {
 public:
-    std::unique_ptr<Expr> expr;
+    std::unique_ptr<Expression> expr;
 
-    explicit ReturnStt(std::unique_ptr<Expr> expr) : expr(std::move(expr)) {}
-    Value gen(Visitor* visitor) override;
+    explicit ReturnStt(std::unique_ptr<Expression> expr) : expr(std::move(expr)) {}
+    ExprInfo accept(Visitor* visitor) override;
   };
 
   class ExprStt : public Statement {
 public:
-    std::unique_ptr<Expr> expr;
+    std::unique_ptr<Expression> expr;
 
-    explicit ExprStt(std::unique_ptr<Expr> expr) : expr(std::move(expr)) {}
-    Value gen(Visitor* visitor) override;
+    explicit ExprStt(std::unique_ptr<Expression> expr);
+    ExprInfo accept(Visitor* visitor) override;
+  };
+
+  class VarDecStt : public Statement {
+public:
+    Variable variable;
+    std::unique_ptr<Expression> initializer;
+
+    VarDecStt(Variable variable, std::unique_ptr<Expression> initializer);
+    ExprInfo accept(Visitor* visitor) override;
+    ExprInfo global_var_dec();
+    ExprInfo local_var_dec();
   };
 
   class FnDecStt : public Statement {
 public:
     std::string name;
     std::string type;
-    std::vector<std::unique_ptr<VarDecExpr>> params;
+    std::vector<std::unique_ptr<VarDecStt>> params;
 
-    FnDecStt(const std::string& name, const std::string& type,
-             std::vector<std::unique_ptr<VarDecExpr>> params)
-      : name(name), type(type), params(std::move(params)) {}
-    Value gen(Visitor* visitor) override;
+    FnDecStt(std::string name, std::string type,
+             std::vector<std::unique_ptr<VarDecStt>> params);
+    ExprInfo accept(Visitor* visitor) override;
   };
 
   class FnDefStt : public Statement {
@@ -44,9 +54,8 @@ public:
     std::vector<std::unique_ptr<Statement>> body;
 
     FnDefStt(std::unique_ptr<FnDecStt> declaration,
-             std::vector<std::unique_ptr<Statement>> body)
-      : declaration(std::move(declaration)), body(std::move(body)) {}
-    Value gen(Visitor* visitor) override;
+             std::vector<std::unique_ptr<Statement>> body);
+    ExprInfo accept(Visitor* visitor) override;
   };
 
 } // namespace phantom
