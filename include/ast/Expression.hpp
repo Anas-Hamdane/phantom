@@ -3,9 +3,6 @@
 
 #include <Token.hpp>
 #include <memory>
-#include <string>
-#include <vector>
-
 #include <common.hpp>
 
 namespace phantom {
@@ -119,9 +116,9 @@ public:
 public:
     std::unique_ptr<Expression> left;
     std::unique_ptr<Expression> right;
-    const TokenType op;
+    const Token::Kind op;
 
-    explicit BinOpExpr(std::unique_ptr<Expression> left, const TokenType& op, std::unique_ptr<Expression> right)
+    explicit BinOpExpr(std::unique_ptr<Expression> left, const Token::Kind& op, std::unique_ptr<Expression> right)
         : left(std::move(left)), op(op), right(std::move(right)) {}
 
     ExprInfo rvalue(Visitor* visitor) override;

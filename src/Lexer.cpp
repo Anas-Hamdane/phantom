@@ -1,18 +1,20 @@
 #include <Lexer.hpp>
-#include <common.hpp>
 #include <Logger.hpp>
-
-#include <cmath>
+#include <common.hpp>
 
 namespace phantom {
   std::vector<Token> Lexer::lex() {
     std::vector<Token> tokens;
 
     while (true) {
-
       if (match('\0')) {
         tokens.emplace_back(Token::Kind::EndOfFile, Location(line_number, column_number));
         break;
+      }
+
+      if (std::isspace(peek())) {
+        consume();
+        continue;
       }
 
       // one line comment
@@ -27,14 +29,6 @@ namespace phantom {
         continue;
       }
 
-      // ponctuations
-      for (const auto& [pattern, token_kind] : Puncts) {
-        if (skip_prefix(std::string(pattern))) {
-          tokens.emplace_back(token_kind, Location(line_number, column_number));
-          continue;
-        }
-      }
-
       // identifier/keyword
       if (identifier_start(peek())) {
         std::string lexeme;
@@ -43,16 +37,72 @@ namespace phantom {
         while (identifier_valid(peek()))
           lexeme += consume();
 
-        for (const auto& [keyword, token_kind] : Keywords) {
-          if (lexeme == keyword) {
-            tokens.emplace_back(token_kind, Location(line_number, column_number));
-            continue;
+        bool found = false;
+        for (const auto& [primitive, token_kind] : PrimDataTys) {
+          if (lexeme == primitive) {
+            tokens.emplace_back(token_kind, lexeme, Location(line_number, column_number));
+            found = true;
+            break;
           }
         }
+
+        if (found)
+          continue;
+
+        found = false;
+        for (const auto& [keyword, token_kind] : Keywords) {
+          if (lexeme == keyword) {
+            tokens.emplace_back(token_kind, lexeme, Location(line_number, column_number));
+            found = true;
+            break;
+          }
+        }
+
+        if (found)
+          continue;
 
         tokens.emplace_back(Token::Kind::Identifier, lexeme, Location(line_number, column_number));
         continue;
       }
+
+      // number literals
+      if (std::isdigit(peek())) {
+        std::string lexeme;
+        lexeme += consume();
+
+        while (std::isalnum(peek()))
+          lexeme += consume();
+
+        NumKind number_kind = numkind(lexeme);
+        Token::Kind token_kind;
+
+        // clang-format off
+        switch (number_kind) {
+          case NumKind::Decimal:    token_kind = scan_dec(lexeme); break;
+          case NumKind::Hex:        token_kind = scan_hex(lexeme); break;
+          case NumKind::Octal:      token_kind = scan_oct(lexeme); break;
+          case NumKind::Binary:     token_kind = scan_bin(lexeme); break;
+          case NumKind::Mongolien:  token_kind = Token::Kind::Mongolien; break;
+        }
+        // clang-format on
+
+        tokens.emplace_back(token_kind, lexeme, Location(line_number, column_number));
+        continue;
+      }
+
+      // ponctuations
+      bool found = false;
+      for (const auto& [pattern, token_kind] : Puncts) {
+        std::string str = std::string(pattern);
+        if (skip_prefix(str)) {
+          tokens.emplace_back(token_kind, str, Location(line_number, column_number));
+          found = true;
+          break;
+        }
+      }
+
+      if (found)
+        continue;
     }
 
     return tokens;
@@ -78,7 +128,7 @@ namespace phantom {
   }
   bool Lexer::match(const char character, const off_t offset) const {
     if ((index + offset) >= source.length())
-      return false;
+      return character == '\0';
 
     return (source[index + offset] == character);
   }
@@ -113,8 +163,10 @@ namespace phantom {
     return (str.compare(0, cmp.length(), cmp) == 0);
   }
   Lexer::NumKind Lexer::numkind(const std::string& str) {
-    if (str.empty())
+    if (str.empty()) {
       logger.log(Logger::Level::ERROR, "Invalid empty number literal\n");
+      return NumKind::Mongolien;
+    }
 
     if (starts_with(str, "0x") || starts_with(str, "0X"))
       return NumKind::Hex;
@@ -125,265 +177,260 @@ namespace phantom {
     else if (starts_with(str, "0b") || starts_with(str, "0B"))
       return NumKind::Binary;
 
-    else if (!std::isdigit(str.front()) && str.front() != '.')
-      logger.log(Logger::Level::ERROR, "Invalid number literal start: " + str + "\n");
+    else if (std::isdigit(str.front()))
+      return NumKind::Decimal;
 
-    return NumKind::Decimal;
+    logger.log(Logger::Level::ERROR, "Unrecognized prefix for a number literal",
+               {line_number, column_number - str.length() + 1});
+    return NumKind::Mongolien;
   }
 
-  uint64_t Lexer::parse_hex(size_t start, const std::string& str, size_t end) {
-    if (end > str.length())
-      logger.log(Logger::Level::FATAL, "`end` > `str.length()` in function `Lexer::parse_hex()`");
+  Token::Kind Lexer::invalid_kind(const std::string& msg, Location location) {
+    logger.log(Logger::Level::ERROR, msg, location);
+    return Token::Kind::Mongolien;
+  }
 
-    bool valid = false;
-    uint64_t result = 0;
+  /*
+   * Pattern:
+   *   Decimal/Hex: <integer>[.<fraction>][e/E[sign]<exponent>]
+   *   Octal/Binary: <integer>
+   *
+   * NOTE:
+   *   `'` is considered as a separator.
+   */
 
-    for (size_t i = start; i < end; ++i) {
+  Token::Kind Lexer::scan_dec(const std::string& str) {
+    enum class Section {
+      Integer,
+      Fraction,
+      Exponent
+    };
+
+    size_t len = str.length();
+    Section section = Section::Integer;
+    size_t section_size = 0;
+
+    Token::Kind kind = Token::Kind::IntLit;
+
+    if (!std::isdigit(str[0]))
+      return invalid_kind("Invalid first digit in decimal literal: " + str, {line_number, column_number - len});
+    else
+      section_size++;
+
+    for (size_t i = 1; i < len; i++) {
       unsigned char c = str[i];
 
-      // skip separators
-      if (c == '\'')
+      if (c == '\'') {
+        if (str[i - 1] == '\'') {
+          return invalid_kind("invalid extra ' in decimal literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
         continue;
-
-      int digit;
-
-      if (c >= '0' && c <= '9')
-        digit = c - '0';
-      else if (c >= 'a' && c <= 'f')
-        digit = c - 'a' + 10;
-      else if (c >= 'A' && c <= 'F')
-        digit = c - 'A' + 10;
-      else
-        logger.log(Logger::Level::ERROR, "Invalid hex digit '" + std::string(1, c) + "' in literal: " + str + "\n");
-
-      if (result > (UINT64_MAX >> 4))
-        logger.log(Logger::Level::ERROR, "hex literal overflow: " + str + "\n");
-
-      result = (result << 4) | digit;
-      valid = true;
-    }
-
-    if (!valid)
-      logger.log(Logger::Level::ERROR, "Invalid hex literal: " + str + "\n");
-
-    return result;
-  }
-  uint64_t Lexer::parse_dec(size_t start, const std::string& str, size_t end) {
-    if (end > str.length())
-      logger.log(Logger::Level::FATAL, "`end` > `str.length()` in function `Lexer::parse_dec()`");
-
-    const static size_t base = 10;
-
-    bool valid = false;
-    uint64_t result = 0;
-
-    for (size_t i = start; i < end; ++i) {
-      unsigned char c = str[i];
-      // skip separators
-      if (c == '\'')
-        continue;
-
-      if (!std::isdigit(c))
-        logger.log(Logger::Level::ERROR, "Invalid decimal digit '" + std::string(1, c) + "' in literal: " + str + "\n");
-
-      int digit = c - '0';
-      if (result > (UINT64_MAX - digit) / base)
-        logger.log(Logger::Level::ERROR, "decimal literal overflow: " + str + "\n");
-
-      result = (result * base) + digit;
-      valid = true;
-    }
-
-    if (!valid)
-      logger.log(Logger::Level::ERROR, "Invalid number literal start: " + str + "\n");
-
-    return result;
-  }
-  uint64_t Lexer::parse_oct(size_t start, const std::string& str, size_t end) {
-    if (end > str.length())
-      logger.log(Logger::Level::FATAL, "`end` > `str.length()` in function `Lexer::parse_oct()`");
-
-    bool valid = false;
-    uint64_t result = 0;
-
-    for (size_t i = start; i < end; ++i) {
-      unsigned char c = str[i];
-      // skip separators
-      if (c == '\'')
-        continue;
-
-      if (c < '0' || c > '7')
-        logger.log(Logger::Level::ERROR, "Invalid octal digit '" + std::string(1, c) + "' in literal: " + str + "\n");
-
-      int digit = c - '0';
-      if (result > (UINT64_MAX >> 3))
-        logger.log(Logger::Level::ERROR, "octal literal overflow: " + str + "\n");
-
-      result = (result << 3) | digit;
-      valid = true;
-    }
-
-    if (!valid)
-      logger.log(Logger::Level::ERROR, "Invalid number literal start: " + str + "\n");
-
-    return result;
-  }
-  uint64_t Lexer::parse_bin(size_t start, const std::string& str, size_t end) {
-    if (end > str.length())
-      logger.log(Logger::Level::FATAL, "`end` > `str.length()` in function `Lexer::parse_bin()`");
-
-    bool valid = false;
-    uint64_t result = 0;
-
-    for (size_t i = start; i < end; ++i) {
-      unsigned char c = str[i];
-      // skip separators
-      if (c == '\'')
-        continue;
-
-      if (c != '0' && c != '1')
-        logger.log(Logger::Level::ERROR, "Invalid binary digit '" + std::string(1, c) + "' in literal: " + str + "\n");
-
-      if (result > (UINT64_MAX >> 1))
-        logger.log(Logger::Level::ERROR, "binary literal overflow: " + str + "\n");
-
-      result = (result << 1) | (c - '0');
-      valid = true;
-    }
-
-    if (!valid)
-      logger.log(Logger::Level::ERROR, "Invalid number literal start: " + str + "\n");
-
-    return result;
-  }
-
-  uint64_t Lexer::parse_int(const std::string& str) {
-    if (str.empty())
-      logger.log(Logger::Level::FATAL, "`str.length()` = 0 in function `Lexer::parse_int()`\n");
-
-    NumKind kind = numkind(str);
-    size_t start = 0;
-
-    if (kind != NumKind::Decimal)
-      start += 2;
-
-    if ((str.length() - start) == 0)
-      logger.log(Logger::Level::ERROR, "Invalid number literal: " + str + "\n");
-
-    // clang-format off
-    switch (kind) {
-      case NumKind::Decimal: return parse_dec(start, str, str.length());
-      case NumKind::Hex:     return parse_hex(start, str, str.length());
-      case NumKind::Octal:   return parse_oct(start, str, str.length());
-      case NumKind::Binary:  return parse_bin(start, str, str.length());
-    }
-    // clang-format on
-    return 0;
-  }
-  long double Lexer::parse_float(const std::string& str) {
-    if (str.empty())
-      logger.log(Logger::Level::ERROR, "Invalid floating point literal: " + str + "\n");
-
-    NumKind kind = numkind(str);
-    size_t current_character = (kind != NumKind::Decimal) ? 2 : 0;
-
-    if ((str.length() - current_character) == 0)
-      logger.log(Logger::Level::ERROR, "invalid floating point literal: " + str + "\n");
-
-    else if (kind == NumKind::Octal || kind == NumKind::Binary)
-      logger.log(Logger::Level::ERROR, "float literals must be either Hex or Decimal: " + str + "\n");
-
-    else if (kind == NumKind::Hex ? !std::isxdigit(str.back()) : !std::isdigit(str.back()))
-      logger.log(Logger::Level::ERROR, "Invalid floating point end: " + str + "\n");
-
-    // scientific notation
-    char scientific_notation = (kind == NumKind::Decimal) ? 'e' : 'p';
-
-    // search for '.'
-    size_t has_dot = str.find('.', current_character);
-
-    // search for the scientific notation
-    size_t has_sn = str.find(scientific_notation, current_character);
-    if (has_sn == std::string::npos) has_sn = str.find(toupper(scientific_notation), current_character);
-
-    // if there's more than one
-    if (has_dot != std::string::npos && str.find('.', has_dot + 1) != std::string::npos)
-      logger.log(Logger::Level::ERROR, "Too many '.' in floating point literal: " + str + "\n");
-
-    if (has_sn != std::string::npos && (str.find(scientific_notation, has_sn + 1) != std::string::npos
-                                     || str.find(toupper(scientific_notation), has_sn + 1) != std::string::npos))
-      logger.log(Logger::Level::ERROR, "Too many scientific notations in floating point literal: " + str + "\n");
-
-    if (has_dot != std::string::npos && has_sn != std::string::npos) {
-      if (has_dot + 1 == has_sn)
-        logger.log(Logger::Level::ERROR, "Scientific notation can't come after a '.'\n");
-
-      if (has_sn < has_dot)
-        logger.log(Logger::Level::ERROR, "Scientific notation can't be before the '.'\n");
-    }
-
-    uint64_t integer = 0;
-    if (has_dot != 0) {
-      size_t integer_end = std::min(std::min(has_dot, has_sn), str.length());
-
-      if (kind == NumKind::Decimal)
-        integer = parse_dec(current_character, str, integer_end);
-      else if (kind == NumKind::Hex)
-        integer = parse_hex(current_character, str, integer_end);
-
-      current_character = integer_end;
-    }
-    current_character++;
-
-    if (has_dot == std::string::npos && has_sn == std::string::npos)
-      return integer;
-
-    uint64_t fraction = 0;
-    size_t fraction_size = 0;
-    size_t base = (kind == NumKind::Decimal) ? 10 : 16;
-    if (has_dot != std::string::npos) {
-      size_t fraction_end = std::min(has_sn, str.length());
-
-      size_t end = fraction_end;
-      fraction_size = end - current_character;
-
-      if (fraction_size > FP_FRACTION_MD) {
-        fraction_size = FP_FRACTION_MD;
-        end = fraction_size + current_character;
       }
 
-      if (kind == NumKind::Decimal)
-        fraction = parse_dec(current_character, str, end);
-      else if (kind == NumKind::Hex)
-        fraction = parse_hex(current_character, str, end);
+      if (std::isdigit(c)) {
+        section_size++;
+        continue;
+      }
 
-      current_character = fraction_end + 1;
+      if (c == '.') {
+        if (section != Section::Integer || section_size == 0) {
+          return invalid_kind("Invalid section or section size before '.' in decimal literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        if (kind == Token::Kind::IntLit)
+          kind = Token::Kind::FloatLit;
+
+        section = Section::Fraction;
+        section_size = 0;
+        continue;
+      }
+
+      if (c == 'e' || c == 'E') {
+        if (section == Section::Exponent || section_size == 0) {
+          return invalid_kind("Invalid section or section size before 'e' in decimal literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        if (i + 1 >= str.length()) {
+          return invalid_kind("Invalid decimal literal end: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        if (str[i + 1] == '+' || str[i + 1] == '-')
+          i++;
+
+        if (kind == Token::Kind::IntLit)
+          kind = Token::Kind::FloatLit;
+
+        section = Section::Exponent;
+        section_size = 0;
+        continue;
+      }
+
+      return invalid_kind("Invalid digit '" + std::string(1, c) + "' in decimal literal: " + str,
+                          {line_number, column_number - len + i});
     }
 
-    // doesn't have exponent
-    if (current_character >= str.length())
-      return (integer + (fraction / pow(base, fraction_size)));
+    if (section_size == 0) {
+      return invalid_kind("Invalid section before the end of a decimal literal: " + str,
+                          {line_number, column_number});
+    }
 
-    int64_t exponent = 0;
-    size_t exponent_base = (kind == NumKind::Decimal) ? 10 : 2;
+    return kind;
+  }
+  Token::Kind Lexer::scan_hex(const std::string& str) {
+    enum class Section {
+      Integer,
+      Fraction,
+      Exponent
+    };
+
+    size_t len = str.length();
+    Section section = Section::Integer;
+    size_t section_size = 0;
+
+    Token::Kind kind = Token::Kind::IntLit;
+
+    if (!starts_with(str, "0x") && !starts_with(str, "0X"))
+      return invalid_kind("Expected prefix '0x' for hex literal: " + str, {line_number, column_number - len + 1});
+
+    // just prefix
+    if (len - 2 == 0) {
+      return invalid_kind("Expected \"at least\" one degit after hex literal suffix for: " + str,
+                          {line_number, column_number - len + 2});
+    }
+
+    for (size_t i = 2; i < len; i++) {
+      unsigned char c = str[i];
+
+      if (c == '\'') {
+        if (str[i - 1] == '\'') {
+          return invalid_kind("invalid extra ' in hex literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        continue;
+      }
+
+      if (section == Section::Exponent ? std::isdigit(c) : std::isxdigit(c)) {
+        section_size++;
+        continue;
+      }
+
+      if (c == '.') {
+        if (section != Section::Integer || section_size == 0) {
+          return invalid_kind("Invalid section or section size before '.' in hex literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        if (kind == Token::Kind::IntLit)
+          kind = Token::Kind::FloatLit;
+
+        section = Section::Fraction;
+        section_size = 0;
+        continue;
+      }
+
+      if (c == 'p' || c == 'P') {
+        if (section == Section::Exponent || section_size == 0) {
+          return invalid_kind("Invalid section or section size before '.' in hex literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        if (i + 1 >= str.length()) {
+          return invalid_kind("Invalid hex literal end: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        if (str[i + 1] == '+' || str[i + 1] == '-')
+          i++;
+
+        if (kind == Token::Kind::IntLit)
+          kind = Token::Kind::FloatLit;
+
+        section = Section::Exponent;
+        section_size = 0;
+        continue;
+      }
+
+      return invalid_kind("Invalid digit '" + std::string(1, c) + "' in hex literal: " + str,
+                          {line_number, column_number - len + i});
+    }
+
+    if (section_size == 0) {
+      return invalid_kind("Invalid section before the end of a hex literal: " + str,
+                          {line_number, column_number});
+    }
+
+    return kind;
+  }
+  Token::Kind Lexer::scan_oct(const std::string& str) {
     size_t len = str.length();
 
-    bool negative = false;
-    if (str[current_character] == '-' || str[current_character] == '+') {
-      negative = (str[current_character] == '-');
-      current_character++;
+    if (!starts_with(str, "0o") && !starts_with(str, "0O"))
+      return invalid_kind("Expected prefix '0o' for octal literal: " + str, {line_number, column_number - len + 1});
+
+    // just prefix
+    if (len - 2 == 0) {
+      return invalid_kind("Expected \"at least\" one degit after octal literal suffix for: " + str,
+                          {line_number, column_number - len + 2});
     }
 
-    exponent = parse_dec(current_character, str, len);
-    exponent *= (negative) ? -1 : 1;
+    for (size_t i = 2; i < len; i++) {
+      unsigned char c = str[i];
 
-    long double result =
-        (integer + (fraction / pow(base, fraction_size))) // mantissa
-        * pow(exponent_base, exponent);                   // exponent
+      if (c == '\'') {
+        if (str[i - 1] == '\'') {
+          return invalid_kind("invalid extra ' in octal literal: " + str,
+                              {line_number, column_number - len + i});
+        }
 
-    if (!std::isfinite(result))
-      logger.log(Logger::Level::ERROR, "floating point literal overflow: " + str + "\n");
+        continue;
+      }
 
-    return result;
+      if (c >= '0' && c <= '7')
+        continue;
+
+      return invalid_kind("Invalid digit '" + std::string(1, c) + "' in octal literal: " + str,
+                          {line_number, column_number - len + i});
+    }
+
+    return Token::Kind::IntLit;
+  }
+  Token::Kind Lexer::scan_bin(const std::string& str) {
+    size_t len = str.length();
+
+    if (!starts_with(str, "0b") && !starts_with(str, "0B"))
+      return invalid_kind("Expected prefix '0b' for binary literal: " + str, {line_number, column_number - len + 1});
+
+    // just prefix
+    if (len - 2 == 0) {
+      return invalid_kind("Expected \"at least\" one degit after binary literal suffix for: " + str,
+                          {line_number, column_number - len + 2});
+    }
+
+    for (size_t i = 2; i < len; i++) {
+      unsigned char c = str[i];
+
+      if (c == '\'') {
+        if (str[i - 1] == '\'') {
+          return invalid_kind("invalid extra ' in binary literal: " + str,
+                              {line_number, column_number - len + i});
+        }
+
+        continue;
+      }
+
+      if (c == '0' || c == '1')
+        continue;
+
+      return invalid_kind("Invalid digit '" + std::string(1, c) + "' in binary literal: " + str,
+                          {line_number, column_number - len + i});
+    }
+
+    return Token::Kind::IntLit;
   }
 } // namespace phantom

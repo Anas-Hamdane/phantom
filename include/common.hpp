@@ -3,14 +3,17 @@
 
 #include <cstdint>
 
-#include "llvm_codegen/data/ExprInfo.hpp"
-#include "llvm_codegen/data/Variable.hpp"
-#include "llvm_codegen/Visitor.hpp"
+// #include "llvm_codegen/data/ExprInfo.hpp"
+// #include "llvm_codegen/data/Variable.hpp"
+// #include "llvm_codegen/Visitor.hpp"
 
 namespace phantom {
-  using Variable = llvm_codegen::Variable;
-  using ExprInfo = llvm_codegen::ExprInfo;
-  using Visitor = llvm_codegen::Visitor;
+  // using Variable = llvm_codegen::Variable;
+  // using ExprInfo = llvm_codegen::ExprInfo;
+  // using Visitor = llvm_codegen::Visitor;
+  class Variable;
+  class ExprInfo;
+  class Visitor;
 
   // 8-bit integer
   constexpr int8_t CHAR_MAX_VAL = 127;

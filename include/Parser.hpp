@@ -1,7 +1,6 @@
 #ifndef PHANTOM_PARSER_HPP
 #define PHANTOM_PARSER_HPP
 
-#include "Token.hpp"
 #include "ast/Statement.hpp"
 #include "Logger.hpp"
 
@@ -15,7 +14,7 @@ namespace phantom {
 
     Token consume(off_t offset = 1);
 
-    bool match(TokenType token, off_t offset = 0) const;
+    bool match(Token::Kind token, off_t offset = 0) const;
 
     // function call expression parsing
     std::unique_ptr<Expression> parse_function_call_expression(const std::string& name);
@@ -44,16 +43,16 @@ namespace phantom {
     // statements parsing
     std::unique_ptr<Statement> parse_statement();
 
-    static int precedence(const TokenType type);
+    static int precedence(const Token::Kind type);
 
-    static bool right_associative(const TokenType type);
+    static bool right_associative(const Token::Kind type);
 
 public:
     explicit Parser(const std::vector<Token>& tokens, const Logger& logger)
       : tokens(tokens), logger(logger), index(0) {}
 
     // general parsing
-    std::vector<std::unique_ptr<Statement>> parse(TokenType limit = TokenType::ENDOFFILE);
+    std::vector<std::unique_ptr<Statement>> parse(Token::Kind limit = Token::Kind::EndOfFile);
   };
 } // namespace phantom
 

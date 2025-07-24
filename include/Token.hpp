@@ -1,219 +1,175 @@
 #ifndef PHANTOM_TOKEN_HPP
 #define PHANTOM_TOKEN_HPP
 
-#include <array>
-#include <string>
-#include <string_view>
-
 #include "info.hpp"
+#include <string>
 
 namespace phantom {
-  enum TokenType {
-    // types
-    DATA_TYPE, // int, float, ...
-
-    // keywords
-    KEYWORD, // return, let, ...
-
-    // identifiers
-    IDENTIFIER, // var_name
-
-    // Punctuation
-    COLON,             // :
-    SEMI_COLON,        // ;
-    COMMA,             // ,
-    OPEN_PARENTHESIS,  // (
-    CLOSE_PARENTHESIS, // )
-    OPEN_BRACKET,      // [
-    CLOSE_BRACKET,     // ]
-    OPEN_CURLY_BRACE,  // {
-    CLOSE_CURLY_BRACE, // }
-    EQUAL,             // =
-    PLUS,              // +
-    MINUS,             // -
-    STAR,              // *
-    SLASH,             // /
-    GREATER_THAN,      // >
-    LESS_THAN,         // <
-    AMPERSAND,         // &
-    BAR,               // |
-
-    // literals
-    INTEGER_LITERAL,
-    STRING_LITERAL,
-    FLOAT_LITERAL,
-    CHAR_LITERAL,
-
-    // enf of file flag
-    ENDOFFILE,
-
-    // Invalid Tokens
-    INVALID,
-  };
-
-  constexpr const std::array<std::string_view, 8> keywords{
-      "false",
-      "fn",
-      "if",
-      "let",
-      "return",
-      "true",
-      "while",
-      "write",
-  };
-
-  constexpr const std::array<std::string_view, 10> types{
-      "bool",   // 1-bit integer
-      "char",   // 8-bit integer
-      "double", // 64-bit float
-      "float",  // 32-bit float
-
-      // "half",   // 16-bit float, removed currently
-      // "huge",   // 128-bit integer, removed currently
-      // because there's no way to store that value in c++
-
-      "int",  // 32-bit integer
-      "long", // 64-bit integer
-      "ptr",
-      "quad",  // 128-bit float
-      "short", // 16-bit integer
-  };
-
-  constexpr const std::array<char, 18> punctuation{
-      '&',
-      '(',
-      ')',
-      '*',
-      '+',
-      ',',
-      '-',
-      '/',
-      ':',
-      ';',
-      '<',
-      '=',
-      '>',
-      '[',
-      ']',
-      '{',
-      '|',
-      '}',
-  };
-
   struct Token {
-    TokenType type;
+    enum class Kind {
+      // data types
+      Bool,
+      Char,
+      Short,
+      Int,
+      Long,
+      Half,
+      Float,
+      Double,
+
+      // keywords
+      Return,
+      Let,
+      Fn,
+      If,
+      Else,
+      While,
+      For,
+
+      // identifiers
+      Identifier,
+
+      // ponctuation
+      Colon,
+      SemiColon,
+      Comma,
+      OpenCurly,
+      CloseCurly,
+      OpenParent,
+      CloseParent,
+      OpenBracket,
+      CloseBracket,
+      Not,
+      Mul,
+      Div,
+      Mod,
+      And,
+      Or,
+      Plus,
+      Minus,
+      Inc,
+      Dec,
+      Less,
+      LessEq,
+      Greater,
+      GreaterEq,
+      Eq,
+      EqEq,
+      NotEq,
+      Shl,
+      ShlEq,
+      Shr,
+      ShrEq,
+      ModEq,
+      OrEq,
+      AndEq,
+      PlusEq,
+      MinusEq,
+      MulEq,
+      DivEq,
+      Qst,
+
+      // literals
+      IntLit,
+      FloatLit,
+      CharLit,
+      StrLit,
+
+      // enf of file flag
+      EndOfFile,
+
+      // Invalid Tokens
+      Mongolien,
+    };
+    Kind kind;
     std::string form;
     Location location;
 
-    explicit Token(const TokenType& type, const std::string& form, const Location& location)
-        : type(type), form(form), location(location) {}
+    Token(const Kind& kind, const Location& location)
+        : kind(kind), location(location) {}
 
-    explicit Token(const TokenType& type, const Location& location)
-        : type(type), location(location) {}
+    Token(const Kind& kind, const std::string& form, const Location& location)
+        : kind(kind), form(form), location(location) {}
 
-    constexpr static TokenType punctuation_type(char character) {
-      switch (character) {
-        case '&':
-          return TokenType::AMPERSAND;
-        case '(':
-          return TokenType::OPEN_PARENTHESIS;
-        case ')':
-          return TokenType::CLOSE_PARENTHESIS;
-        case '*':
-          return TokenType::STAR;
-        case '+':
-          return TokenType::PLUS;
-        case ',':
-          return TokenType::COMMA;
-        case '-':
-          return TokenType::MINUS;
-        case '/':
-          return TokenType::SLASH;
-        case ':':
-          return TokenType::COLON;
-        case ';':
-          return TokenType::SEMI_COLON;
-        case '<':
-          return TokenType::LESS_THAN;
-        case '=':
-          return TokenType::EQUAL;
-        case '>':
-          return TokenType::GREATER_THAN;
-        case '{':
-          return TokenType::OPEN_CURLY_BRACE;
-        case '|':
-          return TokenType::BAR;
-        case '}':
-          return TokenType::CLOSE_CURLY_BRACE;
-        case '[':
-          return TokenType::OPEN_BRACKET;
-        case ']':
-          return TokenType::CLOSE_BRACKET;
-        default:
-          return TokenType::INVALID;
+    // clang-format off
+    static std::string kind_to_string(Kind kind) {
+      switch (kind) {
+        // data types
+        case Kind::Bool:   return "Bool";
+        case Kind::Char:   return "Char";
+        case Kind::Short:  return "Short";
+        case Kind::Int:    return "Int";
+        case Kind::Long:   return "Long";
+        case Kind::Half:   return "Half";
+        case Kind::Float:  return "Float";
+        case Kind::Double: return "Double";
+    
+        // keywords
+        case Kind::Return: return "Return";
+        case Kind::Let:    return "Let";
+        case Kind::Fn:     return "Fn";
+        case Kind::If:     return "If";
+        case Kind::Else:   return "Else";
+        case Kind::While:  return "While";
+        case Kind::For:    return "For";
+    
+        // identifiers
+        case Kind::Identifier: return "Identifier";
+    
+        // punctuation
+        case Kind::Colon:        return "Colon";
+        case Kind::SemiColon:    return "SemiColon";
+        case Kind::Comma:        return "Comma";
+        case Kind::OpenCurly:    return "OpenCurly";
+        case Kind::CloseCurly:   return "CloseCurly";
+        case Kind::OpenParent:   return "OpenParent";
+        case Kind::CloseParent:  return "CloseParent";
+        case Kind::OpenBracket:  return "OpenBracket";
+        case Kind::CloseBracket: return "CloseBracket";
+        case Kind::Not:          return "Not";
+        case Kind::Mul:          return "Mul";
+        case Kind::Div:          return "Div";
+        case Kind::Mod:          return "Mod";
+        case Kind::And:          return "And";
+        case Kind::Or:           return "Or";
+        case Kind::Plus:         return "Plus";
+        case Kind::Minus:        return "Minus";
+        case Kind::Inc:          return "Inc";
+        case Kind::Dec:          return "Dec";
+        case Kind::Less:         return "Less";
+        case Kind::LessEq:       return "LessEq";
+        case Kind::Greater:      return "Greater";
+        case Kind::GreaterEq:    return "GreaterEq";
+        case Kind::Eq:           return "Eq";
+        case Kind::EqEq:         return "EqEq";
+        case Kind::NotEq:        return "NotEq";
+        case Kind::Shl:          return "Shl";
+        case Kind::ShlEq:        return "ShlEq";
+        case Kind::Shr:          return "Shr";
+        case Kind::ShrEq:        return "ShrEq";
+        case Kind::ModEq:        return "ModEq";
+        case Kind::OrEq:         return "OrEq";
+        case Kind::AndEq:        return "AndEq";
+        case Kind::PlusEq:       return "PlusEq";
+        case Kind::MinusEq:      return "MinusEq";
+        case Kind::MulEq:        return "MulEq";
+        case Kind::DivEq:        return "DivEq";
+        case Kind::Qst:          return "Qst";
+    
+        // literals
+        case Kind::IntLit:   return "IntLit";
+        case Kind::FloatLit: return "FloatLit";
+        case Kind::CharLit:  return "CharLit";
+        case Kind::StrLit:   return "StrLit";
+    
+        // end of file
+        case Kind::EndOfFile: return "EndOfFile";
+    
+        // invalid tokens
+        case Kind::Mongolien: return "Mongolien";
       }
     }
-
-    static std::string get_token_type(const TokenType& type) {
-      switch (type) {
-        case TokenType::STAR:
-          return "STAR";
-        case TokenType::SLASH:
-          return "SLASH";
-        case TokenType::BAR:
-          return "BAR";
-        case TokenType::AMPERSAND:
-          return "AMPERSAND";
-        case TokenType::DATA_TYPE:
-          return "DATA_TYPE";
-        case TokenType::CHAR_LITERAL:
-          return "CHAR_LITERAL";
-        case TokenType::FLOAT_LITERAL:
-          return "FLOAT_LITERAL";
-        case TokenType::INTEGER_LITERAL:
-          return "INTEGER_LITERAL";
-        case TokenType::STRING_LITERAL:
-          return "STRING_LITERAL";
-        case TokenType::CLOSE_PARENTHESIS:
-          return "CLOSE_PARENTHESIS";
-        case TokenType::CLOSE_CURLY_BRACE:
-          return "CLOSE_CURLY_BRACE";
-        case TokenType::OPEN_CURLY_BRACE:
-          return "OPEN_CURLY_BRACE";
-        case TokenType::COLON:
-          return "COLON";
-        case TokenType::SEMI_COLON:
-          return "SEMI_COLON";
-        case TokenType::COMMA:
-          return "COMMA";
-        case TokenType::ENDOFFILE:
-          return "EndOfFile";
-        case TokenType::EQUAL:
-          return "EQUAL";
-        case TokenType::GREATER_THAN:
-          return "GREATER_THAN";
-        case TokenType::LESS_THAN:
-          return "LESS_THAN";
-        case TokenType::IDENTIFIER:
-          return "IDENTIFIER";
-        case TokenType::KEYWORD:
-          return "KEYWORD";
-        case TokenType::MINUS:
-          return "MINUS";
-        case TokenType::PLUS:
-          return "PLUS";
-        case TokenType::OPEN_PARENTHESIS:
-          return "OPEN_PARENTHESIS";
-        case TokenType::INVALID:
-          return "INVALID";
-        case TokenType::OPEN_BRACKET:
-          return "OPEN_BRACKET";
-        case TokenType::CLOSE_BRACKET:
-          return "CLOSE_BRACKET";
-        default:
-          return "UNKNOWN";
-      }
-    }
+    // clang-format on
   };
 } // namespace phantom
 

@@ -1,21 +1,15 @@
 #define LLVM_BACKEND
 
 #include <Lexer.hpp>
-#include <Logger.hpp>
-#include <Parser.hpp>
-#include <Token.hpp>
+// #include <Parser.hpp>
 #include <driver/Driver.hpp>
 #include <driver/Options.hpp>
 
-#include <common.hpp>
-#include <info.hpp>
-#include <llvm_codegen/Compiler.hpp>
-
-#include <iostream>
+// #include <llvm_codegen/Compiler.hpp>
 
 void print_tokens(const std::vector<phantom::Token>& tokens) {
   for (const phantom::Token& token : tokens) {
-    std::string type_str = phantom::Token::get_token_type(token.type);
+    std::string type_str = phantom::Token::kind_to_string(token.kind);
     printf("TYPE: %-18s, FORM: \"%s\"\n", type_str.c_str(), token.form.c_str());
   }
 }
@@ -87,24 +81,26 @@ int main(int argc, char* argv[]) {
   FileInfo file = read_file(opts.source_file, logger);
   phantom::Location::file = file;
 
-  std::vector<std::unique_ptr<Statement>> ast;
+  // std::vector<std::unique_ptr<Statement>> ast;
 
   {
     Lexer lexer(file.content, logger);
     auto tokens = lexer.lex();
 
-    if (opts.print == "tokens")
+    if (opts.print == "tokens") {
       print_tokens(tokens);
+      return 0;
+    }
 
-    Parser parser(tokens, logger);
-    ast = parser.parse();
+    // Parser parser(tokens, logger);
+    // ast = parser.parse();
   }
 
-  llvm_codegen::Compiler compiler(ast, opts, logger);
-
-  if (!compiler.compile())
-    logger.log(Logger::Level::FATAL, "Compilation failed.", true);
-
-  std::cout << "Compilation terminated.\n";
+  // llvm_codegen::Compiler compiler(ast, opts, logger);
+  //
+  // if (!compiler.compile())
+  //   logger.log(Logger::Level::FATAL, "Compilation failed.", true);
+  //
+  // std::cout << "Compilation terminated.\n";
   return 0;
 }

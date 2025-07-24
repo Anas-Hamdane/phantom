@@ -2,101 +2,11 @@
 #define PHANTOM_LEXER_HPP
 
 #include "info.hpp"
-#include <cstdint>
 #include <string>
-#include <string_view>
-#include <vector>
+#include "Token.hpp"
 
 namespace phantom {
   class Logger;
-
-  struct Token {
-    enum class Kind {
-      // data types
-      Bool,
-      Char,
-      Short,
-      Int,
-      Huge,
-      Float,
-      Double,
-      Quad,
-
-      // keywords
-      Return,
-      Let,
-      Fn,
-      If,
-      Else,
-      While,
-      For,
-
-      // identifiers
-      Identifier,
-
-      // ponctuation
-      Colon,
-      SemiColon,
-      Comma,
-      OpenCurly,
-      CloseCurly,
-      OpenParent,
-      CloseParent,
-      OpenBracket,
-      CloseBracket,
-      Not,
-      Mul,
-      Div,
-      Mod,
-      And,
-      Or,
-      Plus,
-      Minus,
-      Inc,
-      Dec,
-      Less,
-      LessEq,
-      Greater,
-      GreaterEq,
-      Eq,
-      EqEq,
-      NotEq,
-      Shl,
-      ShlEq,
-      Shr,
-      ShrEq,
-      ModEq,
-      OrEq,
-      AndEq,
-      PlusEq,
-      MinusEq,
-      MulEq,
-      DivEq,
-      Qst,
-
-      // literals
-      IntLit,
-      FloatLit,
-      CharLit,
-      StrLit,
-
-      // enf of file flag
-      EndOfFile,
-
-      // Invalid Tokens
-      Mongolien,
-    };
-    Kind kind;
-    std::string form;
-    Location location;
-
-    Token(const Kind& kind, const Location& location)
-        : kind(kind), location(location) {}
-
-    Token(const Kind& kind, const std::string& form, const Location& location)
-        : kind(kind), form(form), location(location) {}
-  };
-
   class Lexer {
 public:
     explicit Lexer(const std::string& source, const Logger& logger)
@@ -109,7 +19,8 @@ public:
       Decimal = 10,
       Hex = 16,
       Octal = 8,
-      Binary = 2
+      Binary = 2,
+      Mongolien,
     };
 
 private:
@@ -162,12 +73,24 @@ private:
     };
 
     static constexpr std::pair<std::string_view, Token::Kind> Keywords[] = {
+        {"let",      Token::Kind::Let},
         {"return",   Token::Kind::Return},
         {"fn",       Token::Kind::Fn},
         {"if",       Token::Kind::If},
         {"else",     Token::Kind::Else},
         {"while",    Token::Kind::While},
         {"for",      Token::Kind::For},
+    };
+
+    static constexpr std::pair<std::string_view, Token::Kind> PrimDataTys[] = {
+        {"bool",      Token::Kind::Bool},
+        {"char",      Token::Kind::Char},
+        {"short",      Token::Kind::Short},
+        {"int",      Token::Kind::Int},
+        {"long",      Token::Kind::Long},
+        {"half",   Token::Kind::Half},
+        {"float",   Token::Kind::Float},
+        {"double",   Token::Kind::Double},
     };
     // clang-format on
 
@@ -184,32 +107,12 @@ private:
     bool starts_with(const std::string& str, const std::string& cmp);
     NumKind numkind(const std::string& str);
 
-    uint64_t parse_hex(size_t start, const std::string& str, size_t end);
-    uint64_t parse_dec(size_t start, const std::string& str, size_t end);
-    uint64_t parse_oct(size_t start, const std::string& str, size_t end);
-    uint64_t parse_bin(size_t start, const std::string& str, size_t end);
+    Token::Kind invalid_kind(const std::string& msg, Location location);
 
-    uint64_t parse_int(const std::string& str);
-    long double parse_float(const std::string& str);
-
-    // constexpr static int recognize_punctuation(const char character);
-    // constexpr static int recognize_type(const std::string& buffer);
-    // constexpr static int recognize_keyword(const std::string& buffer);
-    //
-    // bool new_line(char character);
-    // bool whitespace(char character);
-    // bool alphabet(char character);
-    // bool digit(char character);
-    //
-    // bool alpha_digit(char character);
-    // bool float_suffix(char character);
-    // bool double_suffixe(char character);
-    // Token invalid_token(std::string form);
-    // Token handle_numerics();
-    // Token handle_words();
-    // bool escaped(size_t pos);
-    // Token eat_character();
-    // Token eat_string();
+    Token::Kind scan_dec(const std::string& str);
+    Token::Kind scan_hex(const std::string& str);
+    Token::Kind scan_oct(const std::string& str);
+    Token::Kind scan_bin(const std::string& str);
   };
 } // namespace phantom
 
