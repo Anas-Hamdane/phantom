@@ -44,6 +44,9 @@ namespace phantom {
   constexpr long double QUAD_MAX_VAL = 1.189731495357231765e+4932Q;
   constexpr long double QUAD_MIN_VAL = (-QUAD_MAX_VAL);
 
+  // floating point fraction max digits
+  constexpr int FP_FRACTION_MD = 18;
+
   constexpr char compiler_metadata[] = "phantom";
 
   // error reporting
