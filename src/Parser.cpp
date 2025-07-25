@@ -137,7 +137,7 @@ namespace phantom {
       left = std::make_unique<BinOpExpr>(std::move(left), op.kind, std::move(right));
     }
 
-    return std::move(left);
+    return left;
   }
   std::unique_ptr<Expr> Parser::parse_prim() {
     // TODO: keml hadxi
@@ -194,6 +194,7 @@ namespace phantom {
       return std::make_unique<FloatLitExpr>(form, value);
     }
 
+    todo("Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n");
     return nullptr;
   }
 

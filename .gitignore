@@ -7,3 +7,4 @@ cmake-build-debug
 .vscode
 todo.txt
 garbage
+compile_commands.json

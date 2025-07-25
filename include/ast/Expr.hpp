@@ -94,8 +94,8 @@ public:
   class BinOpExpr : public Expr {
 public:
     std::unique_ptr<Expr> left;
-    std::unique_ptr<Expr> right;
     const Token::Kind op;
+    std::unique_ptr<Expr> right;
 
     explicit BinOpExpr(std::unique_ptr<Expr> left, const Token::Kind& op, std::unique_ptr<Expr> right)
         : left(std::move(left)), op(op), right(std::move(right)) {}
@@ -106,8 +106,8 @@ public:
   class VarDecExpr : public Expr {
 public:
     const std::string name;
-    std::unique_ptr<Expr> type;
     std::unique_ptr<Expr> value;
+    std::unique_ptr<Expr> type;
 
     explicit VarDecExpr(const std::string& name, std::unique_ptr<Expr> type, std::unique_ptr<Expr> value)
         : name(name), value(std::move(value)), type(std::move(type)) {}

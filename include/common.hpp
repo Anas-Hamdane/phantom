@@ -40,11 +40,7 @@ namespace phantom {
 
   // 64-bit float
   constexpr double DOUBLE_MAX_VAL = 1.7976931348623157e+308;
-  constexpr double DOUBLE_MIN_VAL = (-DOUBLE_MAX_VAL);
-
-  // 128-bit float (quad)
-  constexpr long double QUAD_MAX_VAL = 1.189731495357231765e+4932Q;
-  constexpr long double QUAD_MIN_VAL = (-QUAD_MAX_VAL);
+  constexpr double DOUBLE_MIN_VAL = -DOUBLE_MAX_VAL;
 
   // floating point fraction max digits
   constexpr int FP_FRACTION_MD = 18;

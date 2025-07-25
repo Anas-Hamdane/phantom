@@ -1,54 +1,35 @@
-#include <driver/Driver.hpp>
+#include <Driver.hpp>
 #include <info.hpp>
 
 namespace phantom {
   void Driver::print_help(const std::string& program_name) {
+    // clang-format off
     static std::string help = "Usage:\n"
-                              "   " +
-                              program_name + " [OPTIONS] file...\n\n"
-                                             " Available options:\n"
-                                             "   -o [output_file_path]:\n"
-                                             "       specify the output file [DEFAULT = \"a.out\"]\n"
-                                             "   -O [ON|OFF]:\n"
-                                             "      turn optimization on/off [DEFAULT = on]\n\n"
-                                             "   --emit [llvm-ir|asm|obj]:\n"
-                                             "      type of the output file\n\n"
-                                             "   --print [tokens]:\n"
-                                             "      print the options to stdout\n\n"
-                                             "   --color [ON|OFF]:\n"
-                                             "      colored log output [DEFAULT = ON]\n"
-                                             "   --help:\n"
-                                             "      print help\n";
+      "   " + program_name + " [OPTIONS] file...\n\n"
+      " Available options:\n"
+      "   -o [output_file_path]:\n"
+      "       specify the output file [DEFAULT = \"a.out\"]\n"
+      "   -O [ON|OFF]:\n"
+      "      turn optimization on/off [DEFAULT = on]\n\n"
+      "   --emit [llvm-ir|asm|obj]:\n"
+      "      type of the output file\n\n"
+      "   --print [tokens]:\n"
+      "      print the options to stdout\n\n"
+      "   --color [ON|OFF]:\n"
+      "      colored log output [DEFAULT = ON]\n"
+      "   --help:\n"
+      "      print help\n";
 
     fwrite(help.c_str(), 1, help.length(), stdout);
     exit(0);
   }
-
-  // std::string Driver::peek(off_t offset) {
-  //   if ((index + offset) >= argv.size())
-  //     return "";
-  //
-  //   return argv[index + offset];
-  // }
-  //
-  // std::string Driver::consume(off_t offset) {
-  //   if ((index + offset) >= argv.size())
-  //     return "";
-  //
-  //   return argv[index += offset];
-  // }
-  //
-  // void Driver::parse_option(Options& opts) {
-  // }
+  // clang-format on
 
   Options Driver::parse_options() {
     Options opts;
     bool source_file_specified = false;
 
     opts.program_name = argv[0];
-
-    // while (!peek().empty())
-    //   parse_option(opts);
 
     for (size_t i = 1; i < argv.size(); ++i) {
       std::string arg = argv[i];

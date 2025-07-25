@@ -239,7 +239,6 @@ namespace phantom {
     uint64_t parse_dec(size_t start, const std::string& str, size_t end, std::string& log) {
       const static size_t base = 10;
 
-      bool valid = false;
       uint64_t result = 0;
 
       for (size_t i = start; i < end; ++i) {
@@ -253,13 +252,11 @@ namespace phantom {
           log += "decimal literal overflow: " + str + "\n";
 
         result = (result * base) + digit;
-        valid = true;
       }
 
       return result;
     }
     uint64_t parse_hex(size_t start, const std::string& str, size_t end, std::string& log) {
-      bool valid = false;
       uint64_t result = 0;
 
       for (size_t i = start; i < end; ++i) {
@@ -282,13 +279,11 @@ namespace phantom {
           log += "hex literal overflow: " + str + "\n";
 
         result = (result << 4) | digit;
-        valid = true;
       }
 
       return result;
     }
     uint64_t parse_oct(size_t start, const std::string& str, size_t end, std::string& log) {
-      bool valid = false;
       uint64_t result = 0;
 
       for (size_t i = start; i < end; ++i) {
@@ -302,13 +297,11 @@ namespace phantom {
           log += "octal literal overflow: " + str + "\n";
 
         result = (result << 3) | digit;
-        valid = true;
       }
 
       return result;
     }
     uint64_t parse_bin(size_t start, const std::string& str, size_t end, std::string& log) {
-      bool valid = false;
       uint64_t result = 0;
 
       for (size_t i = start; i < end; ++i) {
@@ -321,7 +314,6 @@ namespace phantom {
           log += "binary literal overflow: " + str + "\n";
 
         result = (result << 1) | (c - '0');
-        valid = true;
       }
 
       return result;

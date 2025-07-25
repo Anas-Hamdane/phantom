@@ -5,7 +5,7 @@
 namespace phantom {
   class Stmt {
 public:
-    virtual ~Stmt();
+    virtual ~Stmt() = default;
     virtual AstElm represent() = 0;
   };
 
@@ -22,8 +22,7 @@ public:
 public:
     std::unique_ptr<Expr> expr;
 
-    explicit ExprStmt(std::unique_ptr<Expr> expr);
-
+    explicit ExprStmt(std::unique_ptr<Expr> expr) : expr(std::move(expr)) {}
     AstElm represent() override;
   };
 

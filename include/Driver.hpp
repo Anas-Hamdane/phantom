@@ -1,6 +1,7 @@
 #pragma once
 
-#include <string>
+#include "Logger.hpp"
+#include <vector>
 
 namespace phantom {
   struct Options {
@@ -19,5 +20,15 @@ namespace phantom {
     // optimize or not
     bool opitimize = true;
     bool log_color = true;
+  };
+  class Driver {
+    const std::vector<std::string> argv;
+    Logger& logger;
+
+    void print_help(const std::string& program_name);
+
+public:
+    Driver(const std::vector<std::string>& argv, Logger& logger) : argv(argv), logger(logger) {}
+    Options parse_options();
   };
 } // namespace phantom

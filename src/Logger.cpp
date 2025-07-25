@@ -90,7 +90,8 @@ namespace phantom {
     }
 
     complete_message += colored ? (std::string(this->BOLD) + message) : message;
-    complete_message += '\n';
+    if (complete_message.back() != '\n')
+      complete_message += '\n';
 
     if (stream)
       fwrite(complete_message.c_str(), 1, complete_message.length(), stream);
