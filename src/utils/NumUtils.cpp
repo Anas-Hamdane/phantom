@@ -237,9 +237,6 @@ namespace phantom {
 
     // parsers
     uint64_t parse_dec(size_t start, const std::string& str, size_t end, std::string& log) {
-      if (end > str.length())
-        log += "`end` > `str.length()` in function `parse_dec()`\n";
-
       const static size_t base = 10;
 
       bool valid = false;
@@ -251,9 +248,6 @@ namespace phantom {
         if (c == '\'')
           continue;
 
-        if (!std::isdigit(c))
-          log += "Invalid decimal digit '" + std::string(1, c) + "' in literal: " + str + "\n";
-
         int digit = c - '0';
         if (result > (UINT64_MAX - digit) / base)
           log += "decimal literal overflow: " + str + "\n";
@@ -262,15 +256,9 @@ namespace phantom {
         valid = true;
       }
 
-      if (!valid)
-        log += "Invalid number literal start: " + str + "\n";
-
       return result;
     }
     uint64_t parse_hex(size_t start, const std::string& str, size_t end, std::string& log) {
-      if (end > str.length())
-        log += "`end` > `str.length()` in function `parse_hex()`\n";
-
       bool valid = false;
       uint64_t result = 0;
 
@@ -287,10 +275,8 @@ namespace phantom {
           digit = c - '0';
         else if (c >= 'a' && c <= 'f')
           digit = c - 'a' + 10;
-        else if (c >= 'A' && c <= 'F')
-          digit = c - 'A' + 10;
         else
-          log += "Invalid hex digit '" + std::string(1, c) + "' in literal: " + str + "\n";
+          digit = c - 'A' + 10;
 
         if (result > (UINT64_MAX >> 4))
           log += "hex literal overflow: " + str + "\n";
@@ -299,15 +285,9 @@ namespace phantom {
         valid = true;
       }
 
-      if (!valid)
-        log += "Invalid hex literal: " + str + "\n";
-
       return result;
     }
     uint64_t parse_oct(size_t start, const std::string& str, size_t end, std::string& log) {
-      if (end > str.length())
-        log += "`end` > `str.length()` in function `parse_oct()`\n";
-
       bool valid = false;
       uint64_t result = 0;
 
@@ -316,9 +296,6 @@ namespace phantom {
         // skip separators
         if (c == '\'')
           continue;
-
-        if (c < '0' || c > '7')
-          log += "Invalid octal digit '" + std::string(1, c) + "' in literal: " + str + "\n";
 
         int digit = c - '0';
         if (result > (UINT64_MAX >> 3))
@@ -328,15 +305,9 @@ namespace phantom {
         valid = true;
       }
 
-      if (!valid)
-        log += "Invalid number literal start: " + str + "\n";
-
       return result;
     }
     uint64_t parse_bin(size_t start, const std::string& str, size_t end, std::string& log) {
-      if (end > str.length())
-        log += "`end` > `str.length()` in function `parse_bin()`";
-
       bool valid = false;
       uint64_t result = 0;
 
@@ -346,9 +317,6 @@ namespace phantom {
         if (c == '\'')
           continue;
 
-        if (c != '0' && c != '1')
-          log += "Invalid binary digit '" + std::string(1, c) + "' in literal: " + str + "\n";
-
         if (result > (UINT64_MAX >> 1))
           log += "binary literal overflow: " + str + "\n";
 
@@ -356,24 +324,15 @@ namespace phantom {
         valid = true;
       }
 
-      if (!valid)
-        log += "Invalid number literal start: " + str + "\n";
-
       return result;
     }
 
     uint64_t parse_int(const std::string& str, std::string& log) {
-      if (str.empty())
-        log += "`str.length()` = 0 in function `parse_int()`\n";
-
       NumKind kind = numkind(str, log);
       size_t start = 0;
 
       if (kind != NumKind::Decimal)
         start += 2;
-
-      if ((str.length() - start) == 0)
-        log += "Invalid number literal: " + str + "\n";
 
       // clang-format off
       switch (kind) {
@@ -402,55 +361,24 @@ namespace phantom {
       char scientific_notation = (kind == NumKind::Hex) ? 'p' : 'e';
       size_t current_character = (kind == NumKind::Hex) ? 2 : 0;
 
-      if (kind != NumKind::Decimal && kind != NumKind::Hex)
-        log += "floating point literals must be either Hex or Decimal: " + str + "\n";
-
-      if ((str.length() - current_character) == 0)
-        log += "invalid floating point literal: " + str + "\n";
-
       Section section = Section::Integer;
-      size_t section_size = -1;
-
       bool negative = false;
       uint64_t tmp = 0;
       for (size_t i = current_character; i < str.length(); ++i) {
         unsigned char c = str[i];
 
-        if (c == '\'') {
-          if (i == 0)
-            log += "separators are not allowed at the begining of a literal: " + str + "\n";
-
-          else if (str[i - 1] == '\'')
-            log += "Only one separator at a time is alowed: " + str + "\n";
-
+        if (c == '\'')
           continue;
-        }
 
         if (c == '.') {
-          if (section != Section::Integer)
-            log += "Invalid Integer section in float literal: " + str + "\n";
-
-          if (section_size == 0)
-            log += "Invalid float literal, empty sections are not allowed: " + str + "\n";
-
           integer = tmp;
           tmp = 0;
 
           section = Section::Fraction;
-          section_size = 0;
           continue;
         }
 
         if (c == scientific_notation || c == toupper(scientific_notation)) {
-          if (section == Section::Exponent)
-            log += "Invalid Exponent Sections in float literal: " + str + "\n";
-
-          if (section_size == 0)
-            log += "Invalid float literal, empty sections are not allowed: " + str + "\n";
-
-          if (i + 1 >= str.length())
-            log += "Float literals can't end with a scientific notation: " + str + "\n";
-
           if (str[i + 1] == '-' || str[i + 1] == '+') {
             negative = (str[i + 1] == '-');
             i++;
@@ -463,27 +391,8 @@ namespace phantom {
           tmp = 0;
 
           section = Section::Exponent;
-          section_size = 0;
           continue;
         }
-
-        bool found = false;
-        if (section == Section::Exponent && !std::isdigit(c)) {
-          log += "Exponent must be a valid decimal: " + str + "\n";
-          found = true;
-        }
-
-        if (kind == NumKind::Hex && !std::isxdigit(c)) {
-          log += "Invalid digit in hex literal: " + str + "\n";
-          found = true;
-        }
-
-        if (kind == NumKind::Decimal && !std::isdigit(c)) {
-          log += "Invalid digit in decimal literal: " + str + "\n";
-          found = true;
-        }
-
-        if (found) continue;
 
         size_t digit;
         if (c >= '0' && c <= '9')
@@ -503,11 +412,7 @@ namespace phantom {
           fraction_size++;
 
         tmp = (tmp * (uint64_t)kind) + digit;
-        section_size++;
       }
-
-      if (section_size == 0)
-        log += "Invalid float literal, empty sections are not allowed: " + str + "\n";
 
       // clang-format off
       switch (section) {
@@ -518,7 +423,6 @@ namespace phantom {
       // clang-format on
 
       if (negative) exponent *= -1;
-
       size_t exponent_base = (kind == NumKind::Hex) ? 2 : 10;
 
       long double result =
