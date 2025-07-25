@@ -15,7 +15,7 @@ public:
 
     explicit RetStmt(std::unique_ptr<Expr> expr) : expr(std::move(expr)) {}
 
-    AstElm represent() = 0;
+    AstElm represent() override;
   };
 
   class ExprStmt : public Stmt {
@@ -24,7 +24,7 @@ public:
 
     explicit ExprStmt(std::unique_ptr<Expr> expr);
 
-    AstElm represent() = 0;
+    AstElm represent() override;
   };
 
   class FnDecStmt : public Stmt {
@@ -36,7 +36,7 @@ public:
     FnDecStmt(const std::string& name, std::unique_ptr<DataTypeExpr> type, std::vector<std::unique_ptr<VarDecExpr>> params)
         : name(name), type(std::move(type)), params(std::move(params)) {}
 
-    AstElm represent() = 0;
+    AstElm represent() override;
   };
 
   class FnDefStmt : public Stmt {
@@ -47,7 +47,7 @@ public:
     FnDefStmt(std::unique_ptr<FnDecStmt> declaration, std::vector<std::unique_ptr<Stmt>> body)
         : declaration(std::move(declaration)), body(std::move(body)) {}
 
-    AstElm represent() = 0;
+    AstElm represent() override;
   };
 
 } // namespace phantom
