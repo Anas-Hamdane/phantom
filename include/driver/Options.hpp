@@ -1,5 +1,4 @@
-#ifndef PHANTOM_OPTIONS_HPP
-#define PHANTOM_OPTIONS_HPP
+#pragma once
 
 #include <string>
 
@@ -22,5 +21,3 @@ namespace phantom {
     bool log_color = true;
   };
 } // namespace phantom
-
-#endif // !PHANTOM_OPTIONS_HPP

@@ -1,5 +1,4 @@
-#ifndef PHANTOM_DRIVER_HPP
-#define PHANTOM_DRIVER_HPP
+#pragma once
 
 #include "Options.hpp"
 #include <Logger.hpp>
@@ -32,5 +31,3 @@ public:
     Options parse_options();
   };
 } // namespace phantom
-
-#endif // !PHANTOM_DRIVER_HPP

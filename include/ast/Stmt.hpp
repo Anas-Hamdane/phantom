@@ -1,5 +1,4 @@
-#ifndef PHANTOM_STMT_HPP
-#define PHANTOM_STMT_HPP
+#pragma once
 
 #include "Expr.hpp"
 
@@ -29,11 +28,11 @@ public:
   class FnDecStmt : public Stmt {
 public:
     std::string name;
-    std::string type;
+    std::unique_ptr<DataTypeExpr> type;
     std::vector<std::unique_ptr<VarDecExpr>> params;
 
-    FnDecStmt(const std::string& name, const std::string& type, std::vector<std::unique_ptr<VarDecExpr>> params)
-      : name(name), type(type), params(std::move(params)) {}
+    FnDecStmt(const std::string& name, std::unique_ptr<DataTypeExpr> type, std::vector<std::unique_ptr<VarDecExpr>> params)
+      : name(name), type(std::move(type)), params(std::move(params)) {}
     // ExprInfo accept(Visitor* visitor) override;
   };
 
@@ -48,5 +47,3 @@ public:
   };
 
 } // namespace phantom
-
-#endif // !PHANTOM_STMT_HPP

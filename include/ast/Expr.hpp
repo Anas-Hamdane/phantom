@@ -1,5 +1,4 @@
-#ifndef PHANTOM_EXPR_HPP
-#define PHANTOM_EXPR_HPP
+#pragma once
 
 #include <Token.hpp>
 #include <common.hpp>
@@ -17,11 +16,9 @@ public:
 public:
     const std::string type;
     std::unique_ptr<Expr> length;
-    std::unique_ptr<Expr> value;
 
-    explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expr> value,
-                          std::unique_ptr<Expr> length = nullptr)
-        : type(type), value(std::move(value)), length(std::move(length)) {}
+    explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expr> length = nullptr)
+        : type(type), length(std::move(length)) {}
 
     // ExprInfo rvalue(Visitor* visitor) override;
     // ExprInfo lvalue(Visitor* visitor) override;
@@ -145,5 +142,3 @@ public:
     // ExprInfo lvalue(Visitor* visitor) override;
   };
 } // namespace phantom
-
-#endif // !PHANTOM_EXPR_HPP

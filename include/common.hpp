@@ -1,5 +1,4 @@
-#ifndef PHANTOM_COMMON_HPP
-#define PHANTOM_COMMON_HPP
+#pragma once
 
 #include <cstdint>
 
@@ -51,40 +50,4 @@ namespace phantom {
   constexpr int FP_FRACTION_MD = 18;
 
   constexpr char compiler_metadata[] = "phantom";
-
-  // error reporting
-  // inline void Report(std::string rep_string, bool error = false) {
-  //   bool colored = is_stderr_tty_colored();
-  //
-  //   std::string constructed_msg;
-  //
-  //   if (error) {
-  //     if (colored)
-  //       constructed_msg += "\x1b[1;31m";
-  //
-  //     constructed_msg += "Error:";
-  //
-  //     if (colored)
-  //       constructed_msg += "\x1b[0m";
-  //   } else {
-  //     if (colored)
-  //       constructed_msg += "\x1b[1;33m";
-  //
-  //     constructed_msg += "Warning:";
-  //
-  //     if (colored)
-  //       constructed_msg += "\x1b[0m";
-  //   }
-  //
-  //   constructed_msg += '\n';
-  //
-  //   constructed_msg += rep_string;
-  //
-  //   std::cerr << constructed_msg;
-  //
-  //   if (error)
-  //     exit(EXIT_FAILURE);
-  // }
 } // namespace phantom
-
-#endif // !PHANTOM_COMMON_HPP

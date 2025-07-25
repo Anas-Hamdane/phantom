@@ -1,5 +1,4 @@
-#ifndef PHANTOM_INFO_HPP
-#define PHANTOM_INFO_HPP
+#pragma once
 
 #include <string>
 #include <vector>
@@ -22,5 +21,3 @@ namespace phantom {
     Location(const size_t line = 0, const size_t column = 0) : line(line), column(column) {}
   };
 } // namespace phantom
-
-#endif // PHANTOM_INFO_HPP

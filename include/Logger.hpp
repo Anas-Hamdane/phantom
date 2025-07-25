@@ -1,5 +1,4 @@
-#ifndef PHANTOM_LOGGER_HPP
-#define PHANTOM_LOGGER_HPP
+#pragma once
 
 #include <string>
 
@@ -38,5 +37,3 @@ private:
     std::string file_path(Level level, const Location& path) const;
   };
 } // namespace phantom
-
-#endif // !PHANTOM_LOGGER_HPP

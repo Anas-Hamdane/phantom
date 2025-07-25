@@ -1,5 +1,4 @@
-#ifndef PHANTOM_PARSER_HPP
-#define PHANTOM_PARSER_HPP
+#pragma once
 
 #include "Logger.hpp"
 #include "ast/Stmt.hpp"
@@ -21,37 +20,18 @@ private:
     Token peek(off_t offset = 0) const;
     bool match(Token::Kind token, off_t offset = 0) const;
 
-    // function call expression parsing
-    std::unique_ptr<Expr> parse_function_call_expression(const std::string& name);
+    std::string expect(Token::Kind kind);
+    void todo(const std::string& msg);
 
-    // Expression parsing
-    std::unique_ptr<Expr> parse_primary();
-    std::unique_ptr<Expr> parse_expression(int min_prec = 0);
-
-    // return statement parsing
-    std::unique_ptr<Stmt> parse_return();
-
-    // function parsing
-    std::unique_ptr<VarDecExpr> parse_param();
     std::unique_ptr<Stmt> parse_function();
+    std::unique_ptr<Stmt> parse_return();
+    std::unique_ptr<Stmt> parse_expmt();
+    std::unique_ptr<Stmt> parse_stmt();
 
-    // variable declaration parsing
-    // starting with "let"
-    std::unique_ptr<Stmt> parse_variable_declaration();
+    std::unique_ptr<Expr> parse_expr(const int min_prec = 0);
+    std::unique_ptr<Expr> parse_prim();
 
-    // keywords parsing
-    std::unique_ptr<Stmt> parse_keyword();
-
-    // statements starting with an identifier
-    std::unique_ptr<Stmt> parse_expr_stt();
-
-    // statements parsing
-    std::unique_ptr<Stmt> parse_statement();
-
-    static int precedence(const Token::Kind type);
-
-    static bool right_associative(const Token::Kind type);
+    std::unique_ptr<DataTypeExpr> parse_type();
+    std::unique_ptr<Expr> parse_literal();
   };
 } // namespace phantom
-
-#endif // !PHANTOM_PARSER_HPP

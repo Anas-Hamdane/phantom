@@ -1,21 +1,14 @@
-#ifndef PHANTOM_TOKEN_HPP
-#define PHANTOM_TOKEN_HPP
+#pragma once
 
 #include "info.hpp"
 #include <string>
 
 namespace phantom {
   struct Token {
+public:
     enum class Kind {
-      // data types
-      Bool,
-      Char,
-      Short,
-      Int,
-      Long,
-      Half,
-      Float,
-      Double,
+      DataType,
+      Identifier,
 
       // keywords
       Return,
@@ -25,9 +18,6 @@ namespace phantom {
       Else,
       While,
       For,
-
-      // identifiers
-      Identifier,
 
       // ponctuation
       Colon,
@@ -68,12 +58,14 @@ namespace phantom {
       MulEq,
       DivEq,
       Qst,
+      DRArrow, // =>
 
       // literals
       IntLit,
       FloatLit,
       CharLit,
       StrLit,
+      ArrLit,
 
       // enf of file flag
       EndOfFile,
@@ -81,6 +73,8 @@ namespace phantom {
       // Invalid Tokens
       Mongolien,
     };
+
+public:
     Kind kind;
     std::string form;
     Location location;
@@ -94,73 +88,65 @@ namespace phantom {
     // clang-format off
     static std::string kind_to_string(Kind kind) {
       switch (kind) {
-        // data types
-        case Kind::Bool:   return "Bool";
-        case Kind::Char:   return "Char";
-        case Kind::Short:  return "Short";
-        case Kind::Int:    return "Int";
-        case Kind::Long:   return "Long";
-        case Kind::Half:   return "Half";
-        case Kind::Float:  return "Float";
-        case Kind::Double: return "Double";
-    
-        // keywords
-        case Kind::Return: return "Return";
-        case Kind::Let:    return "Let";
-        case Kind::Fn:     return "Fn";
-        case Kind::If:     return "If";
-        case Kind::Else:   return "Else";
-        case Kind::While:  return "While";
-        case Kind::For:    return "For";
-    
-        // identifiers
+        case Kind::DataType:   return "DataType";
         case Kind::Identifier: return "Identifier";
     
+        // keywords
+        case Kind::Return: return "return";
+        case Kind::Let:    return "let";
+        case Kind::Fn:     return "fn";
+        case Kind::If:     return "if";
+        case Kind::Else:   return "else";
+        case Kind::While:  return "while";
+        case Kind::For:    return "for";
+    
         // punctuation
-        case Kind::Colon:        return "Colon";
-        case Kind::SemiColon:    return "SemiColon";
-        case Kind::Comma:        return "Comma";
-        case Kind::OpenCurly:    return "OpenCurly";
-        case Kind::CloseCurly:   return "CloseCurly";
-        case Kind::OpenParent:   return "OpenParent";
-        case Kind::CloseParent:  return "CloseParent";
-        case Kind::OpenBracket:  return "OpenBracket";
-        case Kind::CloseBracket: return "CloseBracket";
-        case Kind::Not:          return "Not";
-        case Kind::Mul:          return "Mul";
-        case Kind::Div:          return "Div";
-        case Kind::Mod:          return "Mod";
-        case Kind::And:          return "And";
-        case Kind::Or:           return "Or";
-        case Kind::Plus:         return "Plus";
-        case Kind::Minus:        return "Minus";
-        case Kind::Inc:          return "Inc";
-        case Kind::Dec:          return "Dec";
-        case Kind::Less:         return "Less";
-        case Kind::LessEq:       return "LessEq";
-        case Kind::Greater:      return "Greater";
-        case Kind::GreaterEq:    return "GreaterEq";
-        case Kind::Eq:           return "Eq";
-        case Kind::EqEq:         return "EqEq";
-        case Kind::NotEq:        return "NotEq";
-        case Kind::Shl:          return "Shl";
-        case Kind::ShlEq:        return "ShlEq";
-        case Kind::Shr:          return "Shr";
-        case Kind::ShrEq:        return "ShrEq";
-        case Kind::ModEq:        return "ModEq";
-        case Kind::OrEq:         return "OrEq";
-        case Kind::AndEq:        return "AndEq";
-        case Kind::PlusEq:       return "PlusEq";
-        case Kind::MinusEq:      return "MinusEq";
-        case Kind::MulEq:        return "MulEq";
-        case Kind::DivEq:        return "DivEq";
-        case Kind::Qst:          return "Qst";
+        case Kind::Colon:        return ":";
+        case Kind::SemiColon:    return ";";
+        case Kind::Comma:        return ",";
+        case Kind::OpenCurly:    return "{";
+        case Kind::CloseCurly:   return "}";
+        case Kind::OpenParent:   return "(";
+        case Kind::CloseParent:  return ")";
+        case Kind::OpenBracket:  return "[";
+        case Kind::CloseBracket: return "]";
+        case Kind::Not:          return "!";
+        case Kind::Mul:          return "*";
+        case Kind::Div:          return "/";
+        case Kind::Mod:          return "%";
+        case Kind::And:          return "&";
+        case Kind::Or:           return "|";
+        case Kind::Plus:         return "+";
+        case Kind::Minus:        return "-";
+        case Kind::Inc:          return "++";
+        case Kind::Dec:          return "--";
+        case Kind::Less:         return "<";
+        case Kind::LessEq:       return "<=";
+        case Kind::Greater:      return ">";
+        case Kind::GreaterEq:    return ">=";
+        case Kind::Eq:           return "=";
+        case Kind::EqEq:         return "==";
+        case Kind::NotEq:        return "!=";
+        case Kind::Shl:          return "<<";
+        case Kind::ShlEq:        return "<<=";
+        case Kind::Shr:          return ">>";
+        case Kind::ShrEq:        return ">>=";
+        case Kind::ModEq:        return "%=";
+        case Kind::OrEq:         return "|=";
+        case Kind::AndEq:        return "&=";
+        case Kind::PlusEq:       return "+=";
+        case Kind::MinusEq:      return "-=";
+        case Kind::MulEq:        return "*=";
+        case Kind::DivEq:        return "/=";
+        case Kind::Qst:          return "?";
+        case Kind::DRArrow:      return "=>";
     
         // literals
         case Kind::IntLit:   return "IntLit";
         case Kind::FloatLit: return "FloatLit";
         case Kind::CharLit:  return "CharLit";
         case Kind::StrLit:   return "StrLit";
+        case Kind::ArrLit:   return "ArrLit";
     
         // end of file
         case Kind::EndOfFile: return "EndOfFile";
@@ -170,7 +156,23 @@ namespace phantom {
       }
     }
     // clang-format on
+
+    static int precedence(const Kind kind) {
+      switch (kind) {
+        case Token::Kind::Eq:
+          return 5;
+        case Token::Kind::Plus:
+        case Token::Kind::Minus:
+          return 10;
+        case Token::Kind::Mul:
+        case Token::Kind::Div:
+          return 20;
+        default:
+          return 0;
+      }
+    }
+    static bool right_associative(const Kind kind) {
+      return (kind == Token::Kind::Eq);
+    }
   };
 } // namespace phantom
-
-#endif // !PHANTOM_TOKEN_HPP

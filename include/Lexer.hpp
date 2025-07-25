@@ -1,9 +1,8 @@
-#ifndef PHANTOM_LEXER_HPP
-#define PHANTOM_LEXER_HPP
+#pragma once
 
+#include "Token.hpp"
 #include "info.hpp"
 #include <string>
-#include "Token.hpp"
 
 namespace phantom {
   class Logger;
@@ -42,30 +41,42 @@ private:
         {";",   Token::Kind::SemiColon},
         {":",   Token::Kind::Colon},
         {",",   Token::Kind::Comma},
+
         {"--",  Token::Kind::Dec},
         {"-=",  Token::Kind::MinusEq},
         {"-",   Token::Kind::Minus},
+
         {"++",  Token::Kind::Inc},
         {"+=",  Token::Kind::PlusEq},
         {"+",   Token::Kind::Plus},
+
         {"*=",  Token::Kind::MulEq},
         {"*",   Token::Kind::Mul},
+
         {"%=",  Token::Kind::ModEq},
         {"%",   Token::Kind::Mod},
+
         {"/=",  Token::Kind::DivEq},
         {"/",   Token::Kind::Div},
+
         {"|=",  Token::Kind::OrEq},
         {"|",   Token::Kind::Or},
+
         {"&=",  Token::Kind::AndEq},
         {"&",   Token::Kind::And},
+
         {"==",  Token::Kind::EqEq},
+        {"=>",  Token::Kind::DRArrow},
         {"=",   Token::Kind::Eq},
+
         {"!=",  Token::Kind::NotEq},
         {"!",   Token::Kind::Not},
+
         {"<<=", Token::Kind::ShlEq},
         {"<<",  Token::Kind::Shl},
         {"<=",  Token::Kind::LessEq},
         {"<",   Token::Kind::Less},
+
         {">>=", Token::Kind::ShrEq},
         {">>",  Token::Kind::Shr},
         {">=",  Token::Kind::GreaterEq},
@@ -82,15 +93,15 @@ private:
         {"for",      Token::Kind::For},
     };
 
-    static constexpr std::pair<std::string_view, Token::Kind> PrimDataTys[] = {
-        {"bool",      Token::Kind::Bool},
-        {"char",      Token::Kind::Char},
-        {"short",      Token::Kind::Short},
-        {"int",      Token::Kind::Int},
-        {"long",      Token::Kind::Long},
-        {"half",   Token::Kind::Half},
-        {"float",   Token::Kind::Float},
-        {"double",   Token::Kind::Double},
+    static constexpr std::string_view PrimDataTys[] = {
+        "bool",
+        "char",
+        "short",
+        "int",
+        "long",
+        "half",
+        "float",
+        "double"
     };
     // clang-format on
 
@@ -115,5 +126,3 @@ private:
     Token::Kind scan_bin(const std::string& str);
   };
 } // namespace phantom
-
-#endif // !PHANTOM_LEXER_HPP

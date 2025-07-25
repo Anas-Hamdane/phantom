@@ -37,10 +37,12 @@ namespace phantom {
         while (identifier_valid(peek()))
           lexeme += consume();
 
+        // TODO: maybe we can use binary search here
         bool found = false;
-        for (const auto& [primitive, token_kind] : PrimDataTys) {
+        for (const auto& primitive : PrimDataTys) {
           if (lexeme == primitive) {
-            tokens.emplace_back(token_kind, lexeme, Location(line_number, column_number));
+            tokens.emplace_back(Token::Kind::DataType, lexeme,
+                                Location(line_number, column_number));
             found = true;
             break;
           }
@@ -49,10 +51,11 @@ namespace phantom {
         if (found)
           continue;
 
+        // TODO: binary search here too
         found = false;
         for (const auto& [keyword, token_kind] : Keywords) {
           if (lexeme == keyword) {
-            tokens.emplace_back(token_kind, lexeme, Location(line_number, column_number));
+            tokens.emplace_back(token_kind, Location(line_number, column_number));
             found = true;
             break;
           }
@@ -70,7 +73,7 @@ namespace phantom {
         std::string lexeme;
         lexeme += consume();
 
-        while (std::isalnum(peek()))
+        while (std::isalnum(peek()) || peek() == '.')
           lexeme += consume();
 
         NumKind number_kind = numkind(lexeme);
@@ -95,7 +98,7 @@ namespace phantom {
       for (const auto& [pattern, token_kind] : Puncts) {
         std::string str = std::string(pattern);
         if (skip_prefix(str)) {
-          tokens.emplace_back(token_kind, str, Location(line_number, column_number));
+          tokens.emplace_back(token_kind, Location(line_number, column_number));
           found = true;
           break;
         }
