@@ -10,7 +10,7 @@ public:
     explicit Parser(const std::vector<Token>& tokens, const Logger& logger)
         : tokens(tokens), logger(logger), index(0) {}
 
-    std::vector<std::unique_ptr<Stmt>> parse(Token::Kind limit = Token::Kind::EndOfFile);
+    std::vector<std::unique_ptr<Stmt>> parse();
 
 private:
     const std::vector<Token>& tokens;
