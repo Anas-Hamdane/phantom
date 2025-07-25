@@ -4,12 +4,13 @@
 #include <common.hpp>
 #include <memory>
 
+#include "Elm.hpp"
+
 namespace phantom {
   class Expr {
 public:
     virtual ~Expr() = default;
-    // virtual ExprInfo rvalue(Visitor* visitor) = 0;
-    // virtual ExprInfo lvalue(Visitor* visitor) = 0;
+    virtual AstElm represent() = 0;
   };
 
   class DataTypeExpr : public Expr {
@@ -20,8 +21,7 @@ public:
     explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expr> length = nullptr)
         : type(type), length(std::move(length)) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class IntLitExpr : public Expr {
@@ -29,10 +29,9 @@ public:
     const std::string form;
     uint64_t value;
 
-    explicit IntLitExpr(const std::string& form) : form(form), value(std::stol(form)) {}
+    explicit IntLitExpr(const std::string& form, uint64_t value) : form(form), value(value) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class FloatLitExpr : public Expr {
@@ -40,10 +39,9 @@ public:
     const std::string form;
     long double value;
 
-    explicit FloatLitExpr(const std::string& form) : form(form), value(std::stold(form)) {}
+    explicit FloatLitExpr(const std::string& form, long double value) : form(form), value(value) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class CharLitExpr : public Expr {
@@ -52,8 +50,7 @@ public:
 
     explicit CharLitExpr(char value) : value(value) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class BoolLitExpr : public Expr {
@@ -63,8 +60,7 @@ public:
 
     explicit BoolLitExpr(const std::string& form) : form(form), value(form == "true") {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class StrLitExpr : public Expr {
@@ -73,8 +69,7 @@ public:
 
     explicit StrLitExpr(const std::string& value) : value(value) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class ArrLitExpr : public Expr {
@@ -84,8 +79,7 @@ public:
     explicit ArrLitExpr(std::vector<std::unique_ptr<Expr>> elements)
         : elements(std::move(elements)) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class IdeExpr : public Expr {
@@ -94,8 +88,7 @@ public:
 
     explicit IdeExpr(const std::string& name) : name(name) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class BinOpExpr : public Expr {
@@ -107,27 +100,30 @@ public:
     explicit BinOpExpr(std::unique_ptr<Expr> left, const Token::Kind& op, std::unique_ptr<Expr> right)
         : left(std::move(left)), op(op), right(std::move(right)) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class VarDecExpr : public Expr {
+public:
     const std::string name;
-    std::unique_ptr<Expr> expr;
+    std::unique_ptr<Expr> type;
+    std::unique_ptr<Expr> value;
 
-    explicit VarDecExpr(const std::string& name, std::unique_ptr<Expr> expr)
-        : name(name), expr(std::move(expr)) {}
+    explicit VarDecExpr(const std::string& name, std::unique_ptr<Expr> type, std::unique_ptr<Expr> value)
+        : name(name), value(std::move(value)), type(std::move(type)) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 
   class UnaryExpr : public Expr {
+public:
     std::unique_ptr<Expr> expr;
     Token::Kind op;
 
     explicit UnaryExpr(std::unique_ptr<Expr> expr, Token::Kind op)
         : expr(std::move(expr)), op(op) {}
+
+    AstElm represent() override;
   };
 
   class FnCallExpr : public Expr {
@@ -138,7 +134,6 @@ public:
     explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expr>> args)
         : name(name), args(std::move(args)) {}
 
-    // ExprInfo rvalue(Visitor* visitor) override;
-    // ExprInfo lvalue(Visitor* visitor) override;
+    AstElm represent() override;
   };
 } // namespace phantom

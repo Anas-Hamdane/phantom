@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
+    "./src/utils/NumUtils.cpp"
     "./src/driver/*.cpp"
     "./src/Logger.cpp"
     "./src/Lexer.cpp"

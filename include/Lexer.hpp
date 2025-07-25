@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Token.hpp"
-#include "info.hpp"
 #include <string>
 
 namespace phantom {
@@ -12,15 +11,6 @@ public:
         : source(source), logger(logger), line_number(1), column_number(1), index(0) {}
 
     std::vector<Token> lex();
-
-public:
-    enum class NumKind {
-      Decimal = 10,
-      Hex = 16,
-      Octal = 8,
-      Binary = 2,
-      Mongolien,
-    };
 
 private:
     const std::string source;
@@ -114,15 +104,5 @@ private:
 
     bool identifier_start(const char c);
     bool identifier_valid(const char c);
-
-    bool starts_with(const std::string& str, const std::string& cmp);
-    NumKind numkind(const std::string& str);
-
-    Token::Kind invalid_kind(const std::string& msg, Location location);
-
-    Token::Kind scan_dec(const std::string& str);
-    Token::Kind scan_hex(const std::string& str);
-    Token::Kind scan_oct(const std::string& str);
-    Token::Kind scan_bin(const std::string& str);
   };
 } // namespace phantom

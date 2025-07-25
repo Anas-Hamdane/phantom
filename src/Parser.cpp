@@ -1,4 +1,5 @@
 #include <Parser.hpp>
+#include <utils/NumUtils.hpp>
 
 namespace phantom {
   // NOTE: the last token *MUST* be of type `Token::Kind::EndOfFile`.
@@ -14,7 +15,7 @@ namespace phantom {
         case Token::Kind::Fn:
           parse_function();
         default:
-          todo("TODO: Implement parse for token '" + Token::kind_to_string(peek().kind) + "'");
+          todo("Implement parse for token '" + Token::kind_to_string(peek().kind) + "'");
       }
     }
 
@@ -51,7 +52,7 @@ namespace phantom {
     return "";
   }
   void Parser::todo(const std::string& msg) {
-    logger.log(Logger::Level::WARNING, msg, peek().location);
+    logger.log(Logger::Level::WARNING, "TODO: " + msg, peek().location);
   }
 
   std::unique_ptr<Stmt> Parser::parse_function() {
@@ -113,7 +114,7 @@ namespace phantom {
       case Token::Kind::Return:
         return parse_return();
       default:
-        todo("TODO: Implement parse for token '" + Token::kind_to_string(peek().kind) + "'");
+        return parse_expmt();
     }
 
     return nullptr;
@@ -145,6 +146,53 @@ namespace phantom {
 
     if (match(Token::Kind::DataType))
       return parse_type();
+
+    if (match(Token::Kind::Let)) {
+      consume(); // let
+      std::string name = expect(Token::Kind::Identifier);
+
+      std::unique_ptr<Expr> type = nullptr;
+      std::unique_ptr<Expr> value = nullptr;
+
+      if (match(Token::Kind::Colon)) {
+        consume(); // :
+        type = parse_type();
+      }
+
+      if (match(Token::Kind::Eq)) {
+        consume(); // =
+        value = parse_expr();
+      }
+
+      if (!value && !type)
+        logger.log(Logger::Level::ERROR, "Expected `type` or `value` after variable declaration", peek().location);
+
+      return std::make_unique<VarDecExpr>(name, std::move(type), std::move(value));
+    }
+
+    if (match(Token::Kind::IntLit)) {
+      std::string form = consume().form;
+
+      std::string log;
+      uint64_t value = numutils::parse_int(form, log);
+
+      if (!log.empty())
+        logger.log(Logger::Level::ERROR, log);
+
+      return std::make_unique<IntLitExpr>(form, value);
+    }
+
+    if (match(Token::Kind::FloatLit)) {
+      std::string form = consume().form;
+
+      std::string log;
+      long double value = numutils::parse_float(form, log);
+
+      if (!log.empty())
+        logger.log(Logger::Level::ERROR, log);
+
+      return std::make_unique<FloatLitExpr>(form, value);
+    }
 
     return nullptr;
   }
