@@ -1,15 +1,35 @@
 #define LLVM_BACKEND
 
-#include <Lexer.hpp>
-// #include <Parser.hpp>
 #include <Driver.hpp>
-
-// #include <llvm_codegen/Compiler.hpp>
+#include <Lexer.hpp>
+#include <Parser.hpp>
 
 void print_tokens(const std::vector<phantom::Token>& tokens) {
   for (const phantom::Token& token : tokens) {
     std::string type_str = phantom::Token::kind_to_string(token.kind);
     printf("TYPE: %-18s, FORM: \"%s\"\n", type_str.c_str(), token.form.c_str());
+  }
+}
+
+void print_astelm(const phantom::AstElm& elm, int indent = 0) {
+  for (int i = 0; i < indent; ++i)
+    printf("    ");
+
+  std::string text = elm.name;
+
+  if (!text.empty() && text.back() == '\n')
+    text.pop_back();
+
+  printf("%s\n", text.c_str());
+
+  for (const auto& child : elm.children)
+    print_astelm(child, indent + 1);
+}
+
+void print_ast(const std::vector<std::unique_ptr<phantom::Stmt>>& ast) {
+  for (const auto& stmt : ast) {
+    print_astelm(stmt->represent());
+    printf("\n");
   }
 }
 
@@ -80,19 +100,20 @@ int main(int argc, char* argv[]) {
   FileInfo file = read_file(opts.source_file, logger);
   phantom::Location::file = file;
 
-  // std::vector<std::unique_ptr<Statement>> ast;
+  std::vector<std::unique_ptr<Stmt>> ast;
 
   {
     Lexer lexer(file.content, logger);
     auto tokens = lexer.lex();
 
-    if (opts.print == "tokens") {
-      print_tokens(tokens);
-      return 0;
-    }
+    print_tokens(tokens);
 
-    // Parser parser(tokens, logger);
-    // ast = parser.parse();
+    printf("\n-----------------------------------\n");
+
+    Parser parser(tokens, logger);
+    ast = parser.parse();
+
+    print_ast(ast);
   }
 
   // llvm_codegen::Compiler compiler(ast, opts, logger);

@@ -11,12 +11,7 @@ namespace phantom {
       if (match(Token::Kind::EndOfFile))
         break;
 
-      switch (peek().kind) {
-        case Token::Kind::Fn:
-          parse_function();
-        default:
-          todo("Implement parse for token '" + Token::kind_to_string(peek().kind) + "'");
-      }
+      ast.push_back(parse_stmt());
     }
 
     return ast;
@@ -26,10 +21,7 @@ namespace phantom {
     if (index >= tokens.size())
       return tokens.back();
 
-    Token token = tokens[index];
-
-    index++;
-    return token;
+    return tokens[index++];
   }
   Token Parser::peek(off_t offset) const {
     if (index + offset >= tokens.size())
@@ -56,7 +48,7 @@ namespace phantom {
   }
 
   std::unique_ptr<Stmt> Parser::parse_function() {
-    expect(Token::Kind::Let);
+    expect(Token::Kind::Fn);
 
     std::string fn_name = expect(Token::Kind::Identifier);
 
@@ -72,17 +64,24 @@ namespace phantom {
 
       std::string param_name = expect(Token::Kind::Identifier);
 
-      todo("Implement data types parsing");
-      consume();
+      expect(Token::Kind::Colon);
+
+      std::unique_ptr<DataTypeExpr> type = parse_type();
+
+      params.push_back(std::make_unique<VarDecExpr>(param_name, std::move(type), nullptr));
     } while (match(Token::Kind::Comma));
+
+    expect(Token::Kind::CloseParent);
 
     expect(Token::Kind::DRArrow);
     std::unique_ptr<DataTypeExpr> type = parse_type();
 
-    std::unique_ptr<FnDecStmt> declaration = std::make_unique<FnDecStmt>(fn_name, std::move(type), std::move(params));
+    auto declaration = std::make_unique<FnDecStmt>(fn_name, std::move(type), std::move(params));
 
-    if (match(Token::Kind::SemiColon))
+    if (match(Token::Kind::SemiColon)) {
+      consume(); // ;
       return std::move(declaration);
+    }
 
     expect(Token::Kind::OpenCurly);
 
@@ -98,6 +97,8 @@ namespace phantom {
     expect(Token::Kind::Return);
 
     std::unique_ptr<Expr> expr = parse_expr();
+
+    expect(Token::Kind::SemiColon);
     return std::make_unique<RetStmt>(std::move(expr));
   }
   std::unique_ptr<Stmt> Parser::parse_expmt() {
@@ -140,9 +141,33 @@ namespace phantom {
     return left;
   }
   std::unique_ptr<Expr> Parser::parse_prim() {
-    // TODO: keml hadxi
-    if (match(Token::Kind::Identifier))
-      return std::make_unique<IdeExpr>(consume().form);
+    // TODO: complete this
+    if (match(Token::Kind::Identifier)) {
+      std::string name = consume().form;
+
+      // function calls
+      if (match(Token::Kind::OpenParent)) {
+        consume(); // (
+
+        std::vector<std::unique_ptr<Expr>> args;
+        do {
+          if (match(Token::Kind::CloseParent)) 
+            break;
+
+          if (match(Token::Kind::Comma))
+            consume();
+
+          args.push_back(parse_expr());
+        } while (match(Token::Kind::Comma));
+
+        expect(Token::Kind::CloseParent);
+
+        return std::make_unique<FnCallExpr>(name, std::move(args));
+      }
+
+      // identifiers
+      return std::make_unique<IdeExpr>(name);
+    }
 
     if (match(Token::Kind::DataType))
       return parse_type();

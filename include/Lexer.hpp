@@ -91,7 +91,8 @@ private:
         "long",
         "half",
         "float",
-        "double"
+        "double",
+        "void"
     };
     // clang-format on
 

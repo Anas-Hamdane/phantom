@@ -10,7 +10,7 @@ namespace phantom {
   class Expr {
 public:
     virtual ~Expr() = default;
-    virtual AstElm represent() = 0;
+    virtual AstElm represent() const = 0;
   };
 
   class DataTypeExpr : public Expr {
@@ -21,7 +21,7 @@ public:
     explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expr> length = nullptr)
         : type(type), length(std::move(length)) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class IntLitExpr : public Expr {
@@ -31,7 +31,7 @@ public:
 
     explicit IntLitExpr(const std::string& form, uint64_t value) : form(form), value(value) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class FloatLitExpr : public Expr {
@@ -41,7 +41,7 @@ public:
 
     explicit FloatLitExpr(const std::string& form, long double value) : form(form), value(value) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class CharLitExpr : public Expr {
@@ -50,7 +50,7 @@ public:
 
     explicit CharLitExpr(char value) : value(value) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class BoolLitExpr : public Expr {
@@ -60,7 +60,7 @@ public:
 
     explicit BoolLitExpr(const std::string& form) : form(form), value(form == "true") {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class StrLitExpr : public Expr {
@@ -69,7 +69,7 @@ public:
 
     explicit StrLitExpr(const std::string& value) : value(value) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class ArrLitExpr : public Expr {
@@ -79,7 +79,7 @@ public:
     explicit ArrLitExpr(std::vector<std::unique_ptr<Expr>> elements)
         : elements(std::move(elements)) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class IdeExpr : public Expr {
@@ -88,7 +88,7 @@ public:
 
     explicit IdeExpr(const std::string& name) : name(name) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class BinOpExpr : public Expr {
@@ -100,7 +100,7 @@ public:
     explicit BinOpExpr(std::unique_ptr<Expr> left, const Token::Kind& op, std::unique_ptr<Expr> right)
         : left(std::move(left)), op(op), right(std::move(right)) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class VarDecExpr : public Expr {
@@ -112,7 +112,7 @@ public:
     explicit VarDecExpr(const std::string& name, std::unique_ptr<Expr> type, std::unique_ptr<Expr> value)
         : name(name), value(std::move(value)), type(std::move(type)) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class UnaryExpr : public Expr {
@@ -123,7 +123,7 @@ public:
     explicit UnaryExpr(std::unique_ptr<Expr> expr, Token::Kind op)
         : expr(std::move(expr)), op(op) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 
   class FnCallExpr : public Expr {
@@ -134,6 +134,6 @@ public:
     explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expr>> args)
         : name(name), args(std::move(args)) {}
 
-    AstElm represent() override;
+    AstElm represent() const override;
   };
 } // namespace phantom
