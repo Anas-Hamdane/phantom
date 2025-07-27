@@ -248,7 +248,7 @@ namespace phantom {
         std::string form = consume().form;
         std::string log;
 
-        uint64_t value = numutils::parse_int(form, log);
+        uint64_t value = num::parse_int(form, log);
         if (!log.empty())
           logger.log(Logger::Level::ERROR, log);
 
@@ -263,7 +263,7 @@ namespace phantom {
         std::string form = consume().form;
         std::string log;
 
-        long double value = numutils::parse_float(form, log);
+        long double value = num::parse_float(form, log);
         if (!log.empty())
           logger.log(Logger::Level::ERROR, log);
 

@@ -4,21 +4,21 @@
 
 namespace phantom {
   namespace codegen {
-    enum class VarType {
-      Bool = 1,
-      Char = 1,
-      Short = 2,
-      Int = 4,
-      Long = 8,
+    enum class VarType : char {
+      Bool = 'b',
+      Char = 'b',
+      Short = 'w',
+      Int = 'l',
+      Long = 'q',
 
-      Half = 2,
-      Float = 4,
-      Double = 8
+      Half = 2,  // idk
+      Float = 4, // idk
+      Double = 8 // idk
     };
     struct Variable {
       std::string name;
       VarType type;
       size_t position; // for assembly
     };
-  }
-}
+  } // namespace codegen
+} // namespace phantom

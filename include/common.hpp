@@ -2,18 +2,7 @@
 
 #include <cstdint>
 
-// #include "llvm_codegen/data/ExprInfo.hpp"
-// #include "llvm_codegen/data/Variable.hpp"
-// #include "llvm_codegen/Visitor.hpp"
-
 namespace phantom {
-  // using Variable = llvm_codegen::Variable;
-  // using ExprInfo = llvm_codegen::ExprInfo;
-  // using Visitor = llvm_codegen::Visitor;
-  class Variable;
-  class ExprInfo;
-  class Visitor;
-
   typedef unsigned int ExprRef;
   typedef unsigned int StmtRef;
 
@@ -47,6 +36,7 @@ namespace phantom {
 
   // floating point fraction max digits
   constexpr int FP_FRACTION_MD = 18;
+  constexpr unsigned int STR_INIT = 256;
 
   constexpr char compiler_metadata[] = "phantom";
 } // namespace phantom

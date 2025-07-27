@@ -78,16 +78,16 @@ namespace phantom {
           lexeme += consume();
 
         std::string log;
-        numutils::NumKind number_kind = numutils::numkind(lexeme, log);
+        num::NumKind number_kind = num::numkind(lexeme, log);
         Token::Kind token_kind;
 
         // clang-format off
         switch (number_kind) {
-          case numutils::NumKind::Decimal:    token_kind = numutils::scan_dec(lexeme, log); break;
-          case numutils::NumKind::Hex:        token_kind = numutils::scan_hex(lexeme, log); break;
-          case numutils::NumKind::Octal:      token_kind = numutils::scan_oct(lexeme, log); break;
-          case numutils::NumKind::Binary:     token_kind = numutils::scan_bin(lexeme, log); break;
-          case numutils::NumKind::Mongolien:  token_kind = Token::Kind::Invalid; break;
+          case num::NumKind::Decimal:    token_kind = num::scan_dec(lexeme, log); break;
+          case num::NumKind::Hex:        token_kind = num::scan_hex(lexeme, log); break;
+          case num::NumKind::Octal:      token_kind = num::scan_oct(lexeme, log); break;
+          case num::NumKind::Binary:     token_kind = num::scan_bin(lexeme, log); break;
+          case num::NumKind::Invalid:    token_kind = Token::Kind::Invalid; break;
         }
         // clang-format on
 

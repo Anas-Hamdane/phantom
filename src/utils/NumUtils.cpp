@@ -3,7 +3,7 @@
 #include <utils/NumUtils.hpp>
 
 namespace phantom {
-  namespace numutils {
+  namespace num {
     // Helper functions
     bool starts_with(const std::string& str, const std::string& cmp) {
       return (str.compare(0, cmp.length(), cmp) == 0);
@@ -11,7 +11,7 @@ namespace phantom {
     NumKind numkind(const std::string& str, std::string& log) {
       if (str.empty()) {
         log += "Invalid empty number literal";
-        return NumKind::Mongolien;
+        return NumKind::Invalid;
       }
 
       if (starts_with(str, "0x") || starts_with(str, "0X"))
@@ -27,7 +27,7 @@ namespace phantom {
         return NumKind::Decimal;
 
       log += "Unrecognized prefix for a number literal";
-      return NumKind::Mongolien;
+      return NumKind::Invalid;
     }
 
     // scanners
@@ -332,7 +332,7 @@ namespace phantom {
         case NumKind::Hex:       return parse_hex(start, str, str.length(), log);
         case NumKind::Octal:     return parse_oct(start, str, str.length(), log);
         case NumKind::Binary:    return parse_bin(start, str, str.length(), log);
-        case NumKind::Mongolien: return 0;
+        case NumKind::Invalid:   return 0;
       }
       // clang-format on
     }

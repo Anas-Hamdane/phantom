@@ -4,13 +4,13 @@
 #include "cstdint"
 
 namespace phantom {
-  namespace numutils {
+  namespace num {
     enum class NumKind {
       Decimal,
       Hex,
       Octal,
       Binary,
-      Mongolien
+      Invalid
     };
 
     // Helper functions

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include "Variable.hpp"
+#include <vector>
 
 namespace phantom {
   namespace codegen {
@@ -26,5 +26,5 @@ namespace phantom {
       FnType type;
       std::vector<Variable> args;
     };
-  }
+  } // namespace codegen
 } // namespace phantom
