@@ -1,19 +1,22 @@
 #pragma once
 
+#include "Areas.hpp"
 #include "Logger.hpp"
-#include "ast/Stmt.hpp"
+#include "Token.hpp"
 
 namespace phantom {
   class Parser {
 public:
-    explicit Parser(const std::vector<Token>& tokens, const Logger& logger)
-        : tokens(tokens), logger(logger), index(0) {}
+    Parser(const std::vector<Token>& tokens, const Logger& logger, ExprArea& expr_rea, StmtArea& stmt_area)
+        : tokens(tokens), logger(logger), expr_area(expr_rea), stmt_area(stmt_area), index(0) {}
 
-    std::vector<std::unique_ptr<Stmt>> parse();
+    std::vector<StmtRef> parse();
 
 private:
     const std::vector<Token>& tokens;
     const Logger& logger;
+    ExprArea& expr_area;
+    StmtArea& stmt_area;
     size_t index = 0;
 
     Token consume();
@@ -23,15 +26,15 @@ private:
     std::string expect(Token::Kind kind);
     void todo(const std::string& msg);
 
-    std::unique_ptr<Stmt> parse_function();
-    std::unique_ptr<Stmt> parse_return();
-    std::unique_ptr<Stmt> parse_expmt();
-    std::unique_ptr<Stmt> parse_stmt();
+    StmtRef parse_function();
+    StmtRef parse_return();
+    StmtRef parse_expmt();
+    StmtRef parse_stmt();
 
-    std::unique_ptr<Expr> parse_expr(const int min_prec = 0);
-    std::unique_ptr<Expr> parse_prim();
+    ExprRef parse_expr(const int min_prec = 0);
+    ExprRef parse_prim();
 
-    std::unique_ptr<DataTypeExpr> parse_type();
-    std::unique_ptr<Expr> parse_literal();
+    ExprRef parse_type();
+    ExprRef parse_literal();
   };
 } // namespace phantom

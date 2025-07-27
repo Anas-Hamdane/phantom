@@ -8,3 +8,4 @@ NamespaceIndentation: All
 AccessModifierOffset: -4
 PointerAlignment: Left
 IndentPPDirectives: BeforeHash
+Cpp11BracedListStyle: false

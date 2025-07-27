@@ -14,6 +14,9 @@ namespace phantom {
   class ExprInfo;
   class Visitor;
 
+  typedef unsigned int ExprRef;
+  typedef unsigned int StmtRef;
+
   // 8-bit integer
   constexpr int8_t CHAR_MAX_VAL = 127;
   constexpr int8_t CHAR_MIN_VAL = -128;

@@ -1,52 +1,45 @@
 #pragma once
 
+#include <common.hpp>
 #include "Expr.hpp"
 
 namespace phantom {
-  class Stmt {
-public:
-    virtual ~Stmt() = default;
-    virtual AstElm represent() const = 0;
+  enum class StmtKind {
+    Invalid,
+    Return,
+    Expmt,
+    FnDecl,
+    FnDef,
   };
 
-  class RetStmt : public Stmt {
-public:
-    std::unique_ptr<Expr> expr;
-
-    explicit RetStmt(std::unique_ptr<Expr> expr) : expr(std::move(expr)) {}
-
-    AstElm represent() const override;
+  struct Return {
+    ExprRef expr;
+  };
+  struct Expmt {
+    ExprRef expr;
+  };
+  struct FnDecl {
+    const char* name;
+    ExprRef type;
+    ExprRef* params;
+    size_t params_len;
+  };
+  struct FnDef {
+    StmtRef declaration;
+    StmtRef* body;
+    size_t body_len;
   };
 
-  class ExprStmt : public Stmt {
-public:
-    std::unique_ptr<Expr> expr;
+  struct Stmt {
+    StmtKind kind;
 
-    explicit ExprStmt(std::unique_ptr<Expr> expr) : expr(std::move(expr)) {}
-    AstElm represent() const override;
-  };
-
-  class FnDecStmt : public Stmt {
-public:
-    std::string name;
-    std::unique_ptr<DataTypeExpr> type;
-    std::vector<std::unique_ptr<VarDecExpr>> params;
-
-    FnDecStmt(const std::string& name, std::unique_ptr<DataTypeExpr> type, std::vector<std::unique_ptr<VarDecExpr>> params)
-        : name(name), type(std::move(type)), params(std::move(params)) {}
-
-    AstElm represent() const override;
-  };
-
-  class FnDefStmt : public Stmt {
-public:
-    std::unique_ptr<FnDecStmt> declaration;
-    std::vector<std::unique_ptr<Stmt>> body;
-
-    FnDefStmt(std::unique_ptr<FnDecStmt> declaration, std::vector<std::unique_ptr<Stmt>> body)
-        : declaration(std::move(declaration)), body(std::move(body)) {}
-
-    AstElm represent() const override;
+    union {
+      Invalid invalid;
+      Return ret;
+      Expmt expmt;
+      FnDecl fn_decl;
+      FnDef fn_def;
+    } data;
   };
 
 } // namespace phantom

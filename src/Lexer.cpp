@@ -87,7 +87,7 @@ namespace phantom {
           case numutils::NumKind::Hex:        token_kind = numutils::scan_hex(lexeme, log); break;
           case numutils::NumKind::Octal:      token_kind = numutils::scan_oct(lexeme, log); break;
           case numutils::NumKind::Binary:     token_kind = numutils::scan_bin(lexeme, log); break;
-          case numutils::NumKind::Mongolien:  token_kind = Token::Kind::Mongolien; break;
+          case numutils::NumKind::Mongolien:  token_kind = Token::Kind::Invalid; break;
         }
         // clang-format on
 

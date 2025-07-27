@@ -2,16 +2,34 @@
 
 namespace phantom {
   void ExprArea::add(Expr& expr) {
-    this->exprs.emplace_back(expr);
+    exprs.emplace_back(expr);
+    count++;
+  }
+  Expr ExprArea::get(ExprRef expr_ref) const {
+    return exprs[expr_ref];
+  }
+  void ExprArea::init() {
+    exprs.emplace_back(Expr{ .kind = ExprKind::Invalid, .data = { .invalid = {} } });
+    count++;
   }
   void ExprArea::dump() {
-    this->exprs.clear();
+    exprs.clear();
+    count = 0;
   }
 
   void StmtArea::add(Stmt& stmt) {
-    this->stmts.emplace_back(stmt);
+    stmts.emplace_back(stmt);
+    count++;
+  }
+  Stmt StmtArea::get(StmtRef stmt_ref) const{
+    return stmts[stmt_ref];
+  }
+  void StmtArea::init() {
+    stmts.emplace_back(Stmt{ .kind = StmtKind::Invalid, .data = { .invalid = {} } });
+    count++;
   }
   void StmtArea::dump() {
-    this->stmts.clear();
+    stmts.clear();
+    count = 0;
   }
 } // namespace phantom

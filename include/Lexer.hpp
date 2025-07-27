@@ -32,6 +32,7 @@ private:
         {":",   Token::Kind::Colon},
         {",",   Token::Kind::Comma},
 
+        {"->",  Token::Kind::RightArrow},
         {"--",  Token::Kind::Dec},
         {"-=",  Token::Kind::MinusEq},
         {"-",   Token::Kind::Minus},
@@ -56,7 +57,6 @@ private:
         {"&",   Token::Kind::And},
 
         {"==",  Token::Kind::EqEq},
-        {"=>",  Token::Kind::DRArrow},
         {"=",   Token::Kind::Eq},
 
         {"!=",  Token::Kind::NotEq},

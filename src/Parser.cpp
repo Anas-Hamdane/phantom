@@ -1,17 +1,21 @@
 #include <Parser.hpp>
 #include <utils/NumUtils.hpp>
 
+#include <string.h>
+
 namespace phantom {
   // NOTE: the last token *MUST* be of type `Token::Kind::EndOfFile`.
-  std::vector<std::unique_ptr<Stmt>> Parser::parse() {
-    std::vector<std::unique_ptr<Stmt>> ast;
+  std::vector<StmtRef> Parser::parse() {
+    std::vector<StmtRef> ast;
 
-    // TODO: Uncompleted
+    expr_area.init();
+    stmt_area.init();
     while (true) {
       if (match(Token::Kind::EndOfFile))
         break;
 
-      ast.push_back(parse_stmt());
+      StmtRef stmt = parse_stmt();
+      ast.push_back(stmt);
     }
 
     return ast;
@@ -47,14 +51,13 @@ namespace phantom {
     logger.log(Logger::Level::WARNING, "TODO: " + msg, peek().location);
   }
 
-  std::unique_ptr<Stmt> Parser::parse_function() {
+  StmtRef Parser::parse_function() {
     expect(Token::Kind::Fn);
-
-    std::string fn_name = expect(Token::Kind::Identifier);
+    std::string name = expect(Token::Kind::Identifier);
 
     expect(Token::Kind::OpenParent);
 
-    std::vector<std::unique_ptr<VarDecExpr>> params;
+    std::vector<ExprRef> params;
     do {
       if (match(Token::Kind::CloseParent))
         break;
@@ -63,52 +66,106 @@ namespace phantom {
         consume();
 
       std::string param_name = expect(Token::Kind::Identifier);
-
       expect(Token::Kind::Colon);
+      ExprRef type = parse_type();
 
-      std::unique_ptr<DataTypeExpr> type = parse_type();
+      Expr expr{
+        .kind = ExprKind::VarDecl,
+        .data = { .var_decl = { .name = strdup(param_name.c_str()), .value = 0, .type = type } }
+      };
 
-      params.push_back(std::make_unique<VarDecExpr>(param_name, std::move(type), nullptr));
+      expr_area.add(expr);
+      params.push_back(expr_area.count - 1);
     } while (match(Token::Kind::Comma));
 
     expect(Token::Kind::CloseParent);
 
-    expect(Token::Kind::DRArrow);
-    std::unique_ptr<DataTypeExpr> type = parse_type();
+    ExprRef type = 0;
+    if (match(Token::Kind::RightArrow)) {
+      consume();
+      type = parse_type();
+    }
 
-    auto declaration = std::make_unique<FnDecStmt>(fn_name, std::move(type), std::move(params));
+    else {
+      Expr void_type = {
+        .kind = ExprKind::DataType,
+        .data = { .data_type = { .type = "void", .length = 0 } }
+      };
+
+      expr_area.add(void_type);
+      type = expr_area.count - 1;
+    }
+
+    ExprRef* params_raw = nullptr;
+    if (!params.empty()) {
+      params_raw = new ExprRef[params.size()];
+      std::move(params.begin(), params.end(), params_raw);
+    }
+
+    Stmt fn_dec{
+      .kind = StmtKind::FnDecl,
+      .data = { .fn_decl = {
+                    .name = strdup(name.c_str()),
+                    .type = type,
+                    .params = params_raw,
+                    .params_len = params.size() } }
+    };
+    stmt_area.add(fn_dec);
+
+    StmtRef dec_ref = stmt_area.count - 1;
 
     if (match(Token::Kind::SemiColon)) {
-      consume(); // ;
-      return std::move(declaration);
+      consume();
+      return dec_ref;
     }
 
     expect(Token::Kind::OpenCurly);
+    std::vector<StmtRef> body;
 
-    std::vector<std::unique_ptr<Stmt>> body;
     while (!match(Token::Kind::CloseCurly))
       body.push_back(parse_stmt());
 
     expect(Token::Kind::CloseCurly);
 
-    return std::make_unique<FnDefStmt>(std::move(declaration), std::move(body));
+    StmtRef* body_raw = nullptr;
+    if (!body.empty()) {
+      body_raw = new StmtRef[body.size()];
+      std::move(body.begin(), body.end(), body_raw);
+    }
+
+    Stmt fn_def = {
+      .kind = StmtKind::FnDef,
+      .data = { .fn_def = { .declaration = dec_ref, .body = body_raw, .body_len = body.size() } }
+    };
+
+    stmt_area.add(fn_def);
+    return (stmt_area.count - 1);
   }
-  std::unique_ptr<Stmt> Parser::parse_return() {
+  StmtRef Parser::parse_return() {
     expect(Token::Kind::Return);
-
-    std::unique_ptr<Expr> expr = parse_expr();
+    ExprRef expr = parse_expr();
 
     expect(Token::Kind::SemiColon);
-    return std::make_unique<RetStmt>(std::move(expr));
+
+    Stmt ret{
+      .kind = StmtKind::Return,
+      .data = { .ret = { .expr = expr } }
+    };
+    stmt_area.add(ret);
+    return (stmt_area.count - 1);
   }
-  std::unique_ptr<Stmt> Parser::parse_expmt() {
-    // INFO: parse Exprs as Stmts
-    std::unique_ptr<Expr> expr = parse_expr();
+  StmtRef Parser::parse_expmt() {
+    ExprRef expr = parse_expr();
     expect(Token::Kind::SemiColon);
 
-    return std::make_unique<ExprStmt>(std::move(expr));
+    Stmt expmt{
+      .kind = StmtKind::Expmt,
+      .data = { .expmt = { .expr = expr } }
+    };
+    stmt_area.add(expmt);
+    return (stmt_area.count - 1);
   }
-  std::unique_ptr<Stmt> Parser::parse_stmt() {
+  StmtRef Parser::parse_stmt() {
     switch (peek().kind) {
       case Token::Kind::Fn:
         return parse_function();
@@ -117,13 +174,10 @@ namespace phantom {
       default:
         return parse_expmt();
     }
-
-    return nullptr;
   }
-
-  std::unique_ptr<Expr> Parser::parse_expr(const int min_prec) {
+  ExprRef Parser::parse_expr(const int min_prec) {
     // INFO: Pratt Parser
-    std::unique_ptr<Expr> left = parse_prim();
+    ExprRef left = parse_prim();
 
     while (true) {
       Token op = peek();
@@ -134,98 +188,130 @@ namespace phantom {
 
       int next_min = Token::right_associative(op.kind) ? prec : (prec + 1);
 
-      auto right = parse_expr(next_min);
-      left = std::make_unique<BinOpExpr>(std::move(left), op.kind, std::move(right));
+      ExprRef right = parse_expr(next_min);
+
+      Expr binop{
+        .kind = ExprKind::BinOp,
+        .data = { .binop = { .left = left, .op = op.kind, .right = right } }
+      };
+      expr_area.add(binop);
+
+      left = (expr_area.count - 1);
     }
 
     return left;
   }
-  std::unique_ptr<Expr> Parser::parse_prim() {
-    // TODO: complete this
-    if (match(Token::Kind::Identifier)) {
-      std::string name = consume().form;
+  ExprRef Parser::parse_prim() {
+    switch (peek().kind) {
+      case Token::Kind::Identifier: {
+        std::string name = consume().form;
 
-      // function calls
-      if (match(Token::Kind::OpenParent)) {
-        consume(); // (
+        // function call
+        if (match(Token::Kind::OpenParent)) {
+          consume();
 
-        std::vector<std::unique_ptr<Expr>> args;
-        do {
-          if (match(Token::Kind::CloseParent)) 
-            break;
+          std::vector<ExprRef> args;
+          do {
+            if (match(Token::Kind::CloseParent))
+              break;
 
-          if (match(Token::Kind::Comma))
-            consume();
+            if (match(Token::Kind::Comma))
+              consume();
 
-          args.push_back(parse_expr());
-        } while (match(Token::Kind::Comma));
+            args.push_back(parse_expr());
+          } while (match(Token::Kind::Comma));
 
-        expect(Token::Kind::CloseParent);
+          expect(Token::Kind::CloseParent);
 
-        return std::make_unique<FnCallExpr>(name, std::move(args));
+          ExprRef* args_raw = nullptr;
+          if (!args.empty()) {
+            args_raw = new ExprRef[args.size()];
+            std::move(args.begin(), args.end(), args_raw);
+          }
+
+          Expr fn_call{
+            .kind = ExprKind::FnCall,
+            .data = { .fn_call = { .name = strdup(name.c_str()), .args = args_raw, .len = args.size() } }
+          };
+          expr_area.add(fn_call);
+          return (expr_area.count - 1);
+        }
+
+        Expr ide{
+          .kind = ExprKind::Identifier,
+          .data = { .ide = { .name = strdup(name.c_str()) } }
+        };
+        expr_area.add(ide);
+        return (expr_area.count - 1);
       }
+      case Token::Kind::IntLit: {
+        std::string form = consume().form;
+        std::string log;
 
-      // identifiers
-      return std::make_unique<IdeExpr>(name);
-    }
+        uint64_t value = numutils::parse_int(form, log);
+        if (!log.empty())
+          logger.log(Logger::Level::ERROR, log);
 
-    if (match(Token::Kind::DataType))
-      return parse_type();
-
-    if (match(Token::Kind::Let)) {
-      consume(); // let
-      std::string name = expect(Token::Kind::Identifier);
-
-      std::unique_ptr<Expr> type = nullptr;
-      std::unique_ptr<Expr> value = nullptr;
-
-      if (match(Token::Kind::Colon)) {
-        consume(); // :
-        type = parse_type();
+        Expr int_lit{
+          .kind = ExprKind::IntLit,
+          .data = { .int_lit = { .form = strdup(form.c_str()), .value = value } }
+        };
+        expr_area.add(int_lit);
+        return (expr_area.count - 1);
       }
+      case Token::Kind::FloatLit: {
+        std::string form = consume().form;
+        std::string log;
 
-      if (match(Token::Kind::Eq)) {
-        consume(); // =
-        value = parse_expr();
+        long double value = numutils::parse_float(form, log);
+        if (!log.empty())
+          logger.log(Logger::Level::ERROR, log);
+
+        Expr float_lit{
+          .kind = ExprKind::FloatLit,
+          .data = { .float_lit = { .form = strdup(form.c_str()), .value = value } }
+        };
+        expr_area.add(float_lit);
+        return (expr_area.count - 1);
       }
+      case Token::Kind::Let: {
+        consume();
+        std::string name = expect(Token::Kind::Identifier);
 
-      if (!value && !type)
-        logger.log(Logger::Level::ERROR, "Expected `type` or `value` after variable declaration", peek().location);
+        ExprRef type = 0;
+        ExprRef value = 0;
 
-      return std::make_unique<VarDecExpr>(name, std::move(type), std::move(value));
+        if (match(Token::Kind::Colon)) {
+          consume();
+          type = parse_type();
+        }
+
+        if (match(Token::Kind::Eq)) {
+          consume();
+          value = parse_expr();
+        }
+
+        if (value == 0 && type == 0)
+          logger.log(Logger::Level::ERROR, "Expected `type` or `value` after variable declaration", peek().location);
+
+        Expr var_decl{
+          .kind = ExprKind::VarDecl,
+          .data = { .var_decl = { .name = strdup(name.c_str()), .value = value, .type = type } }
+        };
+        expr_area.add(var_decl);
+        return (expr_area.count - 1);
+      }
+      case Token::Kind::DataType:
+        return parse_type();
+      default:
+        todo("Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n");
+        return 0;
     }
-
-    if (match(Token::Kind::IntLit)) {
-      std::string form = consume().form;
-
-      std::string log;
-      uint64_t value = numutils::parse_int(form, log);
-
-      if (!log.empty())
-        logger.log(Logger::Level::ERROR, log);
-
-      return std::make_unique<IntLitExpr>(form, value);
-    }
-
-    if (match(Token::Kind::FloatLit)) {
-      std::string form = consume().form;
-
-      std::string log;
-      long double value = numutils::parse_float(form, log);
-
-      if (!log.empty())
-        logger.log(Logger::Level::ERROR, log);
-
-      return std::make_unique<FloatLitExpr>(form, value);
-    }
-
-    todo("Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n");
-    return nullptr;
   }
 
-  std::unique_ptr<DataTypeExpr> Parser::parse_type() {
+  ExprRef Parser::parse_type() {
     std::string type = expect(Token::Kind::DataType);
-    std::unique_ptr<Expr> length = nullptr;
+    ExprRef length = 0;
 
     if (match(Token::Kind::OpenBracket)) {
       consume();
@@ -234,6 +320,11 @@ namespace phantom {
       expect(Token::Kind::CloseBracket);
     }
 
-    return std::make_unique<DataTypeExpr>(type, std::move(length));
+    Expr data_type{
+      .kind = ExprKind::DataType,
+      .data = { .data_type = { .type = strdup(type.c_str()), .length = length } }
+    };
+    expr_area.add(data_type);
+    return (expr_area.count - 1);
   }
 } // namespace phantom

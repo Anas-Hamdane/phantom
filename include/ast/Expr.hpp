@@ -2,138 +2,91 @@
 
 #include <Token.hpp>
 #include <common.hpp>
-#include <memory>
-
-#include "Elm.hpp"
 
 namespace phantom {
-  class Expr {
-public:
-    virtual ~Expr() = default;
-    virtual AstElm represent() const = 0;
+  struct Expr;
+  enum class ExprKind {
+    Invalid,
+    DataType,
+    IntLit,
+    FloatLit,
+    CharLit,
+    BoolLit,
+    StrLit,
+    ArrLit,
+    Identifier,
+    BinOp,
+    VarDecl,
+    UnOp,
+    FnCall
   };
 
-  class DataTypeExpr : public Expr {
-public:
-    const std::string type;
-    std::unique_ptr<Expr> length;
-
-    explicit DataTypeExpr(const std::string& type, std::unique_ptr<Expr> length = nullptr)
-        : type(type), length(std::move(length)) {}
-
-    AstElm represent() const override;
+  struct Invalid {};
+  struct DataType {
+    const char* type;
+    ExprRef length;
   };
-
-  class IntLitExpr : public Expr {
-public:
-    const std::string form;
+  struct IntLit {
+    const char* form;
     uint64_t value;
-
-    explicit IntLitExpr(const std::string& form, uint64_t value) : form(form), value(value) {}
-
-    AstElm represent() const override;
   };
-
-  class FloatLitExpr : public Expr {
-public:
-    const std::string form;
+  struct FloatLit {
+    const char* form;
     long double value;
-
-    explicit FloatLitExpr(const std::string& form, long double value) : form(form), value(value) {}
-
-    AstElm represent() const override;
   };
-
-  class CharLitExpr : public Expr {
-public:
+  struct CharLit {
     char value;
-
-    explicit CharLitExpr(char value) : value(value) {}
-
-    AstElm represent() const override;
   };
-
-  class BoolLitExpr : public Expr {
-public:
-    const std::string form;
+  struct BoolLit {
     bool value;
-
-    explicit BoolLitExpr(const std::string& form) : form(form), value(form == "true") {}
-
-    AstElm represent() const override;
   };
-
-  class StrLitExpr : public Expr {
-public:
-    const std::string value;
-
-    explicit StrLitExpr(const std::string& value) : value(value) {}
-
-    AstElm represent() const override;
+  struct StrLit {
+    const char* value;
   };
-
-  class ArrLitExpr : public Expr {
-public:
-    std::vector<std::unique_ptr<Expr>> elements;
-
-    explicit ArrLitExpr(std::vector<std::unique_ptr<Expr>> elements)
-        : elements(std::move(elements)) {}
-
-    AstElm represent() const override;
+  struct ArrLit {
+    ExprRef* elems;
+    size_t len;
   };
-
-  class IdeExpr : public Expr {
-public:
-    const std::string name;
-
-    explicit IdeExpr(const std::string& name) : name(name) {}
-
-    AstElm represent() const override;
+  struct Identifier {
+    const char* name;
   };
-
-  class BinOpExpr : public Expr {
-public:
-    std::unique_ptr<Expr> left;
-    const Token::Kind op;
-    std::unique_ptr<Expr> right;
-
-    explicit BinOpExpr(std::unique_ptr<Expr> left, const Token::Kind& op, std::unique_ptr<Expr> right)
-        : left(std::move(left)), op(op), right(std::move(right)) {}
-
-    AstElm represent() const override;
-  };
-
-  class VarDecExpr : public Expr {
-public:
-    const std::string name;
-    std::unique_ptr<Expr> value;
-    std::unique_ptr<Expr> type;
-
-    explicit VarDecExpr(const std::string& name, std::unique_ptr<Expr> type, std::unique_ptr<Expr> value)
-        : name(name), value(std::move(value)), type(std::move(type)) {}
-
-    AstElm represent() const override;
-  };
-
-  class UnaryExpr : public Expr {
-public:
-    std::unique_ptr<Expr> expr;
+  struct BinOp {
+    ExprRef left;
     Token::Kind op;
-
-    explicit UnaryExpr(std::unique_ptr<Expr> expr, Token::Kind op)
-        : expr(std::move(expr)), op(op) {}
-
-    AstElm represent() const override;
+    ExprRef right;
+  };
+  struct UnOp {
+    ExprRef expr;
+    Token::Kind op;
+  };
+  struct VarDecl {
+    const char* name;
+    ExprRef value;
+    ExprRef type;
+  };
+  struct FnCall {
+    const char* name;
+    ExprRef* args;
+    size_t len;
   };
 
-  class FnCallExpr : public Expr {
-public:
-    const std::string name;
-    std::vector<std::unique_ptr<Expr>> args;
+  struct Expr {
+    ExprKind kind;
 
-    explicit FnCallExpr(const std::string& name, std::vector<std::unique_ptr<Expr>> args)
-        : name(name), args(std::move(args)) {}
-
-    AstElm represent() const override;
+    union {
+      Invalid invalid;
+      DataType data_type;     
+      IntLit int_lit;
+      FloatLit float_lit;
+      CharLit char_lit;
+      BoolLit bool_lit;
+      StrLit str_lit;
+      ArrLit arr_lit;
+      Identifier ide;
+      BinOp binop;
+      VarDecl var_decl;
+      UnOp unop;
+      FnCall fn_call;
+    } data;
   };
 } // namespace phantom

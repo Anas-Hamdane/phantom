@@ -58,7 +58,7 @@ public:
       MulEq,
       DivEq,
       Qst,
-      DRArrow, // =>
+      RightArrow,
 
       // literals
       IntLit,
@@ -71,7 +71,7 @@ public:
       EndOfFile,
 
       // Invalid Tokens
-      Mongolien,
+      Invalid,
     };
 
 public:
@@ -139,7 +139,7 @@ public:
         case Kind::MulEq:        return "*=";
         case Kind::DivEq:        return "/=";
         case Kind::Qst:          return "?";
-        case Kind::DRArrow:      return "=>";
+        case Kind::RightArrow:   return "->";
     
         // literals
         case Kind::IntLit:   return "IntLit";
@@ -152,7 +152,7 @@ public:
         case Kind::EndOfFile: return "EndOfFile";
     
         // invalid tokens
-        case Kind::Mongolien: return "Mongolien";
+        case Kind::Invalid: return "Mongolien";
       }
     }
     // clang-format on

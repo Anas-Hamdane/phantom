@@ -101,7 +101,7 @@ namespace phantom {
         log += "Invalid section before the end of a decimal literal: " + str + "\n";
 
       if (!log.empty())
-        return Token::Kind::Mongolien;
+        return Token::Kind::Invalid;
 
       return kind;
     }
