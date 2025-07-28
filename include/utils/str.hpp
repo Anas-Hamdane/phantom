@@ -11,7 +11,9 @@ namespace phantom {
     };
 
     Str init();
+    Str init(size_t size);
     int append(Str* str, const char* buffer);
     int appendf(Str* str, const char* format, ...);
+    void dump(Str* str);
   }
 }

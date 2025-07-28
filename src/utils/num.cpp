@@ -1,6 +1,6 @@
 #include <cmath>
 #include <common.hpp>
-#include <utils/NumUtils.hpp>
+#include <utils/num.hpp>
 
 namespace phantom {
   namespace num {

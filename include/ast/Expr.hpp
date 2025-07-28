@@ -23,7 +23,7 @@ namespace phantom {
 
   struct Invalid {};
   struct DataType {
-    const char* type;
+    Type type;
     ExprRef length;
   };
   struct IntLit {
@@ -60,7 +60,7 @@ namespace phantom {
     Token::Kind op;
   };
   struct VarDecl {
-    const char* name;
+    ExprRef ide;
     ExprRef value;
     ExprRef type;
   };

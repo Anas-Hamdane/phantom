@@ -22,10 +22,6 @@ namespace phantom {
   constexpr long long LONG_MAX_VAL = 9223372036854775807L;
   constexpr long long LONG_MIN_VAL = (-LONG_MAX_VAL - 1L);
 
-  // 128-bit integer (huge)
-  // currently unsupported since there's no way to store
-  // such a huge value in c++
-
   // 32-bit float
   constexpr float FLOAT_MAX_VAL = 3.402823466e+38F;
   constexpr float FLOAT_MIN_VAL = -FLOAT_MAX_VAL;
@@ -39,4 +35,18 @@ namespace phantom {
   constexpr unsigned int STR_INIT = 256;
 
   constexpr char compiler_metadata[] = "phantom";
+
+  enum class Type : unsigned int {
+    Void = 0,
+
+    Bool = 1,
+    Char = 1,
+    Short = 2,
+    Int = 4,
+    Long = 8,
+
+    Half = 2,
+    Float = 4,
+    Double = 8
+  };
 } // namespace phantom

@@ -2,6 +2,8 @@
 #include <Lexer.hpp>
 #include <Parser.hpp>
 
+#include <codegen/Codegen.hpp>
+
 using namespace phantom;
 
 // Helper function to print indentation
@@ -153,7 +155,7 @@ void print_expr(ExprRef expr_ref, const ExprArea& expr_area, int depth) {
             break;
             
         case ExprKind::VarDecl:
-            printf("VarDecl: %s\n", expr.data.var_decl.name);
+            printf("VarDecl: %s\n", expr_area.get(expr.data.var_decl.ide).data.ide.name);
             if (expr.data.var_decl.type != 0) {
                 print_expr(expr.data.var_decl.type, expr_area, depth + 1);
             }
@@ -264,21 +266,20 @@ int main(int argc, char* argv[]) {
     Lexer lexer(file.content, logger);
     auto tokens = lexer.lex();
 
-    print_tokens(tokens);
+    // print_tokens(tokens);
 
-    printf("\n-----------------------------------\n");
+    // printf("\n-----------------------------------\n");
 
     Parser parser(tokens, logger, expr_area, stmt_area);
     ast = parser.parse();
 
-    print_ast(ast, expr_area, stmt_area);
+    // print_ast(ast, expr_area, stmt_area);
   }
 
-  // llvm_codegen::Compiler compiler(ast, opts, logger);
-  //
-  // if (!compiler.compile())
-  //   logger.log(Logger::Level::FATAL, "Compilation failed.", true);
-  //
-  // std::cout << "Compilation terminated.\n";
+  codegen::Codegen gen(ast, expr_area, stmt_area);
+  const char* assm = gen.codegen();
+
+  printf("%s", assm);
+
   return 0;
 }

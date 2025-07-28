@@ -36,5 +36,7 @@ private:
 
     ExprRef parse_type();
     ExprRef parse_literal();
+
+    Type resolve_type(std::string str);
   };
 } // namespace phantom

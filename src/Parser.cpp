@@ -1,7 +1,6 @@
 #include <Parser.hpp>
-#include <utils/NumUtils.hpp>
-
 #include <string.h>
+#include <utils/num.hpp>
 
 namespace phantom {
   // NOTE: the last token *MUST* be of type `Token::Kind::EndOfFile`.
@@ -69,9 +68,16 @@ namespace phantom {
       expect(Token::Kind::Colon);
       ExprRef type = parse_type();
 
+      Expr ide{
+        .kind = ExprKind::Identifier,
+        .data = { .ide = { .name = strdup(param_name.c_str()) } }
+      };
+      expr_area.add(ide);
+      ExprRef ide_ref = expr_area.count - 1;
+
       Expr expr{
         .kind = ExprKind::VarDecl,
-        .data = { .var_decl = { .name = strdup(param_name.c_str()), .value = 0, .type = type } }
+        .data = { .var_decl = { .ide = ide_ref, .value = 0, .type = type } }
       };
 
       expr_area.add(expr);
@@ -89,7 +95,7 @@ namespace phantom {
     else {
       Expr void_type = {
         .kind = ExprKind::DataType,
-        .data = { .data_type = { .type = "void", .length = 0 } }
+        .data = { .data_type = { .type = Type::Void, .length = 0 } }
       };
 
       expr_area.add(void_type);
@@ -294,9 +300,16 @@ namespace phantom {
         if (value == 0 && type == 0)
           logger.log(Logger::Level::ERROR, "Expected `type` or `value` after variable declaration", peek().location);
 
+        Expr ide{
+          .kind = ExprKind::Identifier,
+          .data = { .ide = { .name = strdup(name.c_str()) } }
+        };
+        expr_area.add(ide);
+        ExprRef ide_ref = expr_area.count - 1;
+
         Expr var_decl{
           .kind = ExprKind::VarDecl,
-          .data = { .var_decl = { .name = strdup(name.c_str()), .value = value, .type = type } }
+          .data = { .var_decl = { .ide = ide_ref, .value = value, .type = type } }
         };
         expr_area.add(var_decl);
         return (expr_area.count - 1);
@@ -310,7 +323,7 @@ namespace phantom {
   }
 
   ExprRef Parser::parse_type() {
-    std::string type = expect(Token::Kind::DataType);
+    std::string str_type = expect(Token::Kind::DataType);
     ExprRef length = 0;
 
     if (match(Token::Kind::OpenBracket)) {
@@ -320,11 +333,44 @@ namespace phantom {
       expect(Token::Kind::CloseBracket);
     }
 
+    Type type = resolve_type(str_type);
     Expr data_type{
       .kind = ExprKind::DataType,
-      .data = { .data_type = { .type = strdup(type.c_str()), .length = length } }
+      .data = { .data_type = { .type = type, .length = length } }
     };
     expr_area.add(data_type);
     return (expr_area.count - 1);
+  }
+
+  Type Parser::resolve_type(std::string str) {
+    if (str == "void")
+      return Type::Void;
+
+    if (str == "bool")
+      return Type::Bool;
+
+    if (str == "char")
+      return Type::Char;
+
+    if (str == "short")
+      return Type::Short;
+
+    if (str == "int")
+      return Type::Int;
+
+    if (str == "long")
+      return Type::Long;
+
+    if (str == "half")
+      return Type::Half;
+
+    if (str == "float")
+      return Type::Float;
+
+    if (str == "double")
+      return Type::Double;
+
+    logger.log(Logger::Level::ERROR, "Unrecognized type: " + str);
+    return Type::Int; // default
   }
 } // namespace phantom

@@ -8,11 +8,12 @@ BUILD := build
 OBJSDIR := build/objs
 
 FRONTEND := ./src/Lexer.cpp ./src/Parser.cpp ./src/Driver.cpp
-UTILS := ./src/Logger.cpp ./src/utils/NumUtils.cpp ./src/Areas.cpp
-SRCS := ./src/main.cpp $(FRONTEND) $(UTILS)
+UTILS := ./src/Logger.cpp ./src/utils/num.cpp ./src/utils/str.cpp ./src/Areas.cpp
+CODEGEN := ./src/codegen/Codegen.cpp
+SRCS := ./src/main.cpp $(FRONTEND) $(UTILS) $(CODEGEN)
 
 # IMPORTANT: don't forget to add new paths here too
-VPATH := src src/utils
+VPATH := src src/utils src/codegen
 
 SRC_WITHOUT_PATH := $(notdir $(SRCS))
 OBJS := $(addprefix $(OBJSDIR)/, $(SRC_WITHOUT_PATH:.cpp=.o))

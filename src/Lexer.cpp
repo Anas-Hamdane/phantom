@@ -1,7 +1,7 @@
 #include <Lexer.hpp>
 #include <Logger.hpp>
 #include <common.hpp>
-#include <utils/NumUtils.hpp>
+#include <utils/num.hpp>
 
 namespace phantom {
   std::vector<Token> Lexer::lex() {

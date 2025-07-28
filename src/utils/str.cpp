@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string.h>
-#include <utils/StrUtils.hpp>
+#include <utils/str.hpp>
 #include <common.hpp>
 
 namespace phantom {
@@ -12,6 +12,15 @@ namespace phantom {
       Str str;
 
       str.capacity = STR_INIT;
+      str.content = (char*) malloc(str.capacity);
+
+      str.len = 0;
+      return str;
+    }
+    Str init(size_t size) {
+      Str str;
+
+      str.capacity = size;
       str.content = (char*) malloc(str.capacity);
 
       str.len = 0;
@@ -60,6 +69,11 @@ namespace phantom {
       str->len += n;
 
       return n;
+    }
+    void dump(Str* str) {
+      free(str->content);
+      str->capacity = 0;
+      str->len = 0;
     }
   } // namespace str
 } // namespace phantom
