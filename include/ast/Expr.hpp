@@ -2,91 +2,99 @@
 
 #include <Token.hpp>
 #include <common.hpp>
+#include <memory>
 
 namespace phantom {
-  struct Expr;
-  enum class ExprKind {
-    Invalid,
+  enum class ExprKind : uint {
+    Invalid = 0,
     DataType,
+    BoolLit,
+    CharLit,
     IntLit,
     FloatLit,
-    CharLit,
-    BoolLit,
     StrLit,
     ArrLit,
     Identifier,
     BinOp,
-    VarDecl,
     UnOp,
+    VarDecl,
+    Param,
     FnCall
   };
 
-  struct Invalid {};
-  struct DataType {
-    Type type;
-    ExprRef length;
-  };
-  struct IntLit {
-    const char* form;
-    uint64_t value;
-  };
-  struct FloatLit {
-    const char* form;
-    long double value;
-  };
-  struct CharLit {
-    char value;
-  };
-  struct BoolLit {
-    bool value;
-  };
-  struct StrLit {
-    const char* value;
-  };
-  struct ArrLit {
-    ExprRef* elems;
-    size_t len;
-  };
-  struct Identifier {
-    const char* name;
-  };
-  struct BinOp {
-    ExprRef left;
-    Token::Kind op;
-    ExprRef right;
-  };
-  struct UnOp {
-    ExprRef expr;
-    Token::Kind op;
-  };
-  struct VarDecl {
-    ExprRef ide;
-    ExprRef value;
-    ExprRef type;
-  };
-  struct FnCall {
-    const char* name;
-    ExprRef* args;
-    size_t len;
-  };
+  struct Invalid;
+  struct DataType;
+  struct IntLit;
+  struct FloatLit;
+  struct CharLit;
+  struct BoolLit;
+  struct StrLit;
+  struct ArrLit;
+  struct Identifier;
+  struct BinOp;
+  struct UnOp;
+  struct VarDecl;
+  struct Param;
+  struct FnCall;
 
   struct Expr {
     ExprKind kind;
 
     union {
-      Invalid invalid;
-      DataType data_type;     
-      IntLit int_lit;
-      FloatLit float_lit;
-      CharLit char_lit;
-      BoolLit bool_lit;
-      StrLit str_lit;
-      ArrLit arr_lit;
-      Identifier ide;
-      BinOp binop;
-      VarDecl var_decl;
-      UnOp unop;
-      FnCall fn_call;
+      struct Invalid {};
+      struct DataType {
+        Type type;
+        std::unique_ptr<Expr> length;
+      };
+      struct BoolLit {
+        bool value;
+      };
+      struct CharLit {
+        char value;
+      };
+      struct IntLit {
+        const char* form;
+        uint64_t value;
+      };
+      struct FloatLit {
+        const char* form;
+        long double value;
+      };
+      struct StrLit {
+        const char* value;
+      };
+      struct ArrLit {
+        std::vector<std::unique_ptr<Expr>> elements;
+        size_t len;
+      };
+      struct Identifier {
+        const char* name;
+      };
+      struct BinOp {
+        std::unique_ptr<Expr> left;
+        Token::Kind op;
+        std::unique_ptr<Expr> right;
+      };
+      struct UnOp {
+        std::unique_ptr<Expr> expr;
+        Token::Kind op;
+      };
+      struct VarDecl {
+        std::unique_ptr<Expr> ide;
+        std::unique_ptr<Expr> value;
+        std::unique_ptr<Expr> type;
+      };
+      struct Param {
+        std::unique_ptr<Expr> ide;
+        std::unique_ptr<Expr> type;
+      };
+      struct FnCall {
+        const char* name;
+        std::vector<std::unique_ptr<Expr>> args;
+        size_t len;
+      };
+
     } data;
   };
+
 } // namespace phantom

@@ -23,6 +23,87 @@ namespace phantom {
 
       std::map<std::string, Variable> vars_table;
       std::map<std::string, Function> fn_table;
+      const std::map<std::string_view, unsigned int> regs_table{
+        { "rax", 8 },
+        { "eax", 4 },
+        { "ax", 2 },
+        { "al", 1 },
+
+        { "rbx", 8 },
+        { "ebx", 4 },
+        { "bx", 2 },
+        { "bl", 1 },
+
+        { "rcx", 8 },
+        { "ecx", 4 },
+        { "cx", 2 },
+        { "cl", 1 },
+
+        { "rdx", 8 },
+        { "edx", 4 },
+        { "dx", 2 },
+        { "dl", 1 },
+
+        { "rsp", 8 },
+        { "esp", 4 },
+        { "sp", 2 },
+        { "spl", 1 },
+
+        { "rsi", 8 },
+        { "esi", 4 },
+        { "si", 2 },
+        { "sil", 1 },
+
+        { "rdi", 8 },
+        { "edi", 4 },
+        { "di", 2 },
+        { "dil", 1 },
+
+        { "rbp", 8 },
+        { "ebp", 4 },
+        { "bp", 2 },
+        { "bpl", 1 },
+
+        { "r8", 8 },
+        { "r8d", 4 },
+        { "r8w", 2 },
+        { "r8b", 1 },
+
+        { "r9", 8 },
+        { "r9d", 4 },
+        { "r9w", 2 },
+        { "r9b", 1 },
+
+        { "r10", 8 },
+        { "r10d", 4 },
+        { "r10w", 2 },
+        { "r10b", 1 },
+
+        { "r11", 8 },
+        { "r11d", 4 },
+        { "r11w", 2 },
+        { "r11b", 1 },
+
+        { "r12", 8 },
+        { "r12d", 4 },
+        { "r12w", 2 },
+        { "r12b", 1 },
+
+        { "r13", 8 },
+        { "r13d", 4 },
+        { "r13w", 2 },
+        { "r13b", 1 },
+
+        { "r14", 8 },
+        { "r14d", 4 },
+        { "r14w", 2 },
+        { "r14b", 1 },
+
+        { "r15", 8 },
+        { "r15d", 4 },
+        { "r15w", 2 },
+        { "r15b", 1 }
+      };
 
       Function* current_function;
 
@@ -42,17 +123,20 @@ namespace phantom {
       void declare_variable(VarDecl& decl);
 
       void load_to_reg(const char* reg, Expr& expr);
+      void store_value(int64_t value, Expr& expr);
       // void mov_to(const char* dst, Expr& expr);
 
-      // void add();
+      void add(ExprRef left_ref, ExprRef right_ref);
       // void sub();
       // void mul();
       // void div();
       void asgn(ExprRef left_ref, ExprRef right_ref);
       // void neg();
 
-      char resolve_suffix(VarType type);
-      char* resolve_reg(VarType type);
+      char size_suffix(unsigned int size);
+      char* size_areg(unsigned int size);
+
+      void check_identifier(const char* name);
     };
   } // namespace codegen
 } // namespace phantom

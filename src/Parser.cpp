@@ -4,11 +4,9 @@
 
 namespace phantom {
   // NOTE: the last token *MUST* be of type `Token::Kind::EndOfFile`.
-  std::vector<StmtRef> Parser::parse() {
-    std::vector<StmtRef> ast;
+  std::vector<Stmt> Parser::parse() {
+    std::vector<Stmt> ast;
 
-    expr_area.init();
-    stmt_area.init();
     while (true) {
       if (match(Token::Kind::EndOfFile))
         break;
@@ -50,13 +48,13 @@ namespace phantom {
     logger.log(Logger::Level::WARNING, "TODO: " + msg, peek().location);
   }
 
-  StmtRef Parser::parse_function() {
+  std::unique_ptr<Stmt> Parser::parse_function() {
     expect(Token::Kind::Fn);
     std::string name = expect(Token::Kind::Identifier);
 
     expect(Token::Kind::OpenParent);
 
-    std::vector<ExprRef> params;
+    std::vector<std::vector<Expr>> params;
     do {
       if (match(Token::Kind::CloseParent))
         break;
@@ -66,7 +64,7 @@ namespace phantom {
 
       std::string param_name = expect(Token::Kind::Identifier);
       expect(Token::Kind::Colon);
-      ExprRef type = parse_type();
+      std::unique_ptr<Expr> type = parse_type();
 
       Expr ide{
         .kind = ExprKind::Identifier,

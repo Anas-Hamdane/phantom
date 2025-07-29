@@ -26,6 +26,18 @@ namespace phantom {
       str.len = 0;
       return str;
     }
+    Str init(const char* s) {
+      Str str;
+
+      size_t n = strlen(s);
+      str.capacity = n + 1;
+
+      str.content = (char*) malloc(str.capacity);
+      sprintf(str.content, "%s", s);
+
+      str.len = n;
+      return str;
+    }
     int append(Str* str, const char* buffer) {
       size_t n = strlen(buffer);
 

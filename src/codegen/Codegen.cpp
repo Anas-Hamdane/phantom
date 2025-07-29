@@ -163,33 +163,64 @@ namespace phantom {
           str::appendf(&output, "    movq    $%lu, %%%s\n", value, reg);
           break;
         }
+        case ExprKind::Identifier: {
+          const char* name = expr.data.ide.name;
+          check_identifier(name);
+
+          Variable var = vars_table[name];
+          str::Str inst = str::init("mov");
+
+          unsigned int reg_size = regs_table.at(reg);
+          unsigned int var_size = (unsigned int)var.type;
+
+          // pretend we are dealing with signed values
+          if (reg_size > var_size)
+            str::appendf(&inst, "s%c%c", size_suffix(var_size), size_suffix(reg_size));
+          else
+            str::appendf(&inst, "%c", size_suffix(reg_size));
+
+          str::appendf(&output, "    %-8s-%zu(%%rbp), %%%s\n", inst.content, var.index, reg);
+          break;
+        }
         default:
           printf("TODO: everything else\n");
       }
     }
-    // void Codegen::mov_to(const char* dst, Expr& expr) {
-    //   switch (expr.kind) {
-    //     case ExprKind::IntLit: {
-    //       uint64_t value = expr.data.int_lit.value;
-    //       str::appendf(&output, "    movq    $%lu, %s\n", value, dst);
-    //       break;
-    //     }
-    //     case ExprKind::Identifier: {
-    //       const char* name = expr.data.ide.name;
-    //       if (vars_table.find(name) == vars_table.end()) {
-    //         printf("Use of undeclared identifier: %s\n", name);
-    //         exit(1);
-    //       }
-    //
-    //       Variable ide = vars_table[name];
-    //
-    //     }
-    //     default:
-    //       printf("TODO: everything else\n");
-    //   }
-    // }
+    void Codegen::store_value(int64_t value, Expr& expr) {
+      if (expr.kind != ExprKind::Identifier) {
+        printf("Why are you trying to store on non-identifier things?\n");
+        exit(1);
+      }
 
-    // void Codegen::add();
+      const char* name = expr.data.ide.name;
+      check_identifier(name);
+
+      Variable var = vars_table[name];
+      const char suffix = size_suffix((unsigned int) var.type);
+      str::appendf(&output, "    mov%c    $%ld, -%zu(%%rbp)\n", suffix, value, var.index);
+    }
+
+    void Codegen::add(ExprRef left_ref, ExprRef right_ref) {
+
+      Expr left = expr_area.get(left_ref);
+      Expr right = expr_area.get(right_ref);
+
+      if (left.kind != ExprKind::Identifier && left.kind != ExprKind::IntLit) {
+        printf("TODO: `add` operation for `left` side non-(Identifier, IntLit) expressions\n");
+        exit(1);
+      }
+
+      if (right.kind != ExprKind::Identifier && right.kind != ExprKind::IntLit) {
+        printf("TODO: `add` operation for `right` side non-(Identifier, IntLit) expressions\n");
+        exit(1);
+      }
+
+      if (left.kind == ExprKind::IntLit && right.kind == ExprKind::IntLit) {
+        uint64_t result = left.data.int_lit.value + right.data.int_lit.value; 
+        // store_value(result, );
+      }
+
+    }
     // void Codegen::sub();
     // void Codegen::mul();
     // void Codegen::div();
@@ -198,50 +229,28 @@ namespace phantom {
       Expr right = expr_area.get(right_ref);
 
       if (left.kind != ExprKind::Identifier) {
-        printf("TODO\n");
+        printf("TODO: `asgn` for non-identifier left sides\n");
         exit(1);
       }
 
-      std::string name = left.data.ide.name;
-      if (vars_table.find(name) == vars_table.end()) {
-        printf("Use of undeclared identifier: %s\n", name.c_str());
-        exit(1);
-      }
+      const char* name = left.data.ide.name;
+      check_identifier(name);
 
       Variable left_var = vars_table[name];
       switch (right.kind) {
         case ExprKind::IntLit: {
-          char var_suff = resolve_suffix(left_var.type);
+          char var_suff = size_suffix((unsigned int) left_var.type);
           uint64_t value = right.data.int_lit.value;
           str::appendf(&output, "    mov%c    $%lu, -%zu(%%rbp)\n", var_suff, value, left_var.index);
           break;
         }
         case ExprKind::Identifier: {
-          const char* ide_name = right.data.ide.name;
-          if (vars_table.find(ide_name) == vars_table.end()) {
-            printf("Use of undeclared identifier: %s\n", ide_name);
-            exit(1);
-          }
-          Variable right_var = vars_table[ide_name];
+          unsigned int size = (unsigned int)left_var.type;
+          const char suffix = size_suffix(size);
+          const char* reg = size_areg((unsigned int)left_var.type);
 
-          char left_suff = resolve_suffix(left_var.type);
-          char* left_reg = resolve_reg(left_var.type);
-          str::Str mov = str::init(9);
-          str::Str reg = str::init(5);
-
-          if (left_var.type > right_var.type) {
-            str::appendf(&mov, "movs%c%c", resolve_suffix(right_var.type), left_suff);
-            str::appendf(&reg, "%%%s", left_reg);
-          } else if (right_var.type > left_var.type) {
-            str::appendf(&mov, "mov%c", resolve_suffix(right_var.type));
-            str::appendf(&reg, "%%%s", resolve_reg(right_var.type));
-          } else {
-            str::appendf(&mov, "mov%c", left_suff);
-            str::appendf(&reg, "%%%s", left_reg);
-          }
-
-          str::appendf(&output, "    %-8s-%zu(%%rbp), %s\n", mov.content, right_var.index, reg.content);
-          str::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", left_suff, left_reg, left_var.index);
+          load_to_reg(reg, right);
+          str::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", suffix, reg, left_var.index);
           break;
         }
         default:
@@ -250,30 +259,37 @@ namespace phantom {
     }
     // void Codegen::neg();
 
-    char Codegen::resolve_suffix(VarType type) {
-      switch (type) {
-        case VarType::Bool:
-          // case VarType::Char:
-          return 'b';
-        case VarType::Short:
-          return 'w';
-        case VarType::Int:
-          return 'l';
-        case VarType::Long:
-          return 'q';
+    char Codegen::size_suffix(unsigned int size) {
+      // clang-format off
+      switch (size) {
+         case 1: return 'b'; 
+         case 2: return 'w';
+         case 4: return 'l'; 
+         case 8: return 'q';
+         default:
+           printf("Undefined size suffix for: %u\n", size);
+           exit(1);
       }
+      // clang-format on
     }
-    char* Codegen::resolve_reg(VarType type) {
-      switch (type) {
-        case VarType::Bool:
-          // case VarType::Char:
-          return (char*)"al";
-        case VarType::Short:
-          return (char*)"ax";
-        case VarType::Int:
-          return (char*)"eax";
-        case VarType::Long:
-          return (char*)"rax";
+    char* Codegen::size_areg(unsigned int size) {
+      // clang-format off
+      switch (size) {
+         case 1: return (char*)"al"; 
+         case 2: return (char*)"ax";
+         case 4: return (char*)"eax"; 
+         case 8: return (char*)"rax";
+         default:
+           printf("Undefined size for A register: %u\n", size);
+           exit(1);
+      }
+      // clang-format on
+    }
+
+    void Codegen::check_identifier(const char* name) {
+      if (vars_table.find(name) == vars_table.end()) {
+        printf("Use of undeclared identifier: %s\n", name);
+        exit(1);
       }
     }
   } // namespace codegen
