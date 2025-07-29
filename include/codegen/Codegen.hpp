@@ -1,7 +1,7 @@
 #pragma once
 
+#include "ast/Stmt.hpp"
 #include "data/Function.hpp"
-#include <Areas.hpp>
 #include <map>
 #include <utils/str.hpp>
 
@@ -9,15 +9,13 @@ namespace phantom {
   namespace codegen {
     class Codegen {
   public:
-      Codegen(std::vector<StmtRef>& ast, ExprArea& expr_area, StmtArea& stmt_area)
-          : ast(ast), expr_area(expr_area), stmt_area(stmt_area), output(str::init()) {}
+      Codegen(std::vector<std::unique_ptr<Stmt>>& ast)
+          : ast(ast) {}
 
       const char* codegen();
 
   private:
-      std::vector<StmtRef>& ast;
-      ExprArea& expr_area;
-      StmtArea& stmt_area;
+      std::vector<std::unique_ptr<Stmt>>& ast;
 
       str::Str output;
 

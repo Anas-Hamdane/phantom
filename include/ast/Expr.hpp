@@ -2,9 +2,10 @@
 
 #include <Token.hpp>
 #include <common.hpp>
-#include <memory>
+#include <utils/vec.hpp>
 
 namespace phantom {
+  struct Expr;
   enum class ExprKind : uint {
     Invalid = 0,
     DataType,
@@ -22,78 +23,75 @@ namespace phantom {
     FnCall
   };
 
-  struct Invalid;
-  struct DataType;
-  struct IntLit;
-  struct FloatLit;
-  struct CharLit;
-  struct BoolLit;
-  struct StrLit;
-  struct ArrLit;
-  struct Identifier;
-  struct BinOp;
-  struct UnOp;
-  struct VarDecl;
-  struct Param;
-  struct FnCall;
+  struct Invalid {};
+  struct DataType {
+    Type type;
+    Expr* length;
+  };
+  struct BoolLit {
+    bool value;
+  };
+  struct CharLit {
+    char value;
+  };
+  struct IntLit {
+    const char* form;
+    uint64_t value;
+  };
+  struct FloatLit {
+    const char* form;
+    long double value;
+  };
+  struct StrLit {
+    const char* value;
+  };
+  struct ArrLit {
+    vec::Vec<Expr> elements;
+  };
+  struct Identifier {
+    const char* name;
+  };
+  struct BinOp {
+    Expr* left;
+    Token::Kind op;
+    Expr* right;
+  };
+  struct UnOp {
+    Expr* expr;
+    Token::Kind op;
+  };
+  struct VarDecl {
+    Expr* ide;
+    Expr* value;
+    Expr* type;
+  };
+  struct Param {
+    Expr* ide;
+    Expr* type;
+  };
+  struct FnCall {
+    const char* name;
+    vec::Vec<Expr> args;
+  };
 
   struct Expr {
     ExprKind kind;
 
     union {
-      struct Invalid {};
-      struct DataType {
-        Type type;
-        std::unique_ptr<Expr> length;
-      };
-      struct BoolLit {
-        bool value;
-      };
-      struct CharLit {
-        char value;
-      };
-      struct IntLit {
-        const char* form;
-        uint64_t value;
-      };
-      struct FloatLit {
-        const char* form;
-        long double value;
-      };
-      struct StrLit {
-        const char* value;
-      };
-      struct ArrLit {
-        std::vector<std::unique_ptr<Expr>> elements;
-        size_t len;
-      };
-      struct Identifier {
-        const char* name;
-      };
-      struct BinOp {
-        std::unique_ptr<Expr> left;
-        Token::Kind op;
-        std::unique_ptr<Expr> right;
-      };
-      struct UnOp {
-        std::unique_ptr<Expr> expr;
-        Token::Kind op;
-      };
-      struct VarDecl {
-        std::unique_ptr<Expr> ide;
-        std::unique_ptr<Expr> value;
-        std::unique_ptr<Expr> type;
-      };
-      struct Param {
-        std::unique_ptr<Expr> ide;
-        std::unique_ptr<Expr> type;
-      };
-      struct FnCall {
-        const char* name;
-        std::vector<std::unique_ptr<Expr>> args;
-        size_t len;
-      };
-
+      Invalid invalid;
+      DataType data_type;
+      BoolLit bool_lit;
+      CharLit char_lit;
+      IntLit int_lit;
+      FloatLit float_lit;
+      StrLit str_lit;
+      ArrLit arr_lit;
+      Identifier ide;
+      BinOp binop;
+      UnOp unop;
+      VarDecl var_decl;
+      Param param;
+      FnCall fn_call;
     } data;
   };
 

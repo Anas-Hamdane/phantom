@@ -1,18 +1,20 @@
+#include "ast/Expr.hpp"
 #include <Parser.hpp>
 #include <string.h>
 #include <utils/num.hpp>
 
 namespace phantom {
   // NOTE: the last token *MUST* be of type `Token::Kind::EndOfFile`.
-  std::vector<Stmt> Parser::parse() {
-    std::vector<Stmt> ast;
+  vec::Vec<Stmt> Parser::parse() {
+    vec::Vec<Stmt> ast;
+    ast.init();
 
     while (true) {
       if (match(Token::Kind::EndOfFile))
         break;
 
-      StmtRef stmt = parse_stmt();
-      ast.push_back(stmt);
+      Stmt stmt = parse_stmt();
+      ast.push(stmt);
     }
 
     return ast;
@@ -48,13 +50,14 @@ namespace phantom {
     logger.log(Logger::Level::WARNING, "TODO: " + msg, peek().location);
   }
 
-  std::unique_ptr<Stmt> Parser::parse_function() {
+  Stmt Parser::parse_function() {
     expect(Token::Kind::Fn);
     std::string name = expect(Token::Kind::Identifier);
 
     expect(Token::Kind::OpenParent);
 
-    std::vector<std::vector<Expr>> params;
+    vec::Vec<Expr> params;
+    params.init();
     do {
       if (match(Token::Kind::CloseParent))
         break;
@@ -64,112 +67,82 @@ namespace phantom {
 
       std::string param_name = expect(Token::Kind::Identifier);
       expect(Token::Kind::Colon);
-      std::unique_ptr<Expr> type = parse_type();
+      Expr type = parse_type();
 
-      Expr ide{
-        .kind = ExprKind::Identifier,
-        .data = { .ide = { .name = strdup(param_name.c_str()) } }
-      };
-      expr_area.add(ide);
-      ExprRef ide_ref = expr_area.count - 1;
+      Expr* ide = new Expr;
+      ide->kind = ExprKind::Identifier;
+      ide->data.ide.name = strdup(param_name.c_str());
 
-      Expr expr{
-        .kind = ExprKind::VarDecl,
-        .data = { .var_decl = { .ide = ide_ref, .value = 0, .type = type } }
-      };
+      Expr param;
+      param.kind = ExprKind::Param;
+      param.data.param.ide = ide;
+      param.data.param.type = new Expr(type);
 
-      expr_area.add(expr);
-      params.push_back(expr_area.count - 1);
+      params.push(param);
     } while (match(Token::Kind::Comma));
 
     expect(Token::Kind::CloseParent);
 
-    ExprRef type = 0;
+    Expr type;
     if (match(Token::Kind::RightArrow)) {
       consume();
       type = parse_type();
+    } else {
+      type.kind = ExprKind::DataType;
+      type.data.data_type.type = Type::Void;
+      type.data.data_type.length = nullptr;
     }
 
-    else {
-      Expr void_type = {
-        .kind = ExprKind::DataType,
-        .data = { .data_type = { .type = Type::Void, .length = 0 } }
-      };
-
-      expr_area.add(void_type);
-      type = expr_area.count - 1;
-    }
-
-    ExprRef* params_raw = nullptr;
-    if (!params.empty()) {
-      params_raw = new ExprRef[params.size()];
-      std::move(params.begin(), params.end(), params_raw);
-    }
-
-    Stmt fn_dec{
-      .kind = StmtKind::FnDecl,
-      .data = { .fn_decl = {
-                    .name = strdup(name.c_str()),
-                    .type = type,
-                    .params = params_raw,
-                    .params_len = params.size() } }
-    };
-    stmt_area.add(fn_dec);
-
-    StmtRef dec_ref = stmt_area.count - 1;
+    Stmt decl;
+    decl.kind = StmtKind::FnDecl;
+    decl.data.fn_decl.type = new Expr(type);
+    decl.data.fn_decl.name = strdup(name.c_str());
+    decl.data.fn_decl.params = std::move(params);
 
     if (match(Token::Kind::SemiColon)) {
       consume();
-      return dec_ref;
+      return decl;
     }
 
     expect(Token::Kind::OpenCurly);
-    std::vector<StmtRef> body;
+    vec::Vec<Stmt> body;
+    body.init();
 
     while (!match(Token::Kind::CloseCurly))
-      body.push_back(parse_stmt());
+      body.push(parse_stmt());
 
     expect(Token::Kind::CloseCurly);
 
-    StmtRef* body_raw = nullptr;
-    if (!body.empty()) {
-      body_raw = new StmtRef[body.size()];
-      std::move(body.begin(), body.end(), body_raw);
-    }
+    Stmt fn;
+    fn.kind = StmtKind::FnDef;
+    fn.data.fn_def.declaration = new Stmt(decl);
+    fn.data.fn_def.body = std::move(body);
 
-    Stmt fn_def = {
-      .kind = StmtKind::FnDef,
-      .data = { .fn_def = { .declaration = dec_ref, .body = body_raw, .body_len = body.size() } }
-    };
-
-    stmt_area.add(fn_def);
-    return (stmt_area.count - 1);
+    return fn;
   }
-  StmtRef Parser::parse_return() {
+  Stmt Parser::parse_return() {
     expect(Token::Kind::Return);
-    ExprRef expr = parse_expr();
+    Expr expr = parse_expr();
 
     expect(Token::Kind::SemiColon);
 
-    Stmt ret{
-      .kind = StmtKind::Return,
-      .data = { .ret = { .expr = expr } }
-    };
-    stmt_area.add(ret);
-    return (stmt_area.count - 1);
+    Stmt ret;
+    ret.kind = StmtKind::Return;
+    ret.data.ret.expr = new Expr(expr);
+
+    return ret;
   }
-  StmtRef Parser::parse_expmt() {
-    ExprRef expr = parse_expr();
+  Stmt Parser::parse_expmt() {
+    Expr expr = parse_expr();
     expect(Token::Kind::SemiColon);
 
-    Stmt expmt{
-      .kind = StmtKind::Expmt,
-      .data = { .expmt = { .expr = expr } }
-    };
-    stmt_area.add(expmt);
-    return (stmt_area.count - 1);
+    Stmt expmt;
+    expmt.kind = StmtKind::Expmt;
+    expmt.data.expmt.expr = new Expr(expr);
+
+    return expmt;
   }
-  StmtRef Parser::parse_stmt() {
+  Stmt Parser::parse_stmt() {
     switch (peek().kind) {
       case Token::Kind::Fn:
         return parse_function();
@@ -179,9 +152,10 @@ namespace phantom {
         return parse_expmt();
     }
   }
-  ExprRef Parser::parse_expr(const int min_prec) {
+
+  Expr Parser::parse_expr(const int min_prec) {
     // INFO: Pratt Parser
-    ExprRef left = parse_prim();
+    Expr left = parse_prim();
 
     while (true) {
       Token op = peek();
@@ -192,20 +166,20 @@ namespace phantom {
 
       int next_min = Token::right_associative(op.kind) ? prec : (prec + 1);
 
-      ExprRef right = parse_expr(next_min);
+      Expr right = parse_expr(next_min);
 
-      Expr binop{
-        .kind = ExprKind::BinOp,
-        .data = { .binop = { .left = left, .op = op.kind, .right = right } }
-      };
-      expr_area.add(binop);
+      Expr binop;
+      binop.kind = ExprKind::BinOp;
+      binop.data.binop.left = new Expr(left);
+      binop.data.binop.right = new Expr(right);
+      binop.data.binop.op = op.kind;
 
-      left = (expr_area.count - 1);
+      left = std::move(binop);
     }
 
     return left;
   }
-  ExprRef Parser::parse_prim() {
+  Expr Parser::parse_prim() {
     switch (peek().kind) {
       case Token::Kind::Identifier: {
         std::string name = consume().form;
@@ -214,7 +188,8 @@ namespace phantom {
         if (match(Token::Kind::OpenParent)) {
           consume();
 
-          std::vector<ExprRef> args;
+          vec::Vec<Expr> args;
+          args.init();
           do {
             if (match(Token::Kind::CloseParent))
               break;
@@ -222,31 +197,24 @@ namespace phantom {
             if (match(Token::Kind::Comma))
               consume();
 
-            args.push_back(parse_expr());
+            args.push(parse_expr());
           } while (match(Token::Kind::Comma));
 
           expect(Token::Kind::CloseParent);
 
-          ExprRef* args_raw = nullptr;
-          if (!args.empty()) {
-            args_raw = new ExprRef[args.size()];
-            std::move(args.begin(), args.end(), args_raw);
-          }
+          Expr fn_call;
+          fn_call.kind = ExprKind::FnCall;
+          fn_call.data.fn_call.name = strdup(name.c_str());
+          fn_call.data.fn_call.args = std::move(args);
 
-          Expr fn_call{
-            .kind = ExprKind::FnCall,
-            .data = { .fn_call = { .name = strdup(name.c_str()), .args = args_raw, .len = args.size() } }
-          };
-          expr_area.add(fn_call);
-          return (expr_area.count - 1);
+          return fn_call;
         }
 
-        Expr ide{
-          .kind = ExprKind::Identifier,
-          .data = { .ide = { .name = strdup(name.c_str()) } }
-        };
-        expr_area.add(ide);
-        return (expr_area.count - 1);
+        Expr ide;
+        ide.kind = ExprKind::Identifier;
+        ide.data.ide.name = strdup(name.c_str());
+
+        return ide;
       }
       case Token::Kind::IntLit: {
         std::string form = consume().form;
@@ -256,12 +224,12 @@ namespace phantom {
         if (!log.empty())
           logger.log(Logger::Level::ERROR, log);
 
-        Expr int_lit{
-          .kind = ExprKind::IntLit,
-          .data = { .int_lit = { .form = strdup(form.c_str()), .value = value } }
-        };
-        expr_area.add(int_lit);
-        return (expr_area.count - 1);
+        Expr int_lit;
+        int_lit.kind = ExprKind::IntLit;
+        int_lit.data.int_lit.form = strdup(form.c_str());
+        int_lit.data.int_lit.value = value;
+
+        return int_lit;
       }
       case Token::Kind::FloatLit: {
         std::string form = consume().form;
@@ -271,73 +239,72 @@ namespace phantom {
         if (!log.empty())
           logger.log(Logger::Level::ERROR, log);
 
-        Expr float_lit{
-          .kind = ExprKind::FloatLit,
-          .data = { .float_lit = { .form = strdup(form.c_str()), .value = value } }
-        };
-        expr_area.add(float_lit);
-        return (expr_area.count - 1);
+        Expr float_lit;
+        float_lit.kind = ExprKind::FloatLit;
+        float_lit.data.float_lit.form = strdup(form.c_str());
+        float_lit.data.float_lit.value = value;
+
+        return float_lit;
       }
       case Token::Kind::Let: {
         consume();
         std::string name = expect(Token::Kind::Identifier);
 
-        ExprRef type = 0;
-        ExprRef value = 0;
+        Expr* type = nullptr;
+        Expr* value = nullptr;
 
         if (match(Token::Kind::Colon)) {
           consume();
-          type = parse_type();
+          type = new Expr(parse_type());
         }
 
         if (match(Token::Kind::Eq)) {
           consume();
-          value = parse_expr();
+          value = new Expr(parse_expr());
         }
 
-        if (value == 0 && type == 0)
+        if (value == nullptr && type == nullptr)
           logger.log(Logger::Level::ERROR, "Expected `type` or `value` after variable declaration", peek().location);
 
-        Expr ide{
-          .kind = ExprKind::Identifier,
-          .data = { .ide = { .name = strdup(name.c_str()) } }
-        };
-        expr_area.add(ide);
-        ExprRef ide_ref = expr_area.count - 1;
+        Expr ide;
+        ide.kind = ExprKind::Identifier;
+        ide.data.ide.name = strdup(name.c_str());
 
-        Expr var_decl{
-          .kind = ExprKind::VarDecl,
-          .data = { .var_decl = { .ide = ide_ref, .value = value, .type = type } }
-        };
-        expr_area.add(var_decl);
-        return (expr_area.count - 1);
+        Expr var_decl;
+        var_decl.kind = ExprKind::VarDecl;
+        var_decl.data.var_decl.ide = new Expr(ide);
+        var_decl.data.var_decl.value = value;
+        var_decl.data.var_decl.type = type;
+
+        return var_decl;
       }
       case Token::Kind::DataType:
         return parse_type();
       default:
         todo("Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n");
-        return 0;
+        return Expr();
     }
   }
 
-  ExprRef Parser::parse_type() {
+  Expr Parser::parse_type() {
     std::string str_type = expect(Token::Kind::DataType);
-    ExprRef length = 0;
+    Expr* length = nullptr;
 
     if (match(Token::Kind::OpenBracket)) {
       consume();
-      length = parse_expr();
+      length = new Expr(parse_expr());
 
       expect(Token::Kind::CloseBracket);
     }
 
     Type type = resolve_type(str_type);
-    Expr data_type{
-      .kind = ExprKind::DataType,
-      .data = { .data_type = { .type = type, .length = length } }
-    };
-    expr_area.add(data_type);
-    return (expr_area.count - 1);
+
+    Expr data_type;
+    data_type.kind = ExprKind::DataType;
+    data_type.data.data_type.type = type;
+    data_type.data.data_type.length = length;
+
+    return data_type;
   }
 
   Type Parser::resolve_type(std::string str) {

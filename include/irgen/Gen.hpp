@@ -1,28 +1,24 @@
 #pragma once
 
-#include <Areas.hpp>
-#include <vector>
-#include <map>
 #include "Instruction.hpp"
+#include "ast/Stmt.hpp"
+#include <map>
 
 namespace phantom {
   namespace irgen {
     class Gen {
   public:
-      Gen(std::vector<StmtRef>& ast, StmtArea& stmt_area, ExprArea& expr_area)
-          : ast(ast), stmt_area(stmt_area), expr_area(expr_area) {}
+      Gen(vec::Vec<Stmt>& ast)
+          : ast(ast) {}
 
-      std::vector<Instruction> gen();
+      vec::Vec<Instruction> gen();
+
   private:
-      std::vector<StmtRef>& ast;
-      StmtArea& stmt_area;
-      ExprArea& expr_area;
-
-      std::vector<Instruction> output;
-
+      vec::Vec<Stmt>& ast;
       std::map<const char*, Register> variables;
 
-      void declare_function(phantom::FnDecl fn);
+      Instruction generate_stmt(Stmt& stmt);
+      Instruction declare_function(phantom::FnDecl fn);
     };
   } // namespace irgen
 } // namespace phantom

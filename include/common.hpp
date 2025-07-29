@@ -30,6 +30,7 @@ namespace phantom {
   // floating point fraction max digits
   constexpr int FP_FRACTION_MD = 18;
   constexpr unsigned int STR_INIT = 256;
+  constexpr unsigned int VEC_INIT = 10;
 
   constexpr char compiler_metadata[] = "phantom";
 

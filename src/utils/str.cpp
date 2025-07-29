@@ -11,8 +11,8 @@ namespace phantom {
     Str init() {
       Str str;
 
-      str.capacity = STR_INIT;
-      str.content = (char*) malloc(str.capacity);
+      str.cap = STR_INIT;
+      str.content = (char*) malloc(str.cap);
 
       str.len = 0;
       return str;
@@ -20,8 +20,8 @@ namespace phantom {
     Str init(size_t size) {
       Str str;
 
-      str.capacity = size;
-      str.content = (char*) malloc(str.capacity);
+      str.cap = size;
+      str.content = (char*) malloc(str.cap);
 
       str.len = 0;
       return str;
@@ -30,9 +30,9 @@ namespace phantom {
       Str str;
 
       size_t n = strlen(s);
-      str.capacity = n + 1;
+      str.cap = n + 1;
 
-      str.content = (char*) malloc(str.capacity);
+      str.content = (char*) malloc(str.cap);
       sprintf(str.content, "%s", s);
 
       str.len = n;
@@ -42,12 +42,12 @@ namespace phantom {
       size_t n = strlen(buffer);
 
       size_t needed_space = str->len + n + 1;
-      if (needed_space > str->capacity) {
-        while (needed_space > str->capacity)
-          str->capacity *= 2;
+      if (needed_space > str->cap) {
+        while (needed_space > str->cap)
+          str->cap *= 2;
 
         // sizeof(char) = 1
-        str->content = (char*)realloc(str->content, str->capacity);
+        str->content = (char*)realloc(str->content, str->cap);
         assert(str->content != NULL && "Stop playing DOOM mf");
       }
 
@@ -65,12 +65,12 @@ namespace phantom {
       va_end(args);
 
       size_t needed_space = str->len + n + 1;
-      if (needed_space > str->capacity) {
-        while (needed_space > str->capacity)
-          str->capacity *= 2;
+      if (needed_space > str->cap) {
+        while (needed_space > str->cap)
+          str->cap *= 2;
 
         // sizeof(char) = 1
-        str->content = (char*)realloc(str->content, str->capacity);
+        str->content = (char*)realloc(str->content, str->cap);
         assert(str->content != NULL && "Stop playing DOOM mf");
       }
 
@@ -84,7 +84,7 @@ namespace phantom {
     }
     void dump(Str* str) {
       free(str->content);
-      str->capacity = 0;
+      str->cap = 0;
       str->len = 0;
     }
   } // namespace str

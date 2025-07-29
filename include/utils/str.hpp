@@ -7,11 +7,11 @@ namespace phantom {
     struct Str {
       char* content;
       size_t len;
-      size_t capacity;
+      size_t cap;
     };
 
     Str init();
-    Str init(size_t size);
+    Str init(size_t cap);
     Str init(const char* s);
     int append(Str* str, const char* buffer);
     int appendf(Str* str, const char* format, ...);

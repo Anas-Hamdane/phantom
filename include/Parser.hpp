@@ -10,7 +10,7 @@ public:
     Parser(const std::vector<Token>& tokens, const Logger& logger)
         : tokens(tokens), logger(logger), index(0) {}
 
-    std::vector<Stmt> parse();
+    vec::Vec<Stmt> parse();
 
 private:
     const std::vector<Token>& tokens;
@@ -24,16 +24,16 @@ private:
     std::string expect(Token::Kind kind);
     void todo(const std::string& msg);
 
-    std::unique_ptr<Stmt> parse_function();
-    std::unique_ptr<Stmt> parse_return();
-    std::unique_ptr<Stmt> parse_expmt();
-    std::unique_ptr<Stmt> parse_stmt();
+    Stmt parse_function();
+    Stmt parse_return();
+    Stmt parse_expmt();
+    Stmt parse_stmt();
 
-    std::unique_ptr<Expr> parse_expr(const int min_prec = 0);
-    std::unique_ptr<Expr> parse_prim();
+    Expr parse_expr(const int min_prec = 0);
+    Expr parse_prim();
 
-    std::unique_ptr<Expr> parse_type();
-    std::unique_ptr<Expr> parse_literal();
+    Expr parse_type();
+    Expr parse_literal();
 
     Type resolve_type(std::string str);
   };
