@@ -37,8 +37,8 @@ namespace phantom {
   enum class Type : unsigned int {
     Void = 0,
 
-    Bool = 1,
     Char = 1,
+    Bool = 1,
     Short = 2,
     Int = 4,
     Long = 8,

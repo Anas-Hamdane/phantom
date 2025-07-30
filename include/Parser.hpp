@@ -10,7 +10,7 @@ public:
     Parser(const std::vector<Token>& tokens, const Logger& logger)
         : tokens(tokens), logger(logger), index(0) {}
 
-    vec::Vec<Stmt> parse();
+    utils::Vec<Stmt> parse();
 
 private:
     const std::vector<Token>& tokens;
@@ -32,7 +32,7 @@ private:
     Expr parse_expr(const int min_prec = 0);
     Expr parse_prim();
 
-    Expr parse_type();
+    DataType parse_type();
     Expr parse_literal();
 
     Type resolve_type(std::string str);

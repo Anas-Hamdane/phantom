@@ -4,7 +4,7 @@
 #include "cstdint"
 
 namespace phantom {
-  namespace num {
+  namespace utils {
     enum class NumKind {
       Decimal,
       Hex,
@@ -36,6 +36,6 @@ namespace phantom {
     uint64_t parse_bin(const std::string& str, std::string& log);
 
     uint64_t parse_int(const std::string& str, std::string& log);
-    long double parse_float(const std::string& str, std::string& log);
+    double parse_float(const std::string& str, std::string& log);
   } // namespace numutils
 } // namespace phantom

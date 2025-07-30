@@ -3,7 +3,7 @@
 #include <cstddef>
 
 namespace phantom {
-  namespace str {
+  namespace utils {
     struct Str {
       char* content;
       size_t len;

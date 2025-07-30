@@ -3,7 +3,7 @@
 #include <utils/num.hpp>
 
 namespace phantom {
-  namespace num {
+  namespace utils {
     // Helper functions
     bool starts_with(const std::string& str, const std::string& cmp) {
       return (str.compare(0, cmp.length(), cmp) == 0);
@@ -336,16 +336,16 @@ namespace phantom {
       }
       // clang-format on
     }
-    long double parse_float(const std::string& str, std::string& log) {
+    double parse_float(const std::string& str, std::string& log) {
       enum class Section {
         Integer,
         Fraction,
         Exponent
       };
 
-      long double integer = 0;
-      long double fraction = 0;
-      long double exponent = 0;
+      double integer = 0;
+      double fraction = 0;
+      double exponent = 0;
 
       size_t fraction_size = 0;
 
@@ -417,7 +417,7 @@ namespace phantom {
       if (negative) exponent *= -1;
       size_t exponent_base = (kind == NumKind::Hex) ? 2 : 10;
 
-      long double result =
+      double result =
           (integer + (fraction / powl((uint64_t)kind, fraction_size))) // mantissa
           * powl(exponent_base, exponent);                             // exponent
 
@@ -426,5 +426,5 @@ namespace phantom {
 
       return result;
     }
-  } // namespace numutils
+  } // namespace utils
 } // namespace phantom

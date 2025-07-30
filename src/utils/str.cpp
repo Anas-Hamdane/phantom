@@ -7,7 +7,7 @@
 #include <common.hpp>
 
 namespace phantom {
-  namespace str {
+  namespace utils {
     Str init() {
       Str str;
 

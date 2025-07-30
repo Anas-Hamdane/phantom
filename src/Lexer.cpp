@@ -78,16 +78,16 @@ namespace phantom {
           lexeme += consume();
 
         std::string log;
-        num::NumKind number_kind = num::numkind(lexeme, log);
+        utils::NumKind number_kind = utils::numkind(lexeme, log);
         Token::Kind token_kind;
 
         // clang-format off
         switch (number_kind) {
-          case num::NumKind::Decimal:    token_kind = num::scan_dec(lexeme, log); break;
-          case num::NumKind::Hex:        token_kind = num::scan_hex(lexeme, log); break;
-          case num::NumKind::Octal:      token_kind = num::scan_oct(lexeme, log); break;
-          case num::NumKind::Binary:     token_kind = num::scan_bin(lexeme, log); break;
-          case num::NumKind::Invalid:    token_kind = Token::Kind::Invalid; break;
+          case utils::NumKind::Decimal:    token_kind = utils::scan_dec(lexeme, log); break;
+          case utils::NumKind::Hex:        token_kind = utils::scan_hex(lexeme, log); break;
+          case utils::NumKind::Octal:      token_kind = utils::scan_oct(lexeme, log); break;
+          case utils::NumKind::Binary:     token_kind = utils::scan_bin(lexeme, log); break;
+          case utils::NumKind::Invalid:    token_kind = Token::Kind::Invalid; break;
         }
         // clang-format on
 

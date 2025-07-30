@@ -2,9 +2,10 @@
 
 #include "common.hpp"
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 namespace phantom {
-  namespace vec {
+  namespace utils {
     template <typename T>
     class Vec {
   public:
@@ -43,6 +44,16 @@ namespace phantom {
         free(data);
         cap = 0;
         len = 0;
+      }
+      T& at(size_t index) {
+        if (index >= len)
+          printf("You messed up!\n");
+        return data[index];
+      }
+      const T& at(size_t index) const {
+        if (index >= len)
+          printf("You messed up!\n");
+        return data[index];
       }
       T* begin() { return data; }
       T* end() { return data + len; }

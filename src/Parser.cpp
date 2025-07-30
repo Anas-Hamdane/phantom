@@ -5,8 +5,8 @@
 
 namespace phantom {
   // NOTE: the last token *MUST* be of type `Token::Kind::EndOfFile`.
-  vec::Vec<Stmt> Parser::parse() {
-    vec::Vec<Stmt> ast;
+  utils::Vec<Stmt> Parser::parse() {
+    utils::Vec<Stmt> ast;
     ast.init();
 
     while (true) {
@@ -56,7 +56,7 @@ namespace phantom {
 
     expect(Token::Kind::OpenParent);
 
-    vec::Vec<Expr> params;
+    utils::Vec<Param> params;
     params.init();
     do {
       if (match(Token::Kind::CloseParent))
@@ -67,45 +67,41 @@ namespace phantom {
 
       std::string param_name = expect(Token::Kind::Identifier);
       expect(Token::Kind::Colon);
-      Expr type = parse_type();
+      DataType type = parse_type();
 
-      Expr* ide = new Expr;
-      ide->kind = ExprKind::Identifier;
-      ide->data.ide.name = strdup(param_name.c_str());
+      Identifier* ide = new Identifier;
+      ide->name = strdup(param_name.c_str());
 
-      Expr param;
-      param.kind = ExprKind::Param;
-      param.data.param.ide = ide;
-      param.data.param.type = new Expr(type);
+      Param param;
+      param.ide = ide;
+      param.type = new DataType(type);
 
       params.push(param);
     } while (match(Token::Kind::Comma));
 
     expect(Token::Kind::CloseParent);
 
-    Expr type;
+    DataType type;
     if (match(Token::Kind::RightArrow)) {
       consume();
       type = parse_type();
     } else {
-      type.kind = ExprKind::DataType;
-      type.data.data_type.type = Type::Void;
-      type.data.data_type.length = nullptr;
+      type.type = Type::Void;
+      type.length = nullptr;
     }
 
-    Stmt decl;
-    decl.kind = StmtKind::FnDecl;
-    decl.data.fn_decl.type = new Expr(type);
-    decl.data.fn_decl.name = strdup(name.c_str());
-    decl.data.fn_decl.params = std::move(params);
+    FnDecl decl;
+    decl.type = new DataType(type);
+    decl.name = strdup(name.c_str());
+    decl.params = std::move(params);
 
     if (match(Token::Kind::SemiColon)) {
       consume();
-      return decl;
+      return Stmt{ .kind = StmtKind::FnDecl, .data = { .fn_decl = decl } };
     }
 
     expect(Token::Kind::OpenCurly);
-    vec::Vec<Stmt> body;
+    utils::Vec<Stmt> body;
     body.init();
 
     while (!match(Token::Kind::CloseCurly))
@@ -115,7 +111,7 @@ namespace phantom {
 
     Stmt fn;
     fn.kind = StmtKind::FnDef;
-    fn.data.fn_def.declaration = new Stmt(decl);
+    fn.data.fn_def.declaration = new FnDecl(decl);
     fn.data.fn_def.body = std::move(body);
 
     return fn;
@@ -170,8 +166,8 @@ namespace phantom {
 
       Expr binop;
       binop.kind = ExprKind::BinOp;
-      binop.data.binop.left = new Expr(left);
-      binop.data.binop.right = new Expr(right);
+      binop.data.binop.lhs = new Expr(left);
+      binop.data.binop.rhs = new Expr(right);
       binop.data.binop.op = op.kind;
 
       left = std::move(binop);
@@ -188,7 +184,7 @@ namespace phantom {
         if (match(Token::Kind::OpenParent)) {
           consume();
 
-          vec::Vec<Expr> args;
+          utils::Vec<Expr> args;
           args.init();
           do {
             if (match(Token::Kind::CloseParent))
@@ -220,7 +216,7 @@ namespace phantom {
         std::string form = consume().form;
         std::string log;
 
-        uint64_t value = num::parse_int(form, log);
+        uint64_t value = utils::parse_int(form, log);
         if (!log.empty())
           logger.log(Logger::Level::ERROR, log);
 
@@ -235,7 +231,7 @@ namespace phantom {
         std::string form = consume().form;
         std::string log;
 
-        long double value = num::parse_float(form, log);
+        double value = utils::parse_float(form, log);
         if (!log.empty())
           logger.log(Logger::Level::ERROR, log);
 
@@ -250,12 +246,12 @@ namespace phantom {
         consume();
         std::string name = expect(Token::Kind::Identifier);
 
-        Expr* type = nullptr;
+        DataType* type = nullptr;
         Expr* value = nullptr;
 
         if (match(Token::Kind::Colon)) {
           consume();
-          type = new Expr(parse_type());
+          type = new DataType(parse_type());
         }
 
         if (match(Token::Kind::Eq)) {
@@ -266,27 +262,31 @@ namespace phantom {
         if (value == nullptr && type == nullptr)
           logger.log(Logger::Level::ERROR, "Expected `type` or `value` after variable declaration", peek().location);
 
-        Expr ide;
-        ide.kind = ExprKind::Identifier;
-        ide.data.ide.name = strdup(name.c_str());
+        Identifier ide;
+        ide.name = strdup(name.c_str());
 
         Expr var_decl;
         var_decl.kind = ExprKind::VarDecl;
-        var_decl.data.var_decl.ide = new Expr(ide);
+        var_decl.data.var_decl.ide = new Identifier(ide);
         var_decl.data.var_decl.value = value;
         var_decl.data.var_decl.type = type;
 
         return var_decl;
       }
-      case Token::Kind::DataType:
-        return parse_type();
+      case Token::Kind::DataType: {
+        Expr expr{
+          .kind = ExprKind::DataType,
+          .data = { .data_type = parse_type() },
+        };
+        return expr;
+      }
       default:
         todo("Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n");
         return Expr();
     }
   }
 
-  Expr Parser::parse_type() {
+  DataType Parser::parse_type() {
     std::string str_type = expect(Token::Kind::DataType);
     Expr* length = nullptr;
 
@@ -299,10 +299,9 @@ namespace phantom {
 
     Type type = resolve_type(str_type);
 
-    Expr data_type;
-    data_type.kind = ExprKind::DataType;
-    data_type.data.data_type.type = type;
-    data_type.data.data_type.length = length;
+    DataType data_type;
+    data_type.type = type;
+    data_type.length = length;
 
     return data_type;
   }

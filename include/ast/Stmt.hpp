@@ -21,12 +21,12 @@ namespace phantom {
   };
   struct FnDecl {
     const char* name;
-    Expr* type;
-    vec::Vec<Expr> params;
+    DataType* type;
+    utils::Vec<Param> params;
   };
   struct FnDef {
-    Stmt* declaration;
-    vec::Vec<Stmt> body;
+    FnDecl* declaration;
+    utils::Vec<Stmt> body;
   };
 
   struct Stmt {

@@ -40,38 +40,38 @@ namespace phantom {
   };
   struct FloatLit {
     const char* form;
-    long double value;
+    double value;
   };
   struct StrLit {
     const char* value;
   };
   struct ArrLit {
-    vec::Vec<Expr> elements;
+    utils::Vec<Expr> elements;
   };
   struct Identifier {
     const char* name;
   };
   struct BinOp {
-    Expr* left;
+    Expr* lhs;
     Token::Kind op;
-    Expr* right;
+    Expr* rhs;
   };
   struct UnOp {
-    Expr* expr;
+    Expr* operand;
     Token::Kind op;
   };
   struct VarDecl {
-    Expr* ide;
+    Identifier* ide;
+    DataType* type;
     Expr* value;
-    Expr* type;
   };
   struct Param {
-    Expr* ide;
-    Expr* type;
+    Identifier* ide;
+    DataType* type;
   };
   struct FnCall {
     const char* name;
-    vec::Vec<Expr> args;
+    utils::Vec<Expr> args;
   };
 
   struct Expr {
