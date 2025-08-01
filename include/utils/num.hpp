@@ -15,7 +15,7 @@ namespace phantom {
 
     // Helper functions
     bool starts_with(const std::string& str, const std::string& cmp);
-    NumKind numkind(const std::string& str, std::string& logger);
+    NumKind numkind(const std::string& str, std::string& log);
 
     /*
      * Pattern:
@@ -30,10 +30,10 @@ namespace phantom {
     Token::Kind scan_oct(const std::string& str, std::string& log);
     Token::Kind scan_bin(const std::string& str, std::string& log);
 
-    uint64_t parse_dec(const std::string& str, std::string& log);
-    uint64_t parse_hex(const std::string& str, std::string& log);
-    uint64_t parse_oct(const std::string& str, std::string& log);
-    uint64_t parse_bin(const std::string& str, std::string& log);
+    uint64_t parse_dec(size_t start, const std::string& str, size_t end, std::string& log);
+    uint64_t parse_hex(size_t start, const std::string& str, size_t end, std::string& log);
+    uint64_t parse_oct(size_t start, const std::string& str, size_t end, std::string& log);
+    uint64_t parse_bin(size_t start, const std::string& str, size_t end, std::string& log);
 
     uint64_t parse_int(const std::string& str, std::string& log);
     double parse_float(const std::string& str, std::string& log);

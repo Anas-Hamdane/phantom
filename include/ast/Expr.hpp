@@ -2,97 +2,57 @@
 
 #include <Token.hpp>
 #include <common.hpp>
-#include <utils/vec.hpp>
+#include <memory>
+#include <variant>
 
 namespace phantom {
-  struct Expr;
-  enum class ExprKind : uint {
-    Invalid = 0,
-    DataType,
-    BoolLit,
-    CharLit,
-    IntLit,
-    FloatLit,
-    StrLit,
-    ArrLit,
-    Identifier,
-    BinOp,
-    UnOp,
-    VarDecl,
-    Param,
-    FnCall
-  };
+  namespace ast {
+    struct IntLit;
+    struct FloatLit;
+    struct StrLit;
+    struct ArrLit;
+    struct Identifier;
+    struct BinOp;
+    struct UnOp;
+    struct VarDecl;
+    struct FnCall;
 
-  struct Invalid {};
-  struct DataType {
-    Type type;
-    Expr* length;
-  };
-  struct BoolLit {
-    bool value;
-  };
-  struct CharLit {
-    char value;
-  };
-  struct IntLit {
-    const char* form;
-    uint64_t value;
-  };
-  struct FloatLit {
-    const char* form;
-    double value;
-  };
-  struct StrLit {
-    const char* value;
-  };
-  struct ArrLit {
-    utils::Vec<Expr> elements;
-  };
-  struct Identifier {
-    const char* name;
-  };
-  struct BinOp {
-    Expr* lhs;
-    Token::Kind op;
-    Expr* rhs;
-  };
-  struct UnOp {
-    Expr* operand;
-    Token::Kind op;
-  };
-  struct VarDecl {
-    Identifier* ide;
-    DataType* type;
-    Expr* value;
-  };
-  struct Param {
-    Identifier* ide;
-    DataType* type;
-  };
-  struct FnCall {
-    const char* name;
-    utils::Vec<Expr> args;
-  };
+    using Expr = std::variant<std::unique_ptr<IntLit>, std::unique_ptr<FloatLit>, std::unique_ptr<StrLit>,
+                              std::unique_ptr<ArrLit>, std::unique_ptr<Identifier>, std::unique_ptr<BinOp>,
+                              std::unique_ptr<UnOp>, std::unique_ptr<VarDecl>, std::unique_ptr<FnCall>>;
 
-  struct Expr {
-    ExprKind kind;
-
-    union {
-      Invalid invalid;
-      DataType data_type;
-      BoolLit bool_lit;
-      CharLit char_lit;
-      IntLit int_lit;
-      FloatLit float_lit;
-      StrLit str_lit;
-      ArrLit arr_lit;
-      Identifier ide;
-      BinOp binop;
-      UnOp unop;
-      VarDecl var_decl;
-      Param param;
-      FnCall fn_call;
-    } data;
-  };
-
+    struct IntLit {
+      uint64_t value;
+    };
+    struct FloatLit {
+      double value;
+    };
+    struct StrLit {
+      std::string value;
+    };
+    struct ArrLit {
+      std::vector<std::unique_ptr<Expr>> elements;
+    };
+    struct Identifier {
+      std::string name;
+    };
+    struct BinOp {
+      std::unique_ptr<Expr> lhs;
+      Token::Kind op;
+      std::unique_ptr<Expr> rhs;
+    };
+    struct UnOp {
+      std::unique_ptr<Expr> operand;
+      Token::Kind op;
+    };
+    struct VarDecl {
+      std::string name;
+      std::unique_ptr<Type> type;
+      std::unique_ptr<Expr> init;
+    };
+    struct FnCall {
+      std::string name;
+      std::vector<std::unique_ptr<Expr>> args;
+    };
+  } // namespace ast
 } // namespace phantom

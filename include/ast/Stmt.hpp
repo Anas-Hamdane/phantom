@@ -4,39 +4,29 @@
 #include <common.hpp>
 
 namespace phantom {
-  struct Stmt;
-  enum class StmtKind {
-    Invalid = 0,
-    Return,
-    Expmt,
-    FnDecl,
-    FnDef,
-  };
+  namespace ast {
+    struct Return;
+    struct Expmt;
+    struct FnDecl;
+    struct FnDef;
 
-  struct Return {
-    Expr* expr;
-  };
-  struct Expmt {
-    Expr* expr;
-  };
-  struct FnDecl {
-    const char* name;
-    DataType* type;
-    utils::Vec<Param> params;
-  };
-  struct FnDef {
-    FnDecl* declaration;
-    utils::Vec<Stmt> body;
-  };
+    using Stmt = std::variant<std::unique_ptr<Return>, std::unique_ptr<Expmt>,
+                              std::unique_ptr<FnDecl>, std::unique_ptr<FnDef>>;
 
-  struct Stmt {
-    StmtKind kind;
-
-    union {
-      Return ret;
-      Expmt expmt;
-      FnDecl fn_decl;
-      FnDef fn_def;
-    } data;
-  };
+    struct Return {
+      std::unique_ptr<Expr> expr;
+    };
+    struct Expmt {
+      std::unique_ptr<Expr> expr;
+    };
+    struct FnDecl {
+      std::string name;
+      std::unique_ptr<Type> type;
+      std::vector<std::unique_ptr<VarDecl>> params;
+    };
+    struct FnDef {
+      std::unique_ptr<FnDecl> decl;
+      std::vector<std::unique_ptr<Stmt>> body;
+    };
+  } // namespace ast
 } // namespace phantom

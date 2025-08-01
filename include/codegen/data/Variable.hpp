@@ -1,27 +1,14 @@
 #pragma once
 
+#include "common.hpp"
 #include <cstddef>
 
 namespace phantom {
   namespace codegen {
-    enum class VarType : unsigned int {
-      Bool = 1,
-      Char = 1,
-      Short = 2,
-      Int = 4,
-      Long = 8,
-
-      Half = 2,
-      Float = 4,
-      Double = 8
-    };
     struct Variable {
-      const char* name;
-      VarType type;
-      bool floating_point = false;
-
+      Type type;
       // stack index
-      size_t index;
+      size_t offset;
     };
   } // namespace codegen
 } // namespace phantom

@@ -84,15 +84,26 @@ private:
     };
 
     static constexpr std::string_view PrimDataTys[] = {
-        "bool",
-        "char",
-        "short",
-        "int",
-        "long",
-        "half",
-        "float",
-        "double",
-        "void"
+        "void",
+
+        // integers
+        "i1",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+
+        // unsigned integers
+        "u1",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+
+        // floating points
+        "f16",
+        "f32",
+        "f64"
     };
     // clang-format on
 

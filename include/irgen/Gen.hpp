@@ -8,30 +8,28 @@ namespace phantom {
   namespace ir {
     class Gen {
   public:
-      Gen(utils::Vec<Stmt>& ast)
+      Gen(std::vector<std::unique_ptr<ast::Stmt>>& ast)
           : ast(ast) {}
 
       Program gen();
 
   private:
-      utils::Vec<Stmt>& ast;
+      std::vector<std::unique_ptr<ast::Stmt>>& ast;
       Program program; // output
 
-      std::map<const char*, Register> local_vars;
-      std::map<const char*, Function> funcs_table;
+      std::map<std::string, Register> scope_vars;
+      std::map<std::string, Function> funcs_table;
 
       uint nrid = 0; // next register id
-      uint nbid = 0; // next block id
-
       Function* current_function = nullptr;
-      BasicBlock* current_block = nullptr;
 
-      void generate_stmt(Stmt& stmt);
-      void generate_function(phantom::FnDef& ast_fn);
-      void generate_return(phantom::Return& ast_rt);
-      void declare_function(phantom::FnDecl& ast_fn);
+      void define_function(std::unique_ptr<ast::FnDef>& ast_fn);
+      void declare_function(std::unique_ptr<ast::FnDecl>& ast_fn);
+      void generate_stmt(std::unique_ptr<ast::Stmt>& stmt);
+      void generate_return(std::unique_ptr<ast::Return>& ast_rt);
 
-      Value generate_expr(Expr& expr);
+      Value generate_expr(std::unique_ptr<ast::Expr>& expr);
+      void create_store(Register dst, Value src);
       Register allocate(Type type);
 
       Type proper_int_type(uint64_t value);
@@ -40,6 +38,8 @@ namespace phantom {
       Type value_type(Value& operand);
       BinOp::Op binop_op(Token::Kind op);
       UnOp::Op unop_op(Token::Kind op);
+
+      Value default_value(Type type);
     };
   } // namespace ir
 } // namespace phantom

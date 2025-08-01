@@ -1,7 +1,9 @@
 #include "Driver.hpp"
 #include "Lexer.hpp"
-#include "Parser.hpp"
+#include "ast/Parser.hpp"
 #include "irgen/Gen.hpp"
+#include <cstring>
+// #include "codegen/Codegen.hpp"
 
 // #include <codegen/Codegen.hpp>
 
@@ -15,24 +17,21 @@ void print_tokens(const std::vector<Token>& tokens) {
 }
 
 const char* resolve_type(Type ty) {
-  switch (ty) {
-    case Type::Void:
-      return "void";
-    case Type::Bool:
-      return "<char/bool>";
-    case Type::Short:
-      return "short";
-    case Type::Int:
-      return "int";
-    case Type::Long:
-      return "long";
-    case Type::Half:
-      return "half";
-    case Type::Float:
-      return "float";
-    case Type::Double:
-      return "double";
+  std::string s;
+  // clang-format off
+  switch (ty.kind) {
+    case Type::Kind::Void:   s += "void"; break;
+    case Type::Kind::Int:    s += "i"; break;
+    case Type::Kind::UnsInt: s += "u"; break;
+    case Type::Kind::FP:     s += "f"; break;
   }
+  // clang-format on
+
+  if (ty.bitwidth != 0)
+    s += std::to_string(ty.bitwidth);
+
+  const char* s_leg = strdup(s.c_str());
+  return s_leg;
 }
 
 const char* resolve_reg(ir::Register reg) {
@@ -41,30 +40,29 @@ const char* resolve_reg(ir::Register reg) {
 
   return s;
 }
-
 const char* resolve_const(ir::Constant con) {
   char* s;
 
-  switch (con.type) {
-    case Type::Char:
-    case Type::Short:
-    case Type::Int:
-    case Type::Long:
-      asprintf(&s, "%lu", con.value.int_val);
+  switch (con.value.index()) {
+    case 0:
+      asprintf(&s, "%lu", std::get<0>(con.value));
       break;
-    default:
-      asprintf(&s, "%lf", con.value.float_val);
+    case 1:
+      asprintf(&s, "%lf", std::get<1>(con.value));
       break;
   }
 
   return s;
 }
-
 const char* resolve_value(ir::Value v) {
-  if (v.kind == ir::ValueKind::Register)
-    return resolve_reg(v.value.reg);
+  switch (v.index()) {
+    case 0:
+      return resolve_reg(std::get<0>(v));
+    case 1:
+      return resolve_const(std::get<1>(v));
+  }
 
-  return resolve_const(v.value.con);
+  std::abort();
 }
 
 const char* binop_op(ir::BinOp::Op op) {
@@ -89,40 +87,42 @@ const char* unop_op(ir::UnOp::Op op) {
 }
 
 void print_instruction(ir::Instruction inst) {
-  switch (inst.kind) {
-    case ir::InstrKind::Alloca:
-      printf("  alloca %s, %s\n", resolve_type(inst.inst.alloca.type), resolve_reg(inst.inst.alloca.reg));
-      break;
-    case ir::InstrKind::Load:
-      printf("  load %s, %s\n", resolve_reg(inst.inst.load.src), resolve_reg(inst.inst.load.dst));
-      break;
-    case ir::InstrKind::Store:
-      printf("  store %s, %s\n", resolve_value(inst.inst.store.src), resolve_reg(inst.inst.store.dst));
-      break;
-    case ir::InstrKind::BinOp:
-      printf("  %s %s, %s -> %s\n", binop_op(inst.inst.binop.op), resolve_value(inst.inst.binop.lhs), resolve_value(inst.inst.binop.rhs), resolve_reg(inst.inst.binop.dst));
-      break;
-    case ir::InstrKind::UnOp:
-      printf("  %s %s -> %s\n", unop_op(inst.inst.unop.op), resolve_value(inst.inst.unop.operand), resolve_reg(inst.inst.unop.dst));
-      break;
+  // clang-format off
+  switch (inst.index()) {
+    case 0: printf("  alloca %s, %s\n", resolve_type(std::get<0>(inst).type), resolve_reg(std::get<0>(inst).reg)); break;
+    case 1: printf("  store %s, %s\n", resolve_value(std::get<1>(inst).src), resolve_reg(std::get<1>(inst).dst)); break;
+    case 2: printf("  %s = %s %s, %s \n", resolve_reg(std::get<2>(inst).dst), binop_op(std::get<2>(inst).op), resolve_value(std::get<2>(inst).lhs), resolve_value(std::get<2>(inst).rhs)); break;
+    case 3: printf("  %s = %s %s\n", resolve_reg(std::get<3>(inst).dst), unop_op(std::get<3>(inst).op), resolve_value(std::get<3>(inst).operand)); break;
+  }
+  // clang-format on
+}
+void print_terminator(ir::Terminator t) {
+  switch (t.index()) {
+    case 0:
+      printf("  ret %s\n", resolve_value(std::get<0>(t).value));
   }
 }
-
-void print_block(ir::BasicBlock block) {
-  printf("%u:\n", block.id);
-
-  for (auto inst : block.insts) {
-    print_instruction(inst);
-  }
-}
-
 void print_program(ir::Program& program) {
   for (auto fn : program.funcs) {
-    printf("%s %s() -> %s {\n", fn.defined ? "define" : fn.externed ? "extern"
-                                                                    : "declare",
-           fn.name, resolve_type(fn.return_type));
-    for (auto block : fn.blocks) {
-      print_block(block);
+    printf("%s %s(", fn.defined ? "define" : "declare", fn.name.c_str());
+
+    size_t params_size = fn.params.size();
+    for (size_t i = 0; i < params_size; ++i) {
+      auto param = fn.params.at(i);
+      printf("%s: %s", resolve_reg(param), resolve_type(param.type));
+
+      if (i + 1 < params_size)
+        printf(", ");
+    }
+
+    printf(") -> %s {\n", resolve_type(fn.return_type));
+
+    for (auto inst : fn.body) {
+      print_instruction(inst);
+    }
+
+    if (fn.terminated) {
+      print_terminator(fn.terminator);
     }
 
     printf("}\n");
@@ -194,7 +194,7 @@ int main(int argc, char* argv[]) {
   FileInfo file = read_file(opts.source_file, logger);
   Location::file = file;
 
-  utils::Vec<Stmt> ast;
+  std::vector<std::unique_ptr<ast::Stmt>> ast;
   {
     Lexer lexer(file.content, logger);
     auto tokens = lexer.lex();
@@ -203,7 +203,7 @@ int main(int argc, char* argv[]) {
 
     // printf("\n-----------------------------------\n");
 
-    Parser parser(tokens, logger);
+    ast::Parser parser(tokens, logger);
     ast = parser.parse();
 
     // print_ast(ast, expr_area, stmt_area);
@@ -213,6 +213,13 @@ int main(int argc, char* argv[]) {
   ir::Program prog = irgen.gen();
 
   print_program(prog);
+  //
+  // print_program(prog);
+  //
+  // codegen::Gen codegen(prog);
+  // const char* assembly = codegen.gen();
+  //
+  // printf("%s\n", assembly);
 
   return 0;
 }

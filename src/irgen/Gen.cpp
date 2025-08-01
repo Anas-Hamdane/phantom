@@ -1,222 +1,280 @@
-#include <irgen/Gen.hpp>
+#include "irgen/Gen.hpp"
+#include <cassert>
 
 namespace phantom {
   namespace ir {
     Program Gen::gen() {
-      program.funcs.init();
-      program.globals.init();
+      // the only supported arch for now
+      Target target{
+        .arch = "x86_64",
+        .kernel = "linux"
+      };
 
-      for (Stmt& stmt : ast) {
+      program.target = target;
+
+      for (auto& stmt : ast) {
         generate_stmt(stmt);
       }
 
       return program;
     }
 
-    void Gen::generate_stmt(Stmt& stmt) {
+    void Gen::generate_stmt(std::unique_ptr<ast::Stmt>& stmt) {
       // clang-format off
-      switch (stmt.kind) {
-        case StmtKind::Invalid: perror("Invalid statements are not allowed in IR generation phase\n"); exit(1);
-        case StmtKind::FnDecl: declare_function(stmt.data.fn_decl); break;
-        case StmtKind::FnDef: generate_function(stmt.data.fn_def); break;
-        case StmtKind::Return: generate_return(stmt.data.ret); break;
-        case StmtKind::Expmt: generate_expr(*stmt.data.expmt.expr); break;
+      switch (stmt->index()) {
+        case 0: generate_return(std::get<0>(*stmt));     break; // Return
+        case 1: generate_expr(std::get<1>(*stmt)->expr); break; // Expmt
+        case 2: declare_function(std::get<2>(*stmt));    break; // FnDecl
+        case 3: define_function(std::get<3>(*stmt));   break; // FnDef
         default: printf("TODO\n"); exit(1);
       }
       // clang-format on
     }
-    void Gen::generate_function(phantom::FnDef& ast_fn) {
-      Function fn;
-      fn.name = ast_fn.declaration->name;
-      fn.return_type = ast_fn.declaration->type->type;
-      fn.blocks.init();
-      fn.params.init();
-      fn.defined = true;
-      fn.externed = false;
-
-      auto old_vars = local_vars;
-      nrid = 0;
-      nbid = 0;
-
-      for (auto& param : ast_fn.declaration->params) {
-        if (local_vars.find(param.ide->name) != local_vars.end()) {
-          printf("Duplicated variable with the same name\n");
-          exit(1);
-        }
-
-        Register reg = allocate(param.type->type);
-        fn.params.push(reg);
-        local_vars[param.ide->name] = reg;
-      }
-
-      // entry block
-      BasicBlock entry;
-      entry.id = nbid;
-      entry.insts.init();
-      fn.blocks.push(entry);
-
-      current_function = &fn;
-      current_block = &fn.blocks.at(nbid);
-      nbid++;
-
-      for (Stmt& stmt : ast_fn.body) {
-        generate_stmt(stmt);
-      }
-
-      local_vars = old_vars;
-      program.funcs.push(fn);
-    }
-    void Gen::generate_return(phantom::Return& rt) {
-      if (!current_function || !current_block) {
+    void Gen::generate_return(std::unique_ptr<ast::Return>& ast_rt) {
+      if (!current_function) {
         printf("You messed up!\n");
         exit(1);
       }
 
-      if (current_block->terminated) {
+      if (current_function->terminated) {
         printf("blocks can't have more than one terminator\n");
         exit(1);
       }
 
       Return ret{
-        .value = generate_expr(*rt.expr)
+        .value = generate_expr(ast_rt->expr)
       };
 
-      current_block->terminator = {
-        .kind = TermKind::Return,
-        .data = { .ret = ret }
-      };
-      current_block->terminated = true;
+      current_function->terminator = ret;
+      current_function->terminated = true;
     }
-    void Gen::declare_function(phantom::FnDecl& ast_fn) {
+
+    void Gen::define_function(std::unique_ptr<ast::FnDef>& ast_fn) {
       Function fn;
-      fn.name = ast_fn.name;
-      fn.return_type = ast_fn.type->type;
-      fn.defined = false;
-      fn.externed = false;
+      fn.name = ast_fn->decl->name;
+      fn.return_type = *(ast_fn->decl->type);
+      fn.defined = true;
 
-      program.funcs.push(fn);
+      auto old_scope_vars = scope_vars;
+      nrid = 0;
+
+      for (auto& param : ast_fn->decl->params) {
+        if (scope_vars.find(param->name) != scope_vars.end()) {
+          printf("Duplicated variable with the same name\n");
+          exit(1);
+        }
+
+        Register reg = allocate(*param->type);
+        fn.params.push_back(reg);
+
+        scope_vars[param->name] = reg;
+      }
+
+      current_function = &fn;
+      for (auto& stmt : ast_fn->body) {
+        generate_stmt(stmt);
+      }
+
+      scope_vars = old_scope_vars;
+      program.funcs.push_back(fn);
+    }
+    void Gen::declare_function(std::unique_ptr<ast::FnDecl>& ast_decl) {
+      Function fn;
+      fn.name = ast_decl->name;
+      fn.return_type = *(ast_decl->type);
+      fn.defined = false;
+
+      auto old_scope_vars = scope_vars;
+      nrid = 0;
+
+      for (auto& param : ast_decl->params) {
+        if (scope_vars.find(param->name) != scope_vars.end()) {
+          printf("Duplicated variable with the same name\n");
+          exit(1);
+        }
+
+        Register reg = allocate(*param->type);
+        fn.params.push_back(reg);
+
+        scope_vars[param->name] = reg;
+      }
+
+      scope_vars = old_scope_vars;
+      program.funcs.push_back(fn);
     }
 
-    Value Gen::generate_expr(Expr& expr) {
-      //clang-format off
-      switch (expr.kind) {
-        case ExprKind::IntLit: {
-          uint64_t value = expr.data.int_lit.value;
-          Type type = proper_int_type(value);
+    Value Gen::generate_expr(std::unique_ptr<ast::Expr>& expr) {
+      switch (expr->index()) {
+        case 0: // IntLit
+        {
+          std::unique_ptr<ast::IntLit>& lit = std::get<0>(*expr);
 
-          Constant con{
-            .type = type,
-            .value = { .int_val = value }
-          };
+          Constant constant;
+          constant.type.kind = Type::Kind::Int;
 
-          return Value{
-            .kind = ValueKind::Constant,
-            .value = { .con = con }
-          };
-        }
-        case ExprKind::FloatLit: {
-          double value = expr.data.float_lit.value;
-          Type type = proper_float_type(value);
-
-          Constant con{
-            .type = type,
-            .value = { .float_val = value }
-          };
-
-          return Value{
-            .kind = ValueKind::Constant,
-            .value = { .con = con }
-          };
-        }
-        case ExprKind::Identifier: {
-          Identifier ide = expr.data.ide;
-          if (local_vars.find(ide.name) == local_vars.end()) {
-            printf("Use of undeclared Identifier: %s\n", ide.name);
+          if (((int)lit->value) >= INT_MIN_VAL && ((int)lit->value) <= INT_MAX_VAL)
+            constant.type.bitwidth = 32;
+          else if (((long long)lit->value) >= LONG_MIN_VAL && ((long long)lit->value) <= LONG_MAX_VAL)
+            constant.type.bitwidth = 64;
+          else {
+            printf("Integer literal is too large to be represented in a data type\n");
             exit(1);
           }
 
-          Register src = local_vars[ide.name];
-          Register dst = allocate(src.type);
-
-          Load load{ .src = src, .dst = dst };
-          current_block->insts.push({ .kind = InstrKind::Load, .inst = { .load = load } });
-
-          return Value{ .kind = ValueKind::Register, .value = { .reg = dst } };
+          // uint64_t
+          constant.value = lit->value;
+          return constant;
         }
-        case ExprKind::BinOp: {
-          phantom::BinOp ast_binop = expr.data.binop;
-          Value lhs = generate_expr(*ast_binop.lhs);
-          Value rhs = generate_expr(*ast_binop.rhs);
-          BinOp::Op op = binop_op(ast_binop.op);
+        case 1: // FloatLit
+        {
+          std::unique_ptr<ast::FloatLit>& lit = std::get<1>(*expr);
 
-          Type type = binop_type(lhs, rhs);
+          Constant constant;
+          constant.type.kind = Type::Kind::FP;
+          if (lit->value >= FLOAT_MIN_VAL && lit->value <= FLOAT_MAX_VAL)
+            constant.type.bitwidth = 32;
+          else if (lit->value >= DOUBLE_MIN_VAL && lit->value <= DOUBLE_MAX_VAL)
+            constant.type.bitwidth = 64;
+          else {
+            printf("Float literal is too large to be represented in a data type\n");
+            exit(1);
+          }
+
+          // double
+          constant.value = lit->value;
+          return constant;
+        }
+        case 2: // StrLit
+        {
+          // TODO:
+        }
+        case 3: // ArrLit
+        {
+          // TODO:
+        }
+        case 4: // Identifier
+        {
+          std::unique_ptr<ast::Identifier>& ide = std::get<4>(*expr);
+          if (scope_vars.find(ide->name) == scope_vars.end()) {
+            printf("Use of undeclared Identifier: %s\n", ide->name.c_str());
+            exit(1);
+          }
+
+          return scope_vars[ide->name];
+        }
+        case 5: // BinOp
+        {
+          std::unique_ptr<ast::BinOp>& binop = std::get<5>(*expr);
+          Value lhs = generate_expr(binop->lhs);
+          Value rhs = generate_expr(binop->rhs);
+
+          if (binop->op == Token::Kind::Eq) {
+            assert(lhs.index() == 0 && "can't assign to a non-variable destination\n");
+
+            create_store(std::get<0>(lhs), rhs);
+            return rhs;
+          }
+
+          BinOp::Op op;
+          // clang-format off
+          switch (binop->op) {
+            case Token::Kind::Plus:  op = BinOp::Op::Add; break;
+            case Token::Kind::Minus: op = BinOp::Op::Sub; break;
+            case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
+            case Token::Kind::Div:   op = BinOp::Op::Div; break;
+            default:                std::abort();
+          }
+          // clang-format on
+
+          Type lty = (lhs.index() == 0) ? std::get<0>(lhs).type : std::get<1>(lhs).type;
+          Type rty = (rhs.index() == 0) ? std::get<0>(rhs).type : std::get<1>(rhs).type;
+
+          Type type;
+          type.bitwidth = (lty.bitwidth > rty.bitwidth) ? lty.bitwidth : rty.bitwidth;
+          if (lty.kind == Type::Kind::FP || rty.kind == Type::Kind::FP)
+            type.kind = Type::Kind::FP;
+          else if (lty.kind == Type::Kind::Int || rty.kind == Type::Kind::Int)
+            type.kind = Type::Kind::Int;
+          else
+            type.kind = Type::Kind::UnsInt;
+
+          Register dst = allocate(type);
+          current_function->body.push_back(BinOp{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst });
+          return dst;
+        }
+        case 6: // UnOp
+        {
+          std::unique_ptr<ast::UnOp>& unop = std::get<6>(*expr);
+          Value operand = generate_expr(unop->operand);
+
+          UnOp::Op op;
+          // clang-format off
+          switch (unop->op) {
+            case Token::Kind::Minus: op = UnOp::Op::Neg; break;
+            case Token::Kind::Not:   op = UnOp::Op::Not; break;
+            default:                 std::abort();
+          }
+          // clang-format on
+
+          Type type = (operand.index() == 0) ? std::get<0>(operand).type : std::get<1>(operand).type;
           Register dst = allocate(type);
 
-          BinOp binop{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst };
-          current_block->insts.push({ .kind = InstrKind::BinOp, .inst = { .binop = binop } });
-
-          return Value{ .kind = ValueKind::Register, .value = { .reg = dst } };
+          current_function->body.push_back(UnOp{ .op = op, .operand = operand, .dst = dst });
+          return dst;
         }
-        case ExprKind::UnOp: {
-          phantom::UnOp ast_unop = expr.data.unop;
-          Value operand = generate_expr(*ast_unop.operand);
-          UnOp::Op op = unop_op(ast_unop.op);
+        case 7: // VarDecl
+        {
+          std::unique_ptr<ast::VarDecl>& decl = std::get<7>(*expr);
 
-          Type type = value_type(operand);
-          Register dst = allocate(type);
-
-          UnOp unop{ .op = op, .operand = operand, .dst = dst };
-          current_block->insts.push({ .kind = InstrKind::UnOp, .inst = { .unop = unop } });
-
-          return Value{ .kind = ValueKind::Register, .value = { .reg = dst } };
-        }
-        case ExprKind::VarDecl: {
-          phantom::VarDecl ast_vardecl = expr.data.var_decl;
-          const char* name = ast_vardecl.ide->name;
-
-          if (local_vars.find(name) != local_vars.end()) {
-            printf("Redefinition of variable: %s\n", name);
-            exit(1);
-          }
-          if (!ast_vardecl.type && !ast_vardecl.value) {
-            printf("Error: could not retrieve variable type: %s\n", name);
+          if (scope_vars.find(decl->name) != scope_vars.end()) {
+            printf("Redefinition of variable: %s\n", decl->name.c_str());
             exit(1);
           }
 
-          if (ast_vardecl.value) {
-            Value v = generate_expr(*ast_vardecl.value);
-            Type type;
+          Type type;
+          Value value = {};
+          bool initialized = false;
 
-            if (ast_vardecl.type)
-              type = ast_vardecl.type->type;
-            else
-              type = value_type(v);
-
-            Register reg = allocate(type);
-            Alloca alloca{ .type = type, .reg = reg };
-            current_block->insts.push({ .kind = InstrKind::Alloca, .inst = { .alloca = alloca } });
-
-            Store store{ .src = v, .dst = reg };
-            current_block->insts.push({ .kind = InstrKind::Store, .inst = { .store = store } });
-
-            return v;
+          if (decl->init) {
+            value = generate_expr(decl->init);
+            initialized = true;
+            type = (value.index() == 0) ? std::get<0>(value).type : std::get<1>(value).type;
           }
 
-          Type type = ast_vardecl.type->type;
+          // override even if there's an initialized
+          // Priority goes to the specified type
+          if (decl->type)
+            type = *decl->type;
+
           Register reg = allocate(type);
+          scope_vars[decl->name] = reg;
 
           Alloca alloca{ .type = type, .reg = reg };
-          current_block->insts.push({ .kind = InstrKind::Alloca, .inst = { .alloca = alloca } });
+          current_function->body.push_back(alloca);
 
-          return Value{
-            .kind = ValueKind::Constant, .value = { .con = { .type = Type::Int, .value = { .int_val = 0 } } }
-          };
+          if (initialized) {
+            Store store{ .src = value, .dst = reg };
+            current_function->body.push_back(store);
+            return value;
+          }
+
+          return {};
         }
-        default:
-          printf("todo\n");
-          exit(1);
+        case 8: // FnCall
+        {
+          // TODO:
+        }
       }
-      // clang-format on
+
+      std::abort();
+    }
+
+    void Gen::create_store(Register dst, Value src) {
+      Store store;
+      store.dst = dst;
+      store.src = src;
+
+      current_function->body.push_back(store);
     }
 
     Register Gen::allocate(Type type) {
@@ -226,50 +284,6 @@ namespace phantom {
       };
 
       return reg;
-    }
-    Type Gen::proper_int_type(uint64_t value) {
-      if (value >= INT_MIN_VAL && value <= INT_MAX_VAL)
-        return Type::Int;
-
-      return Type::Long;
-    }
-    Type Gen::proper_float_type(double value) {
-      if (value >= FLOAT_MIN_VAL && value <= FLOAT_MAX_VAL)
-        return Type::Float;
-
-      return Type::Double;
-    }
-    Type Gen::value_type(Value& v) {
-      return (v.kind == ValueKind::Constant) ? v.value.con.type : v.value.reg.type;
-    }
-    Type Gen::binop_type(Value& lhs, Value& rhs) {
-      Type lty = value_type(lhs);
-      Type rty = value_type(rhs);
-
-      uint lsz = (uint)lty;
-      uint rsz = (uint)rty;
-
-      return (lsz > rsz) ? lty : rty;
-    }
-    BinOp::Op Gen::binop_op(Token::Kind op) {
-      // clang-format off
-      switch (op) {
-        case Token::Kind::Plus:  return BinOp::Op::Add;
-        case Token::Kind::Minus: return BinOp::Op::Sub;
-        case Token::Kind::Mul:   return BinOp::Op::Mul;
-        case Token::Kind::Div:   return BinOp::Op::Div;
-        default: printf("todo\n"); exit(1);
-      }
-      // clang-format on
-    }
-    UnOp::Op Gen::unop_op(Token::Kind op) {
-      // clang-format off
-      switch (op) {
-        case Token::Kind::Minus:  return UnOp::Op::Neg;
-        case Token::Kind::Not:    return UnOp::Op::Not;
-        default: printf("todo\n"); exit(1);
-      }
-      // clang-format on
     }
   } // namespace ir
 } // namespace phantom

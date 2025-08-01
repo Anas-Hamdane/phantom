@@ -34,17 +34,13 @@ namespace phantom {
 
   constexpr char compiler_metadata[] = "phantom";
 
-  enum class Type : unsigned int {
-    Void = 0,
-
-    Char = 1,
-    Bool = 1,
-    Short = 2,
-    Int = 4,
-    Long = 8,
-
-    Half = 12,
-    Float = 14,
-    Double = 18
+  struct Type {
+    enum class Kind {
+      Void,
+      Int,
+      UnsInt,
+      FP
+    } kind;
+    uint8_t bitwidth;
   };
 } // namespace phantom

@@ -1,6 +1,10 @@
 #pragma once
 
-#include "utils/vec.hpp"
+#include "common.hpp"
+#include <string>
+#include <variant>
+#include <vector>
+using uint = unsigned int;
 
 namespace phantom {
   namespace ir {
@@ -8,44 +12,17 @@ namespace phantom {
       uint id;
       Type type;
     };
-
     struct Constant {
       Type type;
-
-      union {
-        uint64_t int_val;
-        double float_val;
-        bool bool_val;
-      } value;
+      std::variant<uint64_t, double> value;
     };
 
-    enum class ValueKind {
-      Register,
-      Constant
-    };
-    struct Value {
-      ValueKind kind;
-
-      union {
-        Register reg;
-        Constant con;
-      } value;
-    };
+    using Value = std::variant<Register, Constant>;
 
     struct Return {
       Value value;
     };
-
-    enum class TermKind {
-      Return
-    };
-    struct Terminator {
-      TermKind kind;
-
-      union {
-        Return ret;
-      } data;
-    };
+    using Terminator = std::variant<Return>;
 
     struct Alloca {
       Type type;
@@ -55,11 +32,6 @@ namespace phantom {
       Value src;
       Register dst;
     };
-    struct Load {
-      Register src;
-      Register dst;
-    };
-
     struct BinOp {
       // clang-format off
       enum class Op { Add, Sub, Mul, Div } op;
@@ -67,60 +39,41 @@ namespace phantom {
       Register dst;
       // clang-format on
     };
-
-    struct UnOp  {
+    struct UnOp {
       // clang-format off
       enum class Op { Neg, Not } op;
       Value operand;
       Register dst;
       // clang-format on
     };
-
-    enum class InstrKind {
-      Alloca,
-      Store,
-      Load,
-      BinOp,
-      UnOp
-    };
-    struct Instruction {
-      InstrKind kind;
-
-      union {
-        Alloca alloca;
-        Store store;
-        Load load;
-        BinOp binop;
-        UnOp unop;
-      } inst;
-    };
-
-    struct BasicBlock {
-      uint id;
-      utils::Vec<Instruction> insts;
-      Terminator terminator;
-      bool terminated = false;
-    };
+    using Instruction = std::variant<Alloca, Store, BinOp, UnOp>;
 
     struct Function {
-      const char* name;
+      std::string name;
       Type return_type;
-      utils::Vec<Register> params;
-      utils::Vec<BasicBlock> blocks;
+      std::vector<Register> params;
+      std::vector<Instruction> body;
+      Terminator terminator;
+      bool terminated = false;
       bool defined = false;
-      bool externed = false;
     };
 
     struct GlobalVariable {
-      const char* name;
+      std::string name;
       Type type;
       Constant init;
       bool externed = false;
     };
 
+    struct Target {
+      std::string arch;
+      std::string kernel;
+    };
+
     struct Program {
-      utils::Vec<Function> funcs;
-      utils::Vec<GlobalVariable> globals;
+      Target target;
+      std::vector<Function> funcs;
+      std::vector<GlobalVariable> globals;
     };
   } // namespace ir
 } // namespace phantom

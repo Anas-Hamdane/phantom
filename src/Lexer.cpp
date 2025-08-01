@@ -1,7 +1,6 @@
-#include <Lexer.hpp>
-#include <Logger.hpp>
-#include <common.hpp>
-#include <utils/num.hpp>
+#include "Lexer.hpp"
+#include "Logger.hpp"
+#include "utils/num.hpp"
 
 namespace phantom {
   std::vector<Token> Lexer::lex() {
@@ -30,7 +29,7 @@ namespace phantom {
         continue;
       }
 
-      // identifier/keyword
+      // identifier/keyword/PrimitiveType
       if (identifier_start(peek())) {
         std::string lexeme;
         lexeme += consume();

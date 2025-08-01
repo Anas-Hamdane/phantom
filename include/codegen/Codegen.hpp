@@ -1,26 +1,26 @@
 #pragma once
 
-#include "ast/Stmt.hpp"
-#include "data/Function.hpp"
+#include "data/Variable.hpp"
+#include "irgen/Program.hpp"
 #include <map>
+#include <string_view>
+#include <unordered_map>
 #include <utils/str.hpp>
 
 namespace phantom {
   namespace codegen {
-    class Codegen {
+    class Gen {
   public:
-      Codegen(std::vector<std::unique_ptr<Stmt>>& ast)
-          : ast(ast) {}
+      Gen(ir::Program& program)
+          : program(program) {}
 
-      const char* codegen();
+      const char* gen();
 
   private:
-      std::vector<std::unique_ptr<Stmt>>& ast;
+      ir::Program& program;
+      utils::Str output;
 
-      str::Str output;
-
-      std::map<std::string, Variable> vars_table;
-      std::map<std::string, Function> fn_table;
+      std::unordered_map<uint, Variable> local_vars;
       const std::map<std::string_view, unsigned int> regs_table{
         { "rax", 8 },
         { "eax", 4 },
@@ -103,36 +103,25 @@ namespace phantom {
         { "r15b", 1 }
       };
 
-      Function* current_function;
-
       // to track stack size
       size_t offset = 0;
 
   private:
-      void generate_stmt(Stmt& stmt);
-      void generate_function(FnDef& fn);
-      void generate_return(Return& ret);
-      void generate_expression(Expmt& expmt);
+      void generate_function(ir::Function& fn);
+      void generate_instruction(ir::Instruction& inst);
 
-      void generate_vardecl(VarDecl& vardecl);
-      void generate_binop(BinOp& binop);
-
-      void declare_function(FnDecl& decl);
-      void declare_variable(VarDecl& decl);
-
-      void load_to_reg(const char* reg, Expr& expr);
-      void store_value(int64_t value, Expr& expr);
       // void mov_to(const char* dst, Expr& expr);
 
-      void add(ExprRef left_ref, ExprRef right_ref);
+      // void add(ExprRef left_ref, ExprRef right_ref);
       // void sub();
       // void mul();
       // void div();
-      void asgn(ExprRef left_ref, ExprRef right_ref);
+      // void asgn(ExprRef left_ref, ExprRef right_ref);
       // void neg();
 
       char size_suffix(unsigned int size);
       char* size_areg(unsigned int size);
+      char* subreg_name(const char* reg, size_t size);
 
       void check_identifier(const char* name);
     };
