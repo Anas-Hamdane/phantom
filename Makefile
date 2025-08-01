@@ -9,11 +9,11 @@ OBJSDIR := build/objs
 
 FRONTEND := ./src/Lexer.cpp ./src/Driver.cpp ./src/ast/Parser.cpp
 UTILS := ./src/Logger.cpp ./src/utils/num.cpp ./src/utils/str.cpp
-CODEGEN := ./src/irgen/Gen.cpp
+CODEGEN := ./src/irgen/Gen.cpp ./src/codegen/Codegen.cpp
 SRCS := ./src/main.cpp $(FRONTEND) $(UTILS) $(CODEGEN)
 
 # IMPORTANT: don't forget to add new paths here too
-VPATH := src src/utils src/ast src/irgen
+VPATH := src src/utils src/ast src/irgen src/codegen
 
 SRC_WITHOUT_PATH := $(notdir $(SRCS))
 OBJS := $(addprefix $(OBJSDIR)/, $(SRC_WITHOUT_PATH:.cpp=.o))

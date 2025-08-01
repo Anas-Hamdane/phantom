@@ -15,10 +15,12 @@ namespace phantom {
     }
 
     void Gen::generate_function(ir::Function& fn) {
-      utils::appendf(&output, ".globl %s\n", fn.name);
+      const char* name = fn.name.c_str();
+
+      utils::appendf(&output, ".globl %s\n", name);
       utils::append(&output, ".p2align 4\n");
-      utils::appendf(&output, ".type %s, @function\n", fn.name);
-      utils::appendf(&output, "%s:\n", fn.name);
+      utils::appendf(&output, ".type %s, @function\n", name);
+      utils::appendf(&output, "%s:\n", name);
 
       utils::append(&output, "    pushq   %rbp\n");
       utils::append(&output, "    movq    %rsp, %rbp\n");
@@ -30,9 +32,11 @@ namespace phantom {
       size_t tmp = std::min(regs_size, params_size);
       for (size_t i = 0; i < tmp; ++i) {
         ir::Register param = fn.params.at(i);
-        size_t size = (unsigned int)param.type;
+        size_t size = (param.type.bitwidth == 0) ? 1 : (param.type.bitwidth / 8);
+
         const char suff = size_suffix(size);
         const char* reg = subreg_name(regs[i], size);
+
         utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
         offset += size;
 
@@ -41,9 +45,11 @@ namespace phantom {
 
       for (size_t i = tmp; i < params_size; ++i) {
         ir::Register param = fn.params.at(i);
-        size_t size = (unsigned int)param.type;
+        size_t size = (param.type.bitwidth == 0) ? 1 : (param.type.bitwidth / 8);
+
         const char suff = size_suffix(size);
         const char* reg = size_areg(size);
+
         utils::appendf(&output, "    mov%c    %zu(%%rbp), %%%s\n", suff, ((i - tmp) + 2) * 8, reg);
         utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
         offset += size;
@@ -56,56 +62,69 @@ namespace phantom {
       }
     }
     void Gen::generate_instruction(ir::Instruction& inst) {
-      switch (inst.kind) {
-        case ir::InstrKind::Alloca: {
-          ir::Alloca alloca = inst.inst.alloca;
-          offset += (unsigned int)alloca.type;
+      switch (inst.index()) {
+        case 0: // Alloca
+        {
+          ir::Alloca& alloca = std::get<0>(inst);
+          offset += (alloca.type.bitwidth == 0) ? 1 : (alloca.type.bitwidth / 8);
           local_vars[alloca.reg.id] = Variable{ .type = alloca.type, .offset = offset };
           break;
         }
-        case ir::InstrKind::Store: {
-          ir::Value src = inst.inst.store.src;
-          Variable dst = local_vars[inst.inst.store.dst.id];
+        case 1: // Store
+        {
+          ir::Store& store = std::get<1>(inst);
+          Variable dst = local_vars[store.dst.id];
 
-          uint size = (unsigned int)dst.type;
-          const char suff = size_suffix(size);
+          uint dst_size = (dst.type.bitwidth == 0) ? 1 : (dst.type.bitwidth / 8);
+          const char dst_suff = size_suffix(dst_size);
 
-          if (src.kind == ir::ValueKind::Constant) {
-            ir::Constant c = src.value.con;
-            switch (c.type) {
-              case Type::Byte:
-              case Type::Short:
-              case Type::Int:
-              case Type::Long: {
-                uint64_t value = c.value.int_val;
-                utils::appendf(&output, "    mov%c    $%lu, -%zu(%%rbp)\n", suff, value, dst.offset);
-                break;
-              }
-              default:
-                double value = c.value.float_val;
-                utils::appendf(&output, "    mov%c    $%lf, -%zu(%%rbp)\n", suff, value, dst.offset);
-                break;
+          switch (store.src.index()) {
+            case 0: // Register
+            {
+              Variable src = local_vars[std::get<0>(store.src).id];
+
+              // the intermediate register that we will move to and from
+              const char* reg = size_areg(dst_size);
+              uint reg_size = dst_size;
+
+              uint src_size = (src.type.bitwidth == 0) ? 1 : (src.type.bitwidth / 8);
+
+              utils::Str mov = utils::init("mov");
+              if (reg_size > src_size)
+                utils::appendf(&mov, "s%c%c", size_suffix(src_size), size_suffix(reg_size));
+              else
+                utils::appendf(&mov, "%c", size_suffix(reg_size));
+
+              utils::appendf(&output, "    %-7s -%zu(%%rbp), %%%s\n", mov.content, src.offset, reg);
+              utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", dst_suff, reg, dst.offset);
+              break;
             }
-
-            break;
+            case 1: // Constant
+            {
+              ir::Constant constant = std::get<1>(store.src);
+              switch (constant.value.index()) {
+                case 0: // uint64_t
+                {
+                  uint64_t value = std::get<0>(constant.value);
+                  utils::appendf(&output, "    mov%c    $%lu, -%zu(%%rbp)\n", dst_suff, value, dst.offset);
+                  break;
+                }
+                case 1: // double
+                {
+                  // TODO:
+                }
+              }
+              break;
+            }
           }
-
-          const char* reg = size_areg(size);
-          Variable src_var = local_vars[src.value.reg.id];
-          utils::appendf(&output, "    mov%c    -%zu(%%rbp), %%%s\n", suff, src_var.offset, reg);
-          utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, dst.offset);
           break;
         }
 
-        case ir::InstrKind::BinOp: {
-          ir::BinOp binop = inst.inst.binop;
-
-          switch (binop.op) {
-            case ir::BinOp::Op::Add: {
-            }
-          }
+        case 2: // BinOp
+        {
         }
-        case ir::InstrKind::UnOp: {
+        case 3: // UnOp
+        {
         }
       }
     }

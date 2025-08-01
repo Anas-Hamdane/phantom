@@ -3,9 +3,7 @@
 #include "ast/Parser.hpp"
 #include "irgen/Gen.hpp"
 #include <cstring>
-// #include "codegen/Codegen.hpp"
-
-// #include <codegen/Codegen.hpp>
+#include "codegen/Codegen.hpp"
 
 using namespace phantom;
 
@@ -213,13 +211,11 @@ int main(int argc, char* argv[]) {
   ir::Program prog = irgen.gen();
 
   print_program(prog);
-  //
-  // print_program(prog);
-  //
-  // codegen::Gen codegen(prog);
-  // const char* assembly = codegen.gen();
-  //
-  // printf("%s\n", assembly);
+
+  codegen::Gen codegen(prog);
+  const char* assembly = codegen.gen();
+
+  printf("%s\n", assembly);
 
   return 0;
 }
