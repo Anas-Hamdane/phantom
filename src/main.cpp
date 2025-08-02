@@ -55,9 +55,9 @@ const char* resolve_const(ir::Constant con) {
 const char* resolve_value(ir::Value v) {
   switch (v.index()) {
     case 0:
-      return resolve_reg(std::get<0>(v));
+      return resolve_const(std::get<0>(v));
     case 1:
-      return resolve_const(std::get<1>(v));
+      return resolve_reg(std::get<1>(v));
   }
 
   std::abort();

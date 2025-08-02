@@ -25,8 +25,8 @@ namespace phantom {
         case 0: generate_return(std::get<0>(*stmt));     break; // Return
         case 1: generate_expr(std::get<1>(*stmt)->expr); break; // Expmt
         case 2: declare_function(std::get<2>(*stmt));    break; // FnDecl
-        case 3: define_function(std::get<3>(*stmt));   break; // FnDef
-        default: printf("TODO\n"); exit(1);
+        case 3: define_function(std::get<3>(*stmt));     break; // FnDef
+        default: std::abort();
       }
       // clang-format on
     }
@@ -64,7 +64,7 @@ namespace phantom {
           exit(1);
         }
 
-        Register reg = allocate(*param->type);
+        Register reg = allocate_register(*param->type);
         fn.params.push_back(reg);
 
         scope_vars[param->name] = reg;
@@ -93,7 +93,7 @@ namespace phantom {
           exit(1);
         }
 
-        Register reg = allocate(*param->type);
+        Register reg = allocate_register(*param->type);
         fn.params.push_back(reg);
 
         scope_vars[param->name] = reg;
@@ -169,9 +169,9 @@ namespace phantom {
           Value rhs = generate_expr(binop->rhs);
 
           if (binop->op == Token::Kind::Eq) {
-            assert(lhs.index() == 0 && "can't assign to a non-variable destination\n");
+            assert(lhs.index() == 1 && "can't assign to a non-variable destination\n");
 
-            create_store(std::get<0>(lhs), rhs);
+            create_store(std::get<1>(lhs), rhs);
             return rhs;
           }
 
@@ -198,7 +198,7 @@ namespace phantom {
           else
             type.kind = Type::Kind::UnsInt;
 
-          Register dst = allocate(type);
+          Register dst = allocate_register(type);
           current_function->body.push_back(BinOp{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst });
           return dst;
         }
@@ -217,7 +217,7 @@ namespace phantom {
           // clang-format on
 
           Type type = (operand.index() == 0) ? std::get<0>(operand).type : std::get<1>(operand).type;
-          Register dst = allocate(type);
+          Register dst = allocate_register(type);
 
           current_function->body.push_back(UnOp{ .op = op, .operand = operand, .dst = dst });
           return dst;
@@ -246,7 +246,7 @@ namespace phantom {
           if (decl->type)
             type = *decl->type;
 
-          Register reg = allocate(type);
+          Register reg = allocate_register(type);
           scope_vars[decl->name] = reg;
 
           Alloca alloca{ .type = type, .reg = reg };
@@ -268,7 +268,6 @@ namespace phantom {
 
       std::abort();
     }
-
     void Gen::create_store(Register dst, Value src) {
       Store store;
       store.dst = dst;
@@ -276,8 +275,7 @@ namespace phantom {
 
       current_function->body.push_back(store);
     }
-
-    Register Gen::allocate(Type type) {
+    Register Gen::allocate_register(Type type) {
       Register reg{
         .id = nrid++,
         .type = type

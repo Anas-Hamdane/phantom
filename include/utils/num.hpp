@@ -6,10 +6,10 @@
 namespace phantom {
   namespace utils {
     enum class NumKind {
-      Decimal,
-      Hex,
-      Octal,
-      Binary,
+      Decimal = 10,
+      Hex = 16,
+      Octal = 8,
+      Binary = 2,
       Invalid
     };
 

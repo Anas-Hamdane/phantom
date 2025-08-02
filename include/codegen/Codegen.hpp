@@ -9,6 +9,16 @@
 
 namespace phantom {
   namespace codegen {
+    struct Directive {
+      enum class Kind { Float, Double, Asciz } kind;
+      std::variant<double, std::string> data;
+    };
+
+    struct DataLabel {
+      std::string name;
+      std::vector<Directive> dirs;
+    };
+
     class Gen {
   public:
       Gen(ir::Program& program)
@@ -21,6 +31,8 @@ namespace phantom {
       utils::Str output;
 
       std::unordered_map<uint, Variable> local_vars;
+      std::unordered_map<double, DataLabel> const_fps;
+
       const std::map<std::string_view, unsigned int> regs_table{
         { "rax", 8 },
         { "eax", 4 },
@@ -110,19 +122,17 @@ namespace phantom {
       void generate_function(ir::Function& fn);
       void generate_instruction(ir::Instruction& inst);
 
-      void generate_terminator(ir::Terminator& term);
-      void generate_default_terminator(Type type);
+      void generate_terminator(ir::Terminator& term, Type& return_type);
+      void generate_default_terminator(Type& type);
 
-      // void mov_to(const char* dst, Expr& expr);
+      void generate_data();
 
-      // void add(ExprRef left_ref, ExprRef right_ref);
-      // void sub();
-      // void mul();
-      // void div();
-      // void asgn(ExprRef left_ref, ExprRef right_ref);
-      // void neg();
+      char type_suffix(Type& type);
+      char integer_suffix(unsigned int size);
+      char fp_suffix(unsigned int size);
 
-      char size_suffix(unsigned int size);
+      uint type_size(Type& type);
+      char* type_default_register(Type& type);
       char* size_areg(unsigned int size);
       char* subreg_name(const char* reg, size_t size);
     };

@@ -17,7 +17,7 @@ namespace phantom {
       std::variant<uint64_t, double> value;
     };
 
-    using Value = std::variant<Register, Constant>;
+    using Value = std::variant<Constant, Register>;
 
     struct Return {
       Value value;
