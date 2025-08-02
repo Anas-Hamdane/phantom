@@ -231,7 +231,7 @@ namespace phantom {
                   uint64_t value = std::get<0>(constant.value);
 
                   if (value == 0)
-                    utils::appendf(&output, "  xor%c    %s, %s", ret_suff, ret_reg, ret_reg);
+                    utils::appendf(&output, "  xor%c    %%%s, %%%s\n", ret_suff, ret_reg, ret_reg);
                   else
                     utils::appendf(&output, "  mov%c    $%lu, %%%s\n", ret_suff, value, ret_reg);
 
