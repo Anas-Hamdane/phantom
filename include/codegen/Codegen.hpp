@@ -110,6 +110,9 @@ namespace phantom {
       void generate_function(ir::Function& fn);
       void generate_instruction(ir::Instruction& inst);
 
+      void generate_terminator(ir::Terminator& term);
+      void generate_default_terminator(Type type);
+
       // void mov_to(const char* dst, Expr& expr);
 
       // void add(ExprRef left_ref, ExprRef right_ref);
@@ -122,8 +125,6 @@ namespace phantom {
       char size_suffix(unsigned int size);
       char* size_areg(unsigned int size);
       char* subreg_name(const char* reg, size_t size);
-
-      void check_identifier(const char* name);
     };
   } // namespace codegen
 } // namespace phantom

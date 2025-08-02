@@ -210,12 +210,12 @@ int main(int argc, char* argv[]) {
   ir::Gen irgen(ast);
   ir::Program prog = irgen.gen();
 
-  print_program(prog);
+  // print_program(prog);
 
   codegen::Gen codegen(prog);
   const char* assembly = codegen.gen();
 
-  printf("%s\n", assembly);
+  printf("%s", assembly);
 
   return 0;
 }

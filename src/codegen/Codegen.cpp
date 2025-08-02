@@ -9,6 +9,7 @@ namespace phantom {
 
       for (ir::Function& fn : program.funcs) {
         generate_function(fn);
+        utils::append(&output, "\n");
       }
 
       return output.content;
@@ -17,13 +18,14 @@ namespace phantom {
     void Gen::generate_function(ir::Function& fn) {
       const char* name = fn.name.c_str();
 
+      utils::appendf(&output, "# begin function @%s\n", name);
       utils::appendf(&output, ".globl %s\n", name);
       utils::append(&output, ".p2align 4\n");
       utils::appendf(&output, ".type %s, @function\n", name);
-      utils::appendf(&output, "%s:\n", name);
+      utils::appendf(&output, "%s:\n", name, name);
 
-      utils::append(&output, "    pushq   %rbp\n");
-      utils::append(&output, "    movq    %rsp, %rbp\n");
+      utils::append(&output, "  pushq   %rbp\n");
+      utils::append(&output, "  movq    %rsp, %rbp\n");
 
       const char* regs[] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9" };
       const size_t regs_size = 6;
@@ -37,7 +39,7 @@ namespace phantom {
         const char suff = size_suffix(size);
         const char* reg = subreg_name(regs[i], size);
 
-        utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
+        utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
         offset += size;
 
         local_vars[param.id] = Variable{ .type = param.type, .offset = offset };
@@ -50,16 +52,22 @@ namespace phantom {
         const char suff = size_suffix(size);
         const char* reg = size_areg(size);
 
-        utils::appendf(&output, "    mov%c    %zu(%%rbp), %%%s\n", suff, ((i - tmp) + 2) * 8, reg);
-        utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
+        utils::appendf(&output, "  mov%c    %zu(%%rbp), %%%s\n", suff, ((i - tmp) + 2) * 8, reg);
+        utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
         offset += size;
 
         local_vars[param.id] = Variable{ .type = param.type, .offset = offset };
       }
 
-      for (ir::Instruction& inst : fn.body) {
+      for (ir::Instruction& inst : fn.body)
         generate_instruction(inst);
-      }
+
+      if (fn.terminated)
+        generate_terminator(fn.terminator);
+      else
+        generate_default_terminator(fn.return_type);
+
+      utils::appendf(&output, "# end function @%s\n", name);
     }
     void Gen::generate_instruction(ir::Instruction& inst) {
       switch (inst.index()) {
@@ -95,8 +103,8 @@ namespace phantom {
               else
                 utils::appendf(&mov, "%c", size_suffix(reg_size));
 
-              utils::appendf(&output, "    %-7s -%zu(%%rbp), %%%s\n", mov.content, src.offset, reg);
-              utils::appendf(&output, "    mov%c    %%%s, -%zu(%%rbp)\n", dst_suff, reg, dst.offset);
+              utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n", mov.content, src.offset, reg);
+              utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", dst_suff, reg, dst.offset);
               break;
             }
             case 1: // Constant
@@ -106,7 +114,7 @@ namespace phantom {
                 case 0: // uint64_t
                 {
                   uint64_t value = std::get<0>(constant.value);
-                  utils::appendf(&output, "    mov%c    $%lu, -%zu(%%rbp)\n", dst_suff, value, dst.offset);
+                  utils::appendf(&output, "  mov%c    $%lu, -%zu(%%rbp)\n", dst_suff, value, dst.offset);
                   break;
                 }
                 case 1: // double
@@ -122,11 +130,83 @@ namespace phantom {
 
         case 2: // BinOp
         {
+          // TODO:
         }
         case 3: // UnOp
         {
+          // TODO:
         }
       }
+    }
+
+    void Gen::generate_terminator(ir::Terminator& term) {
+      switch (term.index()) {
+        case 0: // Return
+        {
+          ir::Return& ret = std::get<0>(term);
+
+          switch (ret.value.index()) {
+            case 0: // Register
+            {
+              Variable value = local_vars[std::get<0>(ret.value).id];
+              uint value_size = (value.type.bitwidth == 1) ? 1 : (value.type.bitwidth / 8);
+
+              const char suff = size_suffix(value_size);
+              const char* reg = size_areg(value_size);
+
+              utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", suff, value.offset, reg);
+              break;
+            }
+            case 1: // Constant
+            {
+              ir::Constant& constant = std::get<1>(ret.value);
+              uint constant_size = (constant.type.bitwidth == 1) ? 1 : (constant.type.bitwidth / 8);
+
+              const char suff = size_suffix(constant_size);
+              const char* reg = size_areg(constant_size);
+
+              switch (constant.value.index()) {
+                case 0: // uint64_t
+                {
+                  uint64_t value = std::get<0>(constant.value);
+                  utils::appendf(&output, "  mov%c    $%lu, %%%s\n", suff, value, reg);
+                  break;
+                }
+                case 1: // double
+                {
+                  // TODO:
+                }
+              }
+            }
+          }
+
+          utils::appendf(&output, "  movq    %%rbp, %%rsp\n");
+          utils::appendf(&output, "  popq    %%rbp\n");
+          utils::appendf(&output, "  ret\n");
+        }
+      }
+    }
+    void Gen::generate_default_terminator(Type type) {
+      switch (type.kind) {
+        case Type::Kind::UnsInt:
+        case Type::Kind::Void:
+        case Type::Kind::Int: // void + unsigned/signed integers
+          utils::appendf(&output, "  nop\n");
+          break;
+        case Type::Kind::FP: // floating points
+        {
+          uint value_size = (type.bitwidth == 1) ? 1 : (type.bitwidth / 8);
+
+          const char suff = size_suffix(value_size);
+          const char* reg = size_areg(value_size);
+
+          utils::appendf(&output, "  mov%c    %%%s, %%xmm0\n", suff, reg);
+        }
+      }
+
+      utils::appendf(&output, "  movq    %%rbp, %%rsp\n");
+      utils::appendf(&output, "  popq    %%rbp\n");
+      utils::appendf(&output, "  ret\n");
     }
 
     char Gen::size_suffix(unsigned int size) {
