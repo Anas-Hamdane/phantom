@@ -171,13 +171,13 @@ namespace phantom {
 
               if (src.type.kind == Type::Kind::FP && dst_type.kind == Type::Kind::Int) {
                 utils::append(&reg, type_default_register(dst_type));
-                utils::appendf(&output, "  cvtts%c2si -%zu(%%rbp), %%%s\n", fp_suffix(src_size), src.offset, reg.content);
+                utils::appendf(&output, "  cvtts%c2si -%zu(%%rbp), %%eax\n", fp_suffix(src_size), src.offset);
               }
 
               else if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::FP) {
                 utils::append(&reg, type_default_register(dst_type));
-                utils::appendf(&output, "  cvttsi2s%c%c -%zu(%%rbp), %%%s\n",
-                               fp_suffix(dst_size), integer_suffix(src_size), src.offset, reg.content);
+                utils::appendf(&output, "  cvtsi2s%c -%zu(%%rbp), %%%s\n",
+                               fp_suffix(dst_size), src.offset, reg.content);
               }
 
               else if (src.type.kind == Type::Kind::FP && dst_type.kind == Type::Kind::FP) {
@@ -187,11 +187,7 @@ namespace phantom {
                   const char src_suff = fp_suffix(src_size);
                   const char dst_suff = fp_suffix(dst_size);
                   utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n", src_suff, src.offset, reg.content);
-
-                  if (src.type.bitwidth > dst_type.bitwidth)
-                    utils::appendf(&output, "  cvtts%s2s%c %%%s, %%%s\n", src_suff, dst_suff, reg.content, reg.content);
-                  else
-                    utils::appendf(&output, "  cvtts%s2s%c %%%s, %%%s\n", dst_suff, src_suff, reg.content, reg.content);
+                  utils::appendf(&output, "  cvts%c2s%c %%%s, %%%s\n", src_suff, dst_suff, reg.content, reg.content);
                 }
 
                 else {
