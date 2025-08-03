@@ -36,9 +36,9 @@ namespace phantom {
 
   struct Type {
     enum class Kind {
-      Void,
+      // Void,
       Int,
-      UnsInt,
+      // UnsInt,
       FP
     } kind;
     uint8_t bitwidth;

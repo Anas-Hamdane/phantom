@@ -1,12 +1,12 @@
 #pragma once
 
-#include "common.hpp"
+#include "irgen/Program.hpp"
 #include <cstddef>
 
 namespace phantom {
   namespace codegen {
     struct Variable {
-      Type type;
+      ir::Type type;
       // stack index
       size_t offset;
     };

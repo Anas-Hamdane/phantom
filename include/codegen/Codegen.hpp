@@ -10,7 +10,9 @@
 namespace phantom {
   namespace codegen {
     struct Directive {
-      enum class Kind { Float, Double, Asciz } kind;
+      enum class Kind { Float,
+                        Double,
+                        Asciz } kind;
       std::variant<double, std::string> data;
     };
 
@@ -122,19 +124,18 @@ namespace phantom {
       void generate_function(ir::Function& fn);
       void generate_instruction(ir::Instruction& inst);
 
-      void generate_terminator(ir::Terminator& term, Type& return_type);
-      void generate_default_terminator(Type& type);
+      void generate_terminator(ir::Terminator& term, ir::Type& return_type);
+      void generate_default_terminator(ir::Type& type);
 
       void generate_data();
 
-      char type_suffix(Type& type);
+      char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
       char fp_suffix(unsigned int size);
 
-      uint type_size(Type& type);
-      char* type_default_register(Type& type);
+      char* type_default_register(ir::Type& type);
       char* size_areg(unsigned int size);
-      char* subreg_name(const char* reg, size_t size);
+      char* subreg_name(const std::string& reg, size_t size);
     };
   } // namespace codegen
 } // namespace phantom

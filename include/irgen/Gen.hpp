@@ -20,10 +20,10 @@ namespace phantom {
       std::unordered_map<std::string, VirtReg> scope_vars;
       std::unordered_map<std::string, Function> funcs_table;
 
-      // last used BinOp physical register: can be either A or C
-      // A stands for "rax"
-      // C stands for "rcx"
+      // last used BinOp physical register, 'A' -> "rax", 'C' -> "rcx"
       char lubpr = 'C';
+      // last used BinOp floating point physical register, '0' -> "xmm0", '1' -> "xmm1"
+      char lubfppr = '1';
 
       uint nrid = 0; // next register id
       Function* current_function = nullptr;
@@ -33,12 +33,16 @@ namespace phantom {
       void generate_stmt(std::unique_ptr<ast::Stmt>& stmt);
       void generate_return(std::unique_ptr<ast::Return>& ast_rt);
 
-      Value generate_expr(std::unique_ptr<ast::Expr>& expr);
       void create_store(std::variant<VirtReg, PhysReg> dst, Value src);
-      VirtReg allocate_vritual_register(Type type);
-      PhysReg allocate_physical_register(Type type);
+
+      Value generate_expr(std::unique_ptr<ast::Expr>& expr);
+      VirtReg allocate_vritual_register(Type& type);
+      PhysReg allocate_physical_register(Type& type);
 
       Type value_type(Value& value);
+      Type resolve_type(phantom::Type& type);
+
+      char* subreg_name(const std::string& reg, size_t size);
     };
   } // namespace ir
 } // namespace phantom

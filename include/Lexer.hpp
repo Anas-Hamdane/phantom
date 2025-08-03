@@ -94,11 +94,11 @@ private:
         "i64",
 
         // unsigned integers
-        "u1",
-        "u8",
-        "u16",
-        "u32",
-        "u64",
+        // "u1",
+        // "u8",
+        // "u16",
+        // "u32",
+        // "u64",
 
         // floating points
         "f16",

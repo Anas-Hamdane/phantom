@@ -72,8 +72,8 @@ namespace phantom {
         consume();
         decl->type = parse_type();
       } else {
-        decl->type->bitwidth = 0;
-        decl->type->kind = Type::Kind::Void;
+        // indicate void return
+        decl->type = nullptr;
       }
 
       if (match(Token::Kind::SemiColon)) {
@@ -262,24 +262,22 @@ namespace phantom {
       type->bitwidth = 0;
 
       if (type_form == "void")
-        type->kind = Type::Kind::Void;
+        return nullptr;
 
       if (type_form.at(0) == 'i')
         type->kind = Type::Kind::Int;
 
-      else if (type_form.at(0) == 'u')
-        type->kind = Type::Kind::UnsInt;
+      // else if (type_form.at(0) == 'u')
+      //   type->kind = Type::Kind::UnsInt;
 
       else if (type_form.at(0) == 'f')
         type->kind = Type::Kind::FP;
 
-      if (type->kind != Type::Kind::Void) {
-        std::string log;
-        type->bitwidth = utils::parse_dec(1, type_form, type_form.length(), log);
+      std::string log;
+      type->bitwidth = utils::parse_dec(1, type_form, type_form.length(), log);
 
-        if (!log.empty())
-          logger.log(Logger::Level::ERROR, log);
-      }
+      if (!log.empty())
+        logger.log(Logger::Level::ERROR, log);
 
       return type;
     }

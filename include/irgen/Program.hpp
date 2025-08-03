@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.hpp"
 #include <string>
 #include <variant>
 #include <vector>
@@ -8,8 +7,14 @@ using uint = unsigned int;
 
 namespace phantom {
   namespace ir {
+    struct Type {
+      enum class Kind { Int, Float } kind;
+      uint size;
+      bool is_void;
+    };
+
     struct PhysReg {
-      char name;
+      std::string name; // register name
       Type type;
     };
     struct VirtReg {

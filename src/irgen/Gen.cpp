@@ -1,5 +1,6 @@
 #include "irgen/Gen.hpp"
 #include <cassert>
+#include <cstring>
 
 namespace phantom {
   namespace ir {
@@ -37,13 +38,26 @@ namespace phantom {
       }
 
       if (current_function->terminated) {
-        printf("blocks can't have more than one terminator\n");
+        printf("functions can't have more than one return\n");
         exit(1);
       }
 
-      Return ret{
-        .value = generate_expr(ast_rt->expr)
-      };
+      if (current_function->return_type.is_void && ast_rt->expr != nullptr) {
+        printf("function does not return something has a return value\n");
+        exit(1);
+      }
+
+      Return ret;
+      if (ast_rt) {
+        ret.value = generate_expr(ast_rt->expr);
+
+        // check return type
+        Type type = value_type(ret.value);
+        if (type.kind != current_function->return_type.kind) {
+          printf("incorrect return type for function: %s\n", current_function->name.c_str());
+          exit(1);
+        }
+      }
 
       current_function->terminator = ret;
       current_function->terminated = true;
@@ -52,7 +66,12 @@ namespace phantom {
     void Gen::define_function(std::unique_ptr<ast::FnDef>& ast_fn) {
       Function fn;
       fn.name = ast_fn->decl->name;
-      fn.return_type = *(ast_fn->decl->type);
+
+      if (ast_fn->decl->type)
+        fn.return_type = resolve_type(*ast_fn->decl->type);
+      else
+        fn.return_type.is_void = true;
+
       fn.defined = true;
 
       auto old_scope_vars = scope_vars;
@@ -64,7 +83,9 @@ namespace phantom {
           exit(1);
         }
 
-        VirtReg reg = allocate_vritual_register(*param->type);
+        assert(param->type != nullptr);
+        Type type = resolve_type(*param->type);
+        VirtReg reg = allocate_vritual_register(type);
         fn.params.push_back(reg);
 
         scope_vars[param->name] = reg;
@@ -81,7 +102,12 @@ namespace phantom {
     void Gen::declare_function(std::unique_ptr<ast::FnDecl>& ast_decl) {
       Function fn;
       fn.name = ast_decl->name;
-      fn.return_type = *(ast_decl->type);
+
+      if (ast_decl->type)
+        fn.return_type = resolve_type(*ast_decl->type);
+      else
+        fn.return_type.is_void = true;
+
       fn.defined = false;
 
       auto old_scope_vars = scope_vars;
@@ -93,7 +119,9 @@ namespace phantom {
           exit(1);
         }
 
-        VirtReg reg = allocate_vritual_register(*param->type);
+        assert(param->type != nullptr);
+        Type type = resolve_type(*param->type);
+        VirtReg reg = allocate_vritual_register(type);
         fn.params.push_back(reg);
 
         scope_vars[param->name] = reg;
@@ -110,13 +138,15 @@ namespace phantom {
           std::unique_ptr<ast::IntLit>& lit = std::get<0>(*expr);
 
           Constant constant;
-          constant.type.kind = Type::Kind::UnsInt;
+          constant.type.kind = Type::Kind::Int;
 
-          if (((int)lit->value) >= INT_MIN_VAL && ((int)lit->value) <= INT_MAX_VAL)
-            constant.type.bitwidth = 32;
-          else if (((long long)lit->value) >= LONG_MIN_VAL && ((long long)lit->value) <= LONG_MAX_VAL)
-            constant.type.bitwidth = 64;
+          int64_t value = (int64_t)lit->value;
+          if (value >= INT_MIN_VAL && value <= INT_MAX_VAL)
+            constant.type.size = 4;
+          else if (value >= LONG_MIN_VAL && value <= LONG_MAX_VAL)
+            constant.type.size = 8;
           else {
+            // TODO: better errors
             printf("Integer literal is too large to be represented in a data type\n");
             exit(1);
           }
@@ -130,12 +160,14 @@ namespace phantom {
           std::unique_ptr<ast::FloatLit>& lit = std::get<1>(*expr);
 
           Constant constant;
-          constant.type.kind = Type::Kind::FP;
+          constant.type.kind = Type::Kind::Float;
+
           if (lit->value >= FLOAT_MIN_VAL && lit->value <= FLOAT_MAX_VAL)
-            constant.type.bitwidth = 32;
+            constant.type.size = 4;
           else if (lit->value >= DOUBLE_MIN_VAL && lit->value <= DOUBLE_MAX_VAL)
-            constant.type.bitwidth = 64;
+            constant.type.size = 8;
           else {
+            // TODO: better errors
             printf("Float literal is too large to be represented in a data type\n");
             exit(1);
           }
@@ -169,8 +201,7 @@ namespace phantom {
           Value rhs = generate_expr(binop->rhs);
 
           if (binop->op == Token::Kind::Eq) {
-            assert(lhs.index() == 1 && "can't assign to a non-variable destination\n");
-
+            assert(lhs.index() == 1 && "can't assign to a non-variable destination");
             create_store(std::get<1>(lhs), rhs);
             return rhs;
           }
@@ -181,11 +212,12 @@ namespace phantom {
           if (lhs.index() == 0 && rhs.index() == 0) {
             Constant lv = std::get<0>(lhs);
             Constant rv = std::get<0>(rhs);
-            Type type;
-            type.bitwidth = (lv.type.bitwidth > rv.type.bitwidth) ? lv.type.bitwidth : rv.type.bitwidth;
 
-            if (lv.type.kind == Type::Kind::FP || rv.type.kind == Type::Kind::FP) {
-              type.kind = Type::Kind::FP;
+            Type type;
+            type.size = (lv.type.size > rv.type.size) ? lv.type.size : rv.type.size;
+
+            if (lv.type.kind == Type::Kind::Float || rv.type.kind == Type::Kind::Float) {
+              type.kind = Type::Kind::Float;
 
               double lvalue;
               double rvalue;
@@ -248,26 +280,24 @@ namespace phantom {
           Type rty = value_type(rhs);
 
           Type type;
-          type.bitwidth = (lty.bitwidth > rty.bitwidth) ? lty.bitwidth : rty.bitwidth;
-          if (lty.kind == Type::Kind::FP || rty.kind == Type::Kind::FP)
-            type.kind = Type::Kind::FP;
-          else if (lty.kind == Type::Kind::Int || rty.kind == Type::Kind::Int)
-            type.kind = Type::Kind::Int;
+          type.size = (lty.size > rty.size) ? lty.size : rty.size;
+          if (lty.kind == Type::Kind::Float || rty.kind == Type::Kind::Float)
+            type.kind = Type::Kind::Float;
           else
-            type.kind = Type::Kind::UnsInt;
+            type.kind = Type::Kind::Int;
 
           // INFO: Binary operations store the result in either register 'A' or 'C'
           // indicating physical register "rax" and "rcx"
           PhysReg dst;
-          if (lhs.index() == 2)
+          if (lhs.index() == 2) {
             dst = std::get<2>(lhs);
-          else if (rhs.index() == 2)
+            dst.type = type;
+          } else if (rhs.index() == 2) {
             dst = std::get<2>(rhs);
-          else
+            dst.type = type;
+          } else {
             dst = allocate_physical_register(type);
-
-          // override any other types
-          dst.type = type;
+          }
 
           current_function->body.push_back(BinOp{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst });
           return dst;
@@ -308,14 +338,14 @@ namespace phantom {
 
           if (decl->init) {
             value = generate_expr(decl->init);
-            initialized = true;
             type = value_type(value);
+            initialized = true;
           }
 
           // override even if there's an initialized
           // Priority goes to the specified type
           if (decl->type)
-            type = *decl->type;
+            type = resolve_type(*decl->type);
 
           VirtReg reg = allocate_vritual_register(type);
           scope_vars[decl->name] = reg;
@@ -345,7 +375,7 @@ namespace phantom {
 
       current_function->body.push_back(store);
     }
-    VirtReg Gen::allocate_vritual_register(Type type) {
+    VirtReg Gen::allocate_vritual_register(Type& type) {
       VirtReg reg{
         .id = nrid++,
         .type = type
@@ -353,14 +383,22 @@ namespace phantom {
 
       return reg;
     }
-    PhysReg Gen::allocate_physical_register(Type type) {
-      char name = (lubpr == 'C') ? 'A' : 'C';
+    PhysReg Gen::allocate_physical_register(Type& type) {
+      std::string name;
+
+      if (type.kind == Type::Kind::Int) {
+        name = subreg_name((lubpr == 'C') ? "rax" : "rcx", type.size);
+        lubpr = (lubpr == 'C') ? 'A' : 'C';
+      } else {
+        name = (lubfppr == '1') ? "xmm0" : "xmm1";
+        lubfppr = (lubfppr == '1') ? '0' : '1';
+      }
+
       PhysReg reg{
         .name = name,
         .type = type
       };
 
-      lubpr = name;
       return reg;
     }
 
@@ -375,6 +413,142 @@ namespace phantom {
         default:
           unreachable();
       }
+    }
+
+    Type Gen::resolve_type(phantom::Type& type) {
+      if (type.kind == phantom::Type::Kind::FP) {
+        uint size = type.bitwidth / 8;
+        assert(size == 4 || size == 8 && "Floating points bitwidth must be either 4 or 8");
+        return Type{ .kind = Type::Kind::Float, .size = size, .is_void = false };
+      }
+
+      else if (type.kind == phantom::Type::Kind::Int) {
+        uint size = (type.bitwidth == 1) ? 1 : (type.bitwidth / 8);
+        assert(size == 1 || size == 2 || size == 4 || size == 8 && "Integers bitwidth must be either 4 or 8");
+        return Type{ .kind = Type::Kind::Int, .size = size, .is_void = false };
+      }
+
+      unreachable();
+    }
+
+    char* Gen::subreg_name(const std::string& reg, size_t size) {
+      // clang-format off
+      if (reg == "rax") {
+        switch (size) {
+         case 1: return (char*)"al";
+         case 2: return (char*)"ax";
+         case 4: return (char*)"eax";
+         case 8: return (char*)"rax";
+        }
+      } else if (reg == "rbx") {
+        switch (size) {
+         case 1: return (char*)"bl";
+         case 2: return (char*)"bx";
+         case 4: return (char*)"ebx";
+         case 8: return (char*)"rbx";
+        }
+      } else if (reg == "rcx") {
+        switch (size) {
+         case 1: return (char*)"cl";
+         case 2: return (char*)"cx";
+         case 4: return (char*)"ecx";
+         case 8: return (char*)"rcx";
+        }
+      } else if (reg == "rdx") {
+        switch (size) {
+         case 1: return (char*)"dl";
+         case 2: return (char*)"dx";
+         case 4: return (char*)"edx";
+         case 8: return (char*)"rdx";
+        }
+      } else if (reg == "rsp") {
+        switch (size) {
+         case 1: return (char*)"spl";
+         case 2: return (char*)"sp";
+         case 4: return (char*)"esp";
+         case 8: return (char*)"rsp";
+        }
+      } else if (reg == "rbp") {
+        switch (size) {
+         case 1: return (char*)"bpl";
+         case 2: return (char*)"bp";
+         case 4: return (char*)"ebp";
+         case 8: return (char*)"rbp";
+        }
+      } else if (reg == "rsi") {
+        switch (size) {
+         case 1: return (char*)"sil";
+         case 2: return (char*)"si";
+         case 4: return (char*)"esi";
+         case 8: return (char*)"rsi";
+        }
+      } else if (reg == "rdi") {
+        switch (size) {
+         case 1: return (char*)"dil";
+         case 2: return (char*)"di";
+         case 4: return (char*)"edi";
+         case 8: return (char*)"rdi";
+        }
+      } else if (reg == "r8") {
+        switch (size) {
+         case 1: return (char*)"r8b";
+         case 2: return (char*)"r8w";
+         case 4: return (char*)"r8d";
+         case 8: return (char*)"r8";
+        }
+      } else if (reg == "r9") {
+        switch (size) {
+         case 1: return (char*)"r9b";
+         case 2: return (char*)"r9w";
+         case 4: return (char*)"r9d";
+         case 8: return (char*)"r9";
+        }
+      } else if (reg == "r10") {
+        switch (size) {
+         case 1: return (char*)"r10b";
+         case 2: return (char*)"r10w";
+         case 4: return (char*)"r10d";
+         case 8: return (char*)"r10";
+        }
+      } else if (reg == "r11") {
+        switch (size) {
+         case 1: return (char*)"r11b";
+         case 2: return (char*)"r11w";
+         case 4: return (char*)"r11d";
+         case 8: return (char*)"r11";
+        }
+      } else if (reg == "r12") {
+        switch (size) {
+         case 1: return (char*)"r12b";
+         case 2: return (char*)"r12w";
+         case 4: return (char*)"r12d";
+         case 8: return (char*)"r12";
+        }
+      } else if (reg == "r13") {
+        switch (size) {
+         case 1: return (char*)"r13b";
+         case 2: return (char*)"r13w";
+         case 4: return (char*)"r13d";
+         case 8: return (char*)"r13";
+        }
+      } else if (reg == "r14") {
+        switch (size) {
+         case 1: return (char*)"r14b";
+         case 2: return (char*)"r14w";
+         case 4: return (char*)"r14d";
+         case 8: return (char*)"r14";
+        }
+      } else if (reg == "r15") {
+        switch (size) {
+         case 1: return (char*)"r15b";
+         case 2: return (char*)"r15w";
+         case 4: return (char*)"r15d";
+         case 8: return (char*)"r15";
+        }
+      }
+
+      unreachable();
+      // clang-format on
     }
   } // namespace ir
 } // namespace phantom

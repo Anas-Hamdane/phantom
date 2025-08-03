@@ -1,4 +1,5 @@
 #include "codegen/Codegen.hpp"
+#include "common.hpp"
 #include <cstring>
 
 namespace phantom {
@@ -37,27 +38,25 @@ namespace phantom {
       size_t tmp = std::min(regs_size, params_size);
       for (size_t i = 0; i < tmp; ++i) {
         ir::VirtReg param = fn.params.at(i);
-        size_t size = (param.type.bitwidth == 0) ? 1 : (param.type.bitwidth / 8);
 
-        const char suff = integer_suffix(size);
-        const char* reg = subreg_name(regs[i], size);
+        const char suff = integer_suffix(param.type.size);
+        const char* reg = subreg_name(regs[i], param.type.size);
 
-        utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
-        offset += size;
+        utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + param.type.size);
+        offset += param.type.size;
 
         local_vars[param.id] = Variable{ .type = param.type, .offset = offset };
       }
 
       for (size_t i = tmp; i < params_size; ++i) {
         ir::VirtReg param = fn.params.at(i);
-        size_t size = (param.type.bitwidth == 0) ? 1 : (param.type.bitwidth / 8);
 
-        const char suff = integer_suffix(size);
-        const char* reg = size_areg(size);
+        const char suff = integer_suffix(param.type.size);
+        const char* reg = size_areg(param.type.size);
 
         utils::appendf(&output, "  mov%c    %zu(%%rbp), %%%s\n", suff, ((i - tmp) + 2) * 8, reg);
-        utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + size);
-        offset += size;
+        utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + param.type.size);
+        offset += param.type.size;
 
         local_vars[param.id] = Variable{ .type = param.type, .offset = offset };
       }
@@ -77,7 +76,7 @@ namespace phantom {
         case 0: // Alloca
         {
           ir::Alloca& alloca = std::get<0>(inst);
-          offset += (alloca.type.bitwidth == 0) ? 1 : (alloca.type.bitwidth / 8);
+          offset += alloca.type.size;
           local_vars[alloca.reg.id] = Variable{ .type = alloca.type, .offset = offset };
           break;
         }
@@ -85,7 +84,7 @@ namespace phantom {
         {
           ir::Store& store = std::get<1>(inst);
           utils::Str dst = utils::init(4);
-          Type dst_type;
+          ir::Type dst_type;
           char dst_suff;
 
           switch (store.dst.index()) {
@@ -102,7 +101,7 @@ namespace phantom {
               ir::PhysReg phy = std::get<1>(store.dst);
               dst_suff = type_suffix(phy.type);
               dst_type = phy.type;
-              utils::appendf(&dst, "%%%s", subreg_name((phy.name == 'A') ? "rax" : "rcx", type_size(dst_type)));
+              utils::appendf(&dst, "%%%s", phy.name.c_str());
               break;
             }
             default:
@@ -134,9 +133,9 @@ namespace phantom {
                   if (const_fps.find(value) == const_fps.end()) {
                     Directive::Kind kind;
 
-                    if (dst_type.bitwidth == 32)
+                    if (dst_type.size == 4)
                       kind = Directive::Kind::Float;
-                    else if (dst_type.bitwidth == 64)
+                    else if (dst_type.size == 8)
                       kind = Directive::Kind::Double;
                     else
                       unreachable();
@@ -165,25 +164,25 @@ namespace phantom {
               Variable src = local_vars[std::get<1>(store.src).id];
 
               // the intermediate register that we will move to and from
-              uint dst_size = type_size(dst_type);
-              uint src_size = type_size(src.type);
+              uint dst_size = dst_type.size;
+              uint src_size = src.type.size;
               utils::Str reg = utils::init(5);
 
-              if (src.type.kind == Type::Kind::FP && dst_type.kind == Type::Kind::Int) {
+              if (src.type.kind == ir::Type::Kind::Float && dst_type.kind == ir::Type::Kind::Int) {
                 utils::append(&reg, type_default_register(dst_type));
                 utils::appendf(&output, "  cvtts%c2si -%zu(%%rbp), %%eax\n", fp_suffix(src_size), src.offset);
               }
 
-              else if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::FP) {
+              else if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Float) {
                 utils::append(&reg, type_default_register(dst_type));
                 utils::appendf(&output, "  cvtsi2s%c -%zu(%%rbp), %%%s\n",
                                fp_suffix(dst_size), src.offset, reg.content);
               }
 
-              else if (src.type.kind == Type::Kind::FP && dst_type.kind == Type::Kind::FP) {
+              else if (src.type.kind == ir::Type::Kind::Float && dst_type.kind == ir::Type::Kind::Float) {
                 utils::append(&reg, type_default_register(src.type));
 
-                if (src.type.bitwidth != dst_type.bitwidth) {
+                if (src.type.size != dst_type.size) {
                   const char src_suff = fp_suffix(src_size);
                   const char dst_suff = fp_suffix(dst_size);
                   utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n", src_suff, src.offset, reg.content);
@@ -195,10 +194,10 @@ namespace phantom {
                 }
               }
 
-              else if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::Int) {
+              else if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
                 utils::append(&reg, type_default_register(dst_type));
 
-                if (src.type.bitwidth > dst_type.bitwidth)
+                if (src.type.size > dst_type.size)
                   utils::appendf(&output, "  movs%c%c  -%zu(%%rbp), %%%s\n",
                                  integer_suffix(src_size), integer_suffix(dst_size), src.offset, reg.content);
 
@@ -210,9 +209,9 @@ namespace phantom {
                 todo();
               }
 
-              if (dst_type.kind == Type::Kind::FP)
+              if (dst_type.kind == ir::Type::Kind::Float)
                 utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_size), reg.content, dst.content);
-              else if (dst_type.kind == Type::Kind::Int)
+              else if (dst_type.kind == ir::Type::Kind::Int)
                 utils::appendf(&output, "  mov%c    %%%s, %s\n", integer_suffix(dst_size), reg.content, dst.content);
 
               utils::dump(&reg);
@@ -221,13 +220,13 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg src = std::get<2>(store.src);
-              const char* reg = subreg_name((src.name == 'A') ? "rax" : "rcx", type_size(src.type));
+              const char* reg = src.name.c_str();
 
-              if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::Int) {
-                uint dst_size = type_size(dst_type);
-                uint src_size = type_size(src.type);
+              if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
+                uint dst_size = dst_type.size;
+                uint src_size = src.type.size;
 
-                if (src.type.bitwidth > dst_type.bitwidth)
+                if (src.type.size > dst_type.size)
                   utils::appendf(&output, "  movs%c%c  %%%s, %s\n",
                                  integer_suffix(src_size), integer_suffix(dst_size), reg, dst);
 
@@ -251,8 +250,8 @@ namespace phantom {
           switch (binop.op) {
             case ir::BinOp::Op::Add: // addition
             {
-              uint dst_size = type_size(binop.dst.type);
-              const char* dst = subreg_name((binop.dst.name == 'A') ? "rax" : "rcx", dst_size);
+              uint dst_size = binop.dst.type.size;
+              const char* dst = binop.dst.name.c_str();
               const char dst_suff = integer_suffix(dst_size);
 
               if (binop.lhs.index() == 2) {
@@ -283,7 +282,7 @@ namespace phantom {
                     case 2: // PhysReg
                     {
                       ir::PhysReg phy = std::get<2>(binop.rhs);
-                      const char* reg = subreg_name((phy.name == 'A') ? "rax" : "rcx", type_size(phy.type));
+                      const char* reg = phy.name.c_str();
                       utils::appendf(&src, "%%%s", reg);
                       break;
                     }
@@ -321,7 +320,7 @@ namespace phantom {
                     case 2: // PhysReg
                     {
                       ir::PhysReg phy = std::get<2>(binop.lhs);
-                      const char* reg = subreg_name((phy.name == 'A') ? "rax" : "rcx", type_size(phy.type));
+                      const char* reg = phy.name.c_str();
                       utils::appendf(&src, "%%%s", reg);
                       break;
                     }
@@ -466,7 +465,7 @@ namespace phantom {
       }
     }
 
-    void Gen::generate_terminator(ir::Terminator& term, Type& return_type) {
+    void Gen::generate_terminator(ir::Terminator& term, ir::Type& return_type) {
       switch (term.index()) {
         case 0: // Return
         {
@@ -502,9 +501,9 @@ namespace phantom {
                   if (const_fps.find(value) == const_fps.end()) {
                     Directive::Kind kind;
 
-                    if (return_type.bitwidth == 32)
+                    if (return_type.size == 4)
                       kind = Directive::Kind::Float;
-                    else if (return_type.bitwidth == 64)
+                    else if (return_type.size == 8)
                       kind = Directive::Kind::Double;
                     else
                       unreachable();
@@ -538,12 +537,12 @@ namespace phantom {
         }
       }
     }
-    void Gen::generate_default_terminator(Type& type) {
+    void Gen::generate_default_terminator(ir::Type& type) {
       utils::appendf(&output, "  nop\n");
 
-      if (type.kind == Type::Kind::FP) {
-        const char suff = (type.bitwidth == 32) ? 'd' : 'q';
-        const char* reg = (type.bitwidth == 32) ? "eax" : "rax";
+      if (type.kind == ir::Type::Kind::Float) {
+        const char suff = (type.size == 4) ? 'd' : 'q';
+        const char* reg = (type.size == 32) ? "eax" : "rax";
 
         utils::appendf(&output, "  mov%c    %%%s, %%xmm0\n", suff, reg);
       }
@@ -552,38 +551,31 @@ namespace phantom {
       utils::appendf(&output, "  ret\n");
     }
 
-    char Gen::type_suffix(Type& type) {
+    char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
-        case Type::Kind::FP: // f32/f64
+        case ir::Type::Kind::Float: // f32/f64
         {
-          uint size = type.bitwidth / 8;
-
-          if (size == 4)
+          if (type.size == 4)
             return 's';
-          else if (size == 8)
+          else if (type.size == 8)
             return 'd';
           else
             unreachable();
         }
         default: // i/u(1, 16, 32, 64)
         {
-          uint size = (type.bitwidth == 1) ? 1 : (type.bitwidth / 8);
-
-          if (size == 1)
+          if (type.size == 1)
             return 'b';
-          else if (size == 2)
+          else if (type.size == 2)
             return 'w';
-          else if (size == 4)
+          else if (type.size == 4)
             return 'l';
-          else if (size == 8)
+          else if (type.size == 8)
             return 'q';
           else
             unreachable();
         }
       }
-    }
-    uint Gen::type_size(Type& type) {
-      return (type.bitwidth == 1) ? 1 : (type.bitwidth / 8);
     }
     char Gen::integer_suffix(unsigned int size) {
       // clang-format off
@@ -605,19 +597,17 @@ namespace phantom {
          case 8: return 'd';
          default:
            printf("Undefined fp size suffix for: %u\n", size);
-           exit(1);
+           unreachable();
       }
       // clang-format on
     }
 
-    char* Gen::type_default_register(Type& type) {
-      uint size = type_size(type);
-
-      if (type.kind == Type::Kind::FP)
+    char* Gen::type_default_register(ir::Type& type) {
+      if (type.kind == ir::Type::Kind::Float)
         return (char*)"xmm0";
 
       // clang-format off
-      switch (size) {
+      switch (type.size) {
          case 1: return (char*)"al"; 
          case 2: return (char*)"ax";
          case 4: return (char*)"eax"; 
@@ -640,114 +630,114 @@ namespace phantom {
       }
       // clang-format on
     }
-    char* Gen::subreg_name(const char* reg, size_t size) {
+    char* Gen::subreg_name(const std::string& reg, size_t size) {
       // clang-format off
-      if (strcmp(reg, "rax") == 0) {
+      if (reg == "rax") {
         switch (size) {
          case 1: return (char*)"al";
          case 2: return (char*)"ax";
          case 4: return (char*)"eax";
          case 8: return (char*)"rax";
         }
-      } else if (strcmp(reg, "rbx") == 0) {
+      } else if (reg == "rbx") {
         switch (size) {
          case 1: return (char*)"bl";
          case 2: return (char*)"bx";
          case 4: return (char*)"ebx";
          case 8: return (char*)"rbx";
         }
-      } else if (strcmp(reg, "rcx") == 0) {
+      } else if (reg == "rcx") {
         switch (size) {
          case 1: return (char*)"cl";
          case 2: return (char*)"cx";
          case 4: return (char*)"ecx";
          case 8: return (char*)"rcx";
         }
-      } else if (strcmp(reg, "rdx") == 0) {
+      } else if (reg == "rdx") {
         switch (size) {
          case 1: return (char*)"dl";
          case 2: return (char*)"dx";
          case 4: return (char*)"edx";
          case 8: return (char*)"rdx";
         }
-      } else if (strcmp(reg, "rsp") == 0) {
+      } else if (reg == "rsp") {
         switch (size) {
          case 1: return (char*)"spl";
          case 2: return (char*)"sp";
          case 4: return (char*)"esp";
          case 8: return (char*)"rsp";
         }
-      } else if (strcmp(reg, "rbp") == 0) {
+      } else if (reg == "rbp") {
         switch (size) {
          case 1: return (char*)"bpl";
          case 2: return (char*)"bp";
          case 4: return (char*)"ebp";
          case 8: return (char*)"rbp";
         }
-      } else if (strcmp(reg, "rsi") == 0) {
+      } else if (reg == "rsi") {
         switch (size) {
          case 1: return (char*)"sil";
          case 2: return (char*)"si";
          case 4: return (char*)"esi";
          case 8: return (char*)"rsi";
         }
-      } else if (strcmp(reg, "rdi") == 0) {
+      } else if (reg == "rdi") {
         switch (size) {
          case 1: return (char*)"dil";
          case 2: return (char*)"di";
          case 4: return (char*)"edi";
          case 8: return (char*)"rdi";
         }
-      } else if (strcmp(reg, "r8") == 0) {
+      } else if (reg == "r8") {
         switch (size) {
          case 1: return (char*)"r8b";
          case 2: return (char*)"r8w";
          case 4: return (char*)"r8d";
          case 8: return (char*)"r8";
         }
-      } else if (strcmp(reg, "r9") == 0) {
+      } else if (reg == "r9") {
         switch (size) {
          case 1: return (char*)"r9b";
          case 2: return (char*)"r9w";
          case 4: return (char*)"r9d";
          case 8: return (char*)"r9";
         }
-      } else if (strcmp(reg, "r10") == 0) {
+      } else if (reg == "r10") {
         switch (size) {
          case 1: return (char*)"r10b";
          case 2: return (char*)"r10w";
          case 4: return (char*)"r10d";
          case 8: return (char*)"r10";
         }
-      } else if (strcmp(reg, "r11") == 0) {
+      } else if (reg == "r11") {
         switch (size) {
          case 1: return (char*)"r11b";
          case 2: return (char*)"r11w";
          case 4: return (char*)"r11d";
          case 8: return (char*)"r11";
         }
-      } else if (strcmp(reg, "r12") == 0) {
+      } else if (reg == "r12") {
         switch (size) {
          case 1: return (char*)"r12b";
          case 2: return (char*)"r12w";
          case 4: return (char*)"r12d";
          case 8: return (char*)"r12";
         }
-      } else if (strcmp(reg, "r13") == 0) {
+      } else if (reg == "r13") {
         switch (size) {
          case 1: return (char*)"r13b";
          case 2: return (char*)"r13w";
          case 4: return (char*)"r13d";
          case 8: return (char*)"r13";
         }
-      } else if (strcmp(reg, "r14") == 0) {
+      } else if (reg == "r14") {
         switch (size) {
          case 1: return (char*)"r14b";
          case 2: return (char*)"r14w";
          case 4: return (char*)"r14d";
          case 8: return (char*)"r14";
         }
-      } else if (strcmp(reg, "r15") == 0) {
+      } else if (reg == "r15") {
         switch (size) {
          case 1: return (char*)"r15b";
          case 2: return (char*)"r15w";
@@ -756,9 +746,7 @@ namespace phantom {
         }
       }
 
-      printf("Unrecognized register or register size: %s, %zu\n", reg, size);
-      exit(1);
-      return nullptr;
+      unreachable();
       // clang-format on
     }
   } // namespace codegen

@@ -14,19 +14,17 @@ void print_tokens(const std::vector<Token>& tokens) {
   }
 }
 
-const char* resolve_type(Type ty) {
+const char* resolve_type(ir::Type& ty) {
   std::string s;
   // clang-format off
   switch (ty.kind) {
-    case Type::Kind::Void:   s += "void"; break;
-    case Type::Kind::Int:    s += "i"; break;
-    case Type::Kind::UnsInt: s += "u"; break;
-    case Type::Kind::FP:     s += "f"; break;
+    case ir::Type::Kind::Int:    s += "i"; break;
+    case ir::Type::Kind::Float:     s += "f"; break;
   }
   // clang-format on
 
-  if (ty.bitwidth != 0)
-    s += std::to_string(ty.bitwidth);
+  if (ty.size != 0)
+    s += std::to_string(ty.size * 8);
 
   const char* s_leg = strdup(s.c_str());
   return s_leg;
@@ -44,7 +42,7 @@ const char* resolve_reg(std::variant<ir::VirtReg, ir::PhysReg> reg) {
     case 1: // physical
     {
       ir::PhysReg& physi_reg = std::get<1>(reg);
-      asprintf(&s, "%%%c", physi_reg.name);
+      asprintf(&s, "%%%s", physi_reg.name.c_str());
       break;
     }
     default:
