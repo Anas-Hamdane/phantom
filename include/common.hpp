@@ -43,4 +43,10 @@ namespace phantom {
     } kind;
     uint8_t bitwidth;
   };
+
+  [[noreturn]] void __unreachable__impl(const char* file, int line, const char* func);
+  #define unreachable() __unreachable__impl(__FILE__, __LINE__, __func__)
+
+  [[noreturn]] void __todo__impl(const char* file, int line, const char* func);
+  #define todo() __todo__impl(__FILE__, __LINE__, __func__)
 } // namespace phantom

@@ -34,7 +34,7 @@ namespace phantom {
       void generate_return(std::unique_ptr<ast::Return>& ast_rt);
 
       Value generate_expr(std::unique_ptr<ast::Expr>& expr);
-      void create_store(VirtReg dst, Value src);
+      void create_store(std::variant<VirtReg, PhysReg> dst, Value src);
       VirtReg allocate_vritual_register(Type type);
       PhysReg allocate_physical_register(Type type);
 

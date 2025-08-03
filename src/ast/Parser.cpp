@@ -44,9 +44,6 @@ namespace phantom {
       logger.log(Logger::Level::ERROR, "Expected token '" + Token::kind_to_string(kind) + "', got '" + Token::kind_to_string(peek().kind) + "'", peek().location);
       return "";
     }
-    void Parser::todo(const std::string& msg) {
-      logger.log(Logger::Level::WARNING, "TODO: " + msg, peek().location);
-    }
 
     std::unique_ptr<Stmt> Parser::parse_function() {
       expect(Token::Kind::Fn);
@@ -251,7 +248,8 @@ namespace phantom {
           return expr;
         }
         default:
-          todo("Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n");
+          // Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n"
+          todo();
           return nullptr;
       }
     }

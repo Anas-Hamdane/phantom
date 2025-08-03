@@ -1,5 +1,4 @@
-#include <cassert>
-#include <codegen/Codegen.hpp>
+#include "codegen/Codegen.hpp"
 #include <cstring>
 
 namespace phantom {
@@ -85,10 +84,31 @@ namespace phantom {
         case 1: // Store
         {
           ir::Store& store = std::get<1>(inst);
-          Variable dst = local_vars[store.dst.id];
+          utils::Str dst = utils::init(4);
+          Type dst_type;
+          char dst_suff;
 
-          uint dst_size = (dst.type.bitwidth == 1) ? 1 : (dst.type.bitwidth / 8);
-          const char dst_suff = type_suffix(dst.type);
+          switch (store.dst.index()) {
+            case 0: // VirtReg
+            {
+              Variable var = local_vars[std::get<0>(store.dst).id];
+              dst_suff = type_suffix(var.type);
+              dst_type = var.type;
+              utils::appendf(&dst, "-%zu(%%rbp)", var.offset);
+              break;
+            }
+            case 1: // PhysReg
+            {
+              ir::PhysReg phy = std::get<1>(store.dst);
+              dst_suff = type_suffix(phy.type);
+              dst_type = phy.type;
+              utils::appendf(&dst, "%%%s", subreg_name((phy.name == 'A') ? "rax" : "rcx", type_size(dst_type)));
+              break;
+            }
+            default:
+              unreachable();
+          }
+
           switch (store.src.index()) {
             case 0: // Constant
             {
@@ -98,7 +118,7 @@ namespace phantom {
                 case 0: // int64_t
                 {
                   int64_t value = std::get<0>(constant.value);
-                  utils::appendf(&output, "  mov%c    $%ld, -%zu(%%rbp)\n", dst_suff, value, dst.offset);
+                  utils::appendf(&output, "  mov%c    $%ld, %s\n", dst_suff, value, dst.content);
                   break;
                 }
                 case 1: // double
@@ -106,7 +126,7 @@ namespace phantom {
                   double value = std::get<1>(constant.value);
                   if (value == 0) {
                     utils::append(&output, "  pxor    %xmm0, %xmm0\n");
-                    utils::appendf(&output, "  movs%c    %%xmm0, -%zu(%%rbp)\n", dst_suff, dst.offset);
+                    utils::appendf(&output, "  movs%c    %%xmm0, %s\n", dst_suff, dst.content);
                     break;
                   }
 
@@ -114,12 +134,12 @@ namespace phantom {
                   if (const_fps.find(value) == const_fps.end()) {
                     Directive::Kind kind;
 
-                    if (dst.type.bitwidth == 32)
+                    if (dst_type.bitwidth == 32)
                       kind = Directive::Kind::Float;
-                    else if (dst.type.bitwidth == 64)
+                    else if (dst_type.bitwidth == 64)
                       kind = Directive::Kind::Double;
                     else
-                      std::abort();
+                      unreachable();
 
                     label.name = ".CFPS" + std::to_string(const_fps.size());
                     label.dirs.push_back(Directive{ .kind = kind, .data = value });
@@ -131,59 +151,279 @@ namespace phantom {
                     label = const_fps[value];
 
                   utils::appendf(&output, "  movs%c   %s(%%rip), %%xmm0\n", dst_suff, label.name.c_str());
-                  utils::appendf(&output, "  movs%c   %%xmm0, -%zu(%%rbp)\n", dst_suff, dst.offset);
+                  utils::appendf(&output, "  movs%c   %%xmm0, %s\n", dst_suff, dst.content);
+                  break;
                 }
+                default:
+                  unreachable();
               };
 
               break;
             }
-            case 1: // Register
+            case 1: // VirtReg
             {
               Variable src = local_vars[std::get<1>(store.src).id];
 
               // the intermediate register that we will move to and from
-              const char* reg = size_areg(dst_size);
-              uint reg_size = dst_size;
+              uint dst_size = type_size(dst_type);
+              uint src_size = type_size(src.type);
+              utils::Str reg = utils::init(5);
 
-              uint src_size = (src.type.bitwidth == 0) ? 1 : (src.type.bitwidth / 8);
+              if (src.type.kind == Type::Kind::FP && dst_type.kind == Type::Kind::Int) {
+                utils::append(&reg, type_default_register(dst_type));
+                utils::appendf(&output, "  cvtts%c2si -%zu(%%rbp), %%%s\n", fp_suffix(src_size), src.offset, reg.content);
+              }
 
-              utils::Str mov = utils::init("mov");
-              if (reg_size > src_size)
-                utils::appendf(&mov, "s%c%c", integer_suffix(src_size), integer_suffix(reg_size));
-              else
-                utils::appendf(&mov, "%c", integer_suffix(reg_size));
+              else if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::FP) {
+                utils::append(&reg, type_default_register(dst_type));
+                utils::appendf(&output, "  cvttsi2s%c%c -%zu(%%rbp), %%%s\n",
+                               fp_suffix(dst_size), integer_suffix(src_size), src.offset, reg.content);
+              }
 
-              const char dst_suff = integer_suffix(dst_size);
+              else if (src.type.kind == Type::Kind::FP && dst_type.kind == Type::Kind::FP) {
+                utils::append(&reg, type_default_register(src.type));
 
-              utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n", mov.content, src.offset, reg);
-              utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", dst_suff, reg, dst.offset);
+                if (src.type.bitwidth != dst_type.bitwidth) {
+                  const char src_suff = fp_suffix(src_size);
+                  const char dst_suff = fp_suffix(dst_size);
+                  utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n", src_suff, src.offset, reg.content);
+
+                  if (src.type.bitwidth > dst_type.bitwidth)
+                    utils::appendf(&output, "  cvtts%s2s%c %%%s, %%%s\n", src_suff, dst_suff, reg.content, reg.content);
+                  else
+                    utils::appendf(&output, "  cvtts%s2s%c %%%s, %%%s\n", dst_suff, src_suff, reg.content, reg.content);
+                }
+
+                else {
+                  utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n", fp_suffix(src_size), src.offset, reg.content);
+                }
+              }
+
+              else if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::Int) {
+                utils::append(&reg, type_default_register(dst_type));
+
+                if (src.type.bitwidth > dst_type.bitwidth)
+                  utils::appendf(&output, "  movs%c%c  -%zu(%%rbp), %%%s\n",
+                                 integer_suffix(src_size), integer_suffix(dst_size), src.offset, reg.content);
+
+                else
+                  utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", integer_suffix(dst_size), src.offset, reg.content);
+              }
+
+              else {
+                todo();
+              }
+
+              if (dst_type.kind == Type::Kind::FP)
+                utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_size), reg.content, dst.content);
+              else if (dst_type.kind == Type::Kind::Int)
+                utils::appendf(&output, "  mov%c    %%%s, %s\n", integer_suffix(dst_size), reg.content, dst.content);
+
+              utils::dump(&reg);
               break;
             }
+            case 2: // PhysReg
+            {
+              ir::PhysReg src = std::get<2>(store.src);
+              const char* reg = subreg_name((src.name == 'A') ? "rax" : "rcx", type_size(src.type));
+
+              if (src.type.kind == Type::Kind::Int && dst_type.kind == Type::Kind::Int) {
+                uint dst_size = type_size(dst_type);
+                uint src_size = type_size(src.type);
+
+                if (src.type.bitwidth > dst_type.bitwidth)
+                  utils::appendf(&output, "  movs%c%c  %%%s, %s\n",
+                                 integer_suffix(src_size), integer_suffix(dst_size), reg, dst);
+
+                else
+                  utils::appendf(&output, "  mov%c    %%%s, %s\n", integer_suffix(dst_size), reg, dst.content);
+              } else {
+                todo();
+              }
+              break;
+            }
+            default:
+              unreachable();
           }
+
+          utils::dump(&dst);
           break;
         }
         case 2: // BinOp
         {
-          // TODO:
           ir::BinOp binop = std::get<2>(inst);
           switch (binop.op) {
             case ir::BinOp::Op::Add: // addition
             {
+              uint dst_size = type_size(binop.dst.type);
+              const char* dst = subreg_name((binop.dst.name == 'A') ? "rax" : "rcx", dst_size);
+              const char dst_suff = integer_suffix(dst_size);
+
+              if (binop.lhs.index() == 2) {
+                ir::PhysReg lreg = std::get<2>(binop.lhs);
+
+                if (lreg.name == binop.dst.name) {
+                  utils::Str src = utils::init(4);
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+                      if (constant.value.index() == 0) {
+                        int64_t value = std::get<0>(constant.value);
+                        utils::appendf(&src, "$%ld", value);
+                      }
+                      if (constant.value.index() == 1) {
+                        double value = std::get<1>(constant.value);
+                        utils::appendf(&src, "$%lf", value);
+                      }
+                      break;
+                    }
+                    case 1: // VirtReg
+                    {
+                      Variable var = local_vars[std::get<1>(binop.rhs).id];
+                      utils::appendf(&src, "-%zu(%%rbp)", var.offset);
+                      break;
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg phy = std::get<2>(binop.rhs);
+                      const char* reg = subreg_name((phy.name == 'A') ? "rax" : "rcx", type_size(phy.type));
+                      utils::appendf(&src, "%%%s", reg);
+                      break;
+                    }
+                  }
+                  utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+                  break;
+                }
+              }
+
+              if (binop.rhs.index() == 2) {
+                ir::PhysReg rreg = std::get<2>(binop.rhs);
+
+                if (rreg.name == binop.dst.name) {
+                  utils::Str src = utils::init(4);
+                  switch (binop.lhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.lhs);
+                      if (constant.value.index() == 0) {
+                        int64_t value = std::get<0>(constant.value);
+                        utils::appendf(&src, "$%ld", value);
+                      }
+                      if (constant.value.index() == 1) {
+                        double value = std::get<1>(constant.value);
+                        utils::appendf(&src, "$%lf", value);
+                      }
+                      break;
+                    }
+                    case 1: // VirtReg
+                    {
+                      Variable var = local_vars[std::get<1>(binop.lhs).id];
+                      utils::appendf(&src, "-%zu(%%rbp)", var.offset);
+                      break;
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg phy = std::get<2>(binop.lhs);
+                      const char* reg = subreg_name((phy.name == 'A') ? "rax" : "rcx", type_size(phy.type));
+                      utils::appendf(&src, "%%%s", reg);
+                      break;
+                    }
+                  }
+                  utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+                  break;
+                }
+              }
+
+              if (binop.lhs.index() == 1) {
+                Variable var = local_vars[std::get<1>(binop.lhs).id];
+                utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", dst_suff, var.offset, dst);
+
+                utils::Str src = utils::init(4);
+                switch (binop.rhs.index()) {
+                  case 0: // Constant
+                  {
+                    ir::Constant constant = std::get<0>(binop.rhs);
+                    if (constant.value.index() == 0) {
+                      int64_t value = std::get<0>(constant.value);
+                      utils::appendf(&src, "$%ld", value);
+                    }
+                    if (constant.value.index() == 1) {
+                      double value = std::get<1>(constant.value);
+                      utils::appendf(&src, "$%lf", value);
+                    }
+                    break;
+                  }
+                  case 1: // VirtReg
+                  {
+                    Variable var = local_vars[std::get<1>(binop.rhs).id];
+                    utils::appendf(&src, "-%zu(%%rbp)", var.offset);
+                    break;
+                  }
+                  default:
+                    unreachable();
+                }
+
+                utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+                break;
+              }
+
+              if (binop.rhs.index() == 1) {
+                Variable var = local_vars[std::get<1>(binop.rhs).id];
+                utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", dst_suff, var.offset, dst);
+
+                utils::Str src = utils::init(4);
+                switch (binop.lhs.index()) {
+                  case 0: // Constant
+                  {
+                    ir::Constant constant = std::get<0>(binop.lhs);
+                    if (constant.value.index() == 0) {
+                      int64_t value = std::get<0>(constant.value);
+                      utils::appendf(&src, "$%ld", value);
+                    }
+                    if (constant.value.index() == 1) {
+                      double value = std::get<1>(constant.value);
+                      utils::appendf(&src, "$%lf", value);
+                    }
+                    break;
+                  }
+                  case 1: // VirtReg
+                  {
+                    Variable var = local_vars[std::get<1>(binop.lhs).id];
+                    utils::appendf(&src, "-%zu(%%rbp)", var.offset);
+                    break;
+                  }
+                  default:
+                    unreachable();
+                }
+
+                utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+                break;
+              }
+
+              // the only remaining case is Constant with Constant
+              // which is handled in ir generation
+              unreachable();
             }
             case ir::BinOp::Op::Sub: // substraction
             {
+              todo();
             }
             case ir::BinOp::Op::Mul: // multiplication
             {
+              todo();
             }
             case ir::BinOp::Op::Div: // division
             {
+              todo();
             }
           }
+
+          break;
         }
         case 3: // UnOp
         {
-          // TODO:
+          todo();
         }
       }
     }
@@ -203,7 +443,7 @@ namespace phantom {
           case Directive::Kind::Asciz:
             return ".asciz";
           default:
-            std::abort();
+            unreachable();
         }
       };
 
@@ -271,7 +511,7 @@ namespace phantom {
                     else if (return_type.bitwidth == 64)
                       kind = Directive::Kind::Double;
                     else
-                      std::abort();
+                      unreachable();
 
                     label.name = ".CFPS" + std::to_string(const_fps.size());
                     label.dirs.push_back(Directive{ .kind = kind, .data = value });
@@ -327,7 +567,7 @@ namespace phantom {
           else if (size == 8)
             return 'd';
           else
-            std::abort();
+            unreachable();
         }
         default: // i/u(1, 16, 32, 64)
         {
@@ -342,7 +582,7 @@ namespace phantom {
           else if (size == 8)
             return 'q';
           else
-            std::abort();
+            unreachable();
         }
       }
     }
@@ -386,7 +626,7 @@ namespace phantom {
          case 2: return (char*)"ax";
          case 4: return (char*)"eax"; 
          case 8: return (char*)"rax";
-         default: std::abort();
+         default: unreachable();
       }
       // clang-format on
     }

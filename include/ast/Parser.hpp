@@ -24,7 +24,6 @@ namespace phantom {
       bool match(Token::Kind kind, off_t offset = 0) const;
 
       std::string expect(Token::Kind kind);
-      void todo(const std::string& msg);
 
       std::unique_ptr<Stmt> parse_function();
       std::unique_ptr<Stmt> parse_return();

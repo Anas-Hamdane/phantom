@@ -1,38 +1,53 @@
-TARGET := phantom
+CXX        := clang++
+CXXFLAGS   := -g -std=c++17 -Wall -Wextra -static -I./include/
 
-CXX := clang++
-CXXFLAGS := -g -std=c++17 -Wall -Wextra -I./include/
-LFLAGS := -static
+SRC        := src
+BUILD      := build
+TARGET     := $(BUILD)/phantom
 
-BUILD := build
-OBJSDIR := build/objs
+SOURCES = $(SRC)/main.cpp \
+          $(SRC)/common.cpp \
+          $(SRC)/Lexer.cpp \
+          $(SRC)/Driver.cpp \
+          $(SRC)/Logger.cpp \
+          $(SRC)/ast/Parser.cpp \
+          $(SRC)/utils/num.cpp \
+          $(SRC)/utils/str.cpp \
+          $(SRC)/irgen/Gen.cpp \
+          $(SRC)/codegen/Codegen.cpp
 
-FRONTEND := ./src/Lexer.cpp ./src/Driver.cpp ./src/ast/Parser.cpp
-UTILS := ./src/Logger.cpp ./src/utils/num.cpp ./src/utils/str.cpp
-CODEGEN := ./src/irgen/Gen.cpp ./src/codegen/Codegen.cpp
-SRCS := ./src/main.cpp $(FRONTEND) $(UTILS) $(CODEGEN)
-
-# IMPORTANT: don't forget to add new paths here too
-VPATH := src src/utils src/ast src/irgen src/codegen
-
-SRC_WITHOUT_PATH := $(notdir $(SRCS))
-OBJS := $(addprefix $(OBJSDIR)/, $(SRC_WITHOUT_PATH:.cpp=.o))
+OBJECTS = $(BUILD)/main.o \
+          $(BUILD)/common.o \
+          $(BUILD)/Lexer.o \
+          $(BUILD)/Driver.o \
+          $(BUILD)/Logger.o \
+          $(BUILD)/Parser.o \
+          $(BUILD)/num.o \
+          $(BUILD)/str.o \
+          $(BUILD)/Gen.o \
+          $(BUILD)/Codegen.o
 
 .PHONY: all clean
 
-all: clean $(BUILD)/$(TARGET)
+all: $(TARGET)
 
-$(BUILD)/$(TARGET): $(OBJS) | $(BUILD)
-	$(CXX) $(OBJS) -o $@ $(LFLAGS)
+$(TARGET): $(OBJECTS)
+	$(CXX) $(OBJECTS) -o$(TARGET)
 
-$(OBJSDIR)/%.o: %.cpp | $(OBJSDIR)
+$(BUILD)/%.o: src/%.cpp
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
-$(OBJSDIR): | $(BUILD)
-	mkdir -p $(OBJSDIR)
+$(BUILD)/%.o: src/ast/%.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
-$(BUILD):
-	mkdir -p $(BUILD)
+$(BUILD)/%.o: src/utils/%.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS)
+
+$(BUILD)/%.o: src/irgen/%.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS)
+
+$(BUILD)/%.o: src/codegen/%.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS)
 
 clean:
 	rm -rf $(BUILD)

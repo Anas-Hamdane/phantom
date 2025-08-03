@@ -26,7 +26,7 @@ namespace phantom {
         case 1: generate_expr(std::get<1>(*stmt)->expr); break; // Expmt
         case 2: declare_function(std::get<2>(*stmt));    break; // FnDecl
         case 3: define_function(std::get<3>(*stmt));     break; // FnDef
-        default: std::abort();
+        default: unreachable();
       }
       // clang-format on
     }
@@ -146,11 +146,11 @@ namespace phantom {
         }
         case 2: // StrLit
         {
-          // TODO:
+          todo();
         }
         case 3: // ArrLit
         {
-          // TODO:
+          todo();
         }
         case 4: // Identifier
         {
@@ -175,16 +175,7 @@ namespace phantom {
             return rhs;
           }
 
-          BinOp::Op op;
           // clang-format off
-          switch (binop->op) {
-            case Token::Kind::Plus:  op = BinOp::Op::Add; break;
-            case Token::Kind::Minus: op = BinOp::Op::Sub; break;
-            case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
-            case Token::Kind::Div:   op = BinOp::Op::Div; break;
-            default:                 std::abort();
-          }
-
           // both are constants
           // calculate it immediatly
           if (lhs.index() == 0 && rhs.index() == 0) {
@@ -214,7 +205,7 @@ namespace phantom {
                 case Token::Kind::Minus: return Constant{.type = type, .value = lvalue - rvalue};
                 case Token::Kind::Mul:   return Constant{.type = type, .value = lvalue * rvalue};
                 case Token::Kind::Div:   return Constant{.type = type, .value = lvalue / rvalue};
-                default:                 std::abort();
+                default:                 unreachable();
               }
             }
             else {
@@ -238,9 +229,18 @@ namespace phantom {
                 case Token::Kind::Minus: return Constant{.type = type, .value = lvalue - rvalue};
                 case Token::Kind::Mul:   return Constant{.type = type, .value = lvalue * rvalue};
                 case Token::Kind::Div:   return Constant{.type = type, .value = lvalue / rvalue};
-                default:                 std::abort();
+                default:                 unreachable();
               }
             }
+          }
+
+          BinOp::Op op;
+          switch (binop->op) {
+            case Token::Kind::Plus:  op = BinOp::Op::Add; break;
+            case Token::Kind::Minus: op = BinOp::Op::Sub; break;
+            case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
+            case Token::Kind::Div:   op = BinOp::Op::Div; break;
+            default:                 unreachable();
           }
           // clang-format on
 
@@ -258,7 +258,17 @@ namespace phantom {
 
           // INFO: Binary operations store the result in either register 'A' or 'C'
           // indicating physical register "rax" and "rcx"
-          PhysReg dst = allocate_physical_register(type);
+          PhysReg dst;
+          if (lhs.index() == 2)
+            dst = std::get<2>(lhs);
+          else if (rhs.index() == 2)
+            dst = std::get<2>(rhs);
+          else
+            dst = allocate_physical_register(type);
+
+          // override any other types
+          dst.type = type;
+
           current_function->body.push_back(BinOp{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst });
           return dst;
         }
@@ -273,7 +283,7 @@ namespace phantom {
           switch (unop->op) {
             case Token::Kind::Minus: op = UnOp::Op::Neg; break;
             case Token::Kind::Not:   op = UnOp::Op::Not; break;
-            default:                 std::abort();
+            default:                 unreachable();
           }
           // clang-format on
 
@@ -314,8 +324,7 @@ namespace phantom {
           current_function->body.push_back(alloca);
 
           if (initialized) {
-            Store store{ .src = value, .dst = reg };
-            current_function->body.push_back(store);
+            create_store(reg, value);
             return value;
           }
 
@@ -323,13 +332,13 @@ namespace phantom {
         }
         case 8: // FnCall
         {
-          // TODO:
+          todo();
         }
       }
 
-      std::abort();
+      unreachable();
     }
-    void Gen::create_store(VirtReg dst, Value src) {
+    void Gen::create_store(std::variant<VirtReg, PhysReg> dst, Value src) {
       Store store;
       store.dst = dst;
       store.src = src;
@@ -364,7 +373,7 @@ namespace phantom {
         case 2: // PhysReg
           return std::get<2>(value).type;
         default:
-          std::abort();
+          unreachable();
       }
     }
   } // namespace ir

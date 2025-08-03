@@ -34,7 +34,7 @@ namespace phantom {
     };
     struct Store {
       Value src;
-      VirtReg dst;
+      std::variant<VirtReg, PhysReg> dst;
     };
     struct BinOp {
       // clang-format off
