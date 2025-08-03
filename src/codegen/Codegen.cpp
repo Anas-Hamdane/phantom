@@ -37,7 +37,7 @@ namespace phantom {
       size_t params_size = fn.params.size();
       size_t tmp = std::min(regs_size, params_size);
       for (size_t i = 0; i < tmp; ++i) {
-        ir::Register param = fn.params.at(i);
+        ir::VirtReg param = fn.params.at(i);
         size_t size = (param.type.bitwidth == 0) ? 1 : (param.type.bitwidth / 8);
 
         const char suff = integer_suffix(size);
@@ -50,7 +50,7 @@ namespace phantom {
       }
 
       for (size_t i = tmp; i < params_size; ++i) {
-        ir::Register param = fn.params.at(i);
+        ir::VirtReg param = fn.params.at(i);
         size_t size = (param.type.bitwidth == 0) ? 1 : (param.type.bitwidth / 8);
 
         const char suff = integer_suffix(size);
@@ -165,6 +165,21 @@ namespace phantom {
         case 2: // BinOp
         {
           // TODO:
+          ir::BinOp binop = std::get<2>(inst);
+          switch (binop.op) {
+            case ir::BinOp::Op::Add: // addition
+            {
+            }
+            case ir::BinOp::Op::Sub: // substraction
+            {
+            }
+            case ir::BinOp::Op::Mul: // multiplication
+            {
+            }
+            case ir::BinOp::Op::Div: // division
+            {
+            }
+          }
         }
         case 3: // UnOp
         {

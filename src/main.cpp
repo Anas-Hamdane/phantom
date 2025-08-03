@@ -1,9 +1,9 @@
 #include "Driver.hpp"
 #include "Lexer.hpp"
 #include "ast/Parser.hpp"
+#include "codegen/Codegen.hpp"
 #include "irgen/Gen.hpp"
 #include <cstring>
-#include "codegen/Codegen.hpp"
 
 using namespace phantom;
 
@@ -32,10 +32,24 @@ const char* resolve_type(Type ty) {
   return s_leg;
 }
 
-const char* resolve_reg(ir::Register reg) {
+const char* resolve_reg(std::variant<ir::VirtReg, ir::PhysReg> reg) {
   char* s;
-  asprintf(&s, "%%%u", reg.id);
-
+  switch (reg.index()) {
+    case 0: // virtual
+    {
+      ir::VirtReg& virt_reg = std::get<0>(reg);
+      asprintf(&s, "%%%u", virt_reg.id);
+      break;
+    }
+    case 1: // physical
+    {
+      ir::PhysReg& physi_reg = std::get<1>(reg);
+      asprintf(&s, "%%%c", physi_reg.name);
+      break;
+    }
+    default:
+      std::abort();
+  }
   return s;
 }
 const char* resolve_const(ir::Constant con) {
@@ -58,6 +72,8 @@ const char* resolve_value(ir::Value v) {
       return resolve_const(std::get<0>(v));
     case 1:
       return resolve_reg(std::get<1>(v));
+    case 2:
+      return resolve_reg(std::get<2>(v));
   }
 
   std::abort();
@@ -212,10 +228,10 @@ int main(int argc, char* argv[]) {
 
   print_program(prog);
 
-  codegen::Gen codegen(prog);
-  const char* assembly = codegen.gen();
-
-  printf("%s", assembly);
+  // codegen::Gen codegen(prog);
+  // const char* assembly = codegen.gen();
+  //
+  // printf("%s", assembly);
 
   return 0;
 }

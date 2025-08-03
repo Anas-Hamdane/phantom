@@ -17,8 +17,13 @@ namespace phantom {
       std::vector<std::unique_ptr<ast::Stmt>>& ast;
       Program program; // output
 
-      std::unordered_map<std::string, Register> scope_vars;
+      std::unordered_map<std::string, VirtReg> scope_vars;
       std::unordered_map<std::string, Function> funcs_table;
+
+      // last used BinOp physical register: can be either A or C
+      // A stands for "rax"
+      // C stands for "rcx"
+      char lubpr = 'C';
 
       uint nrid = 0; // next register id
       Function* current_function = nullptr;
@@ -29,8 +34,11 @@ namespace phantom {
       void generate_return(std::unique_ptr<ast::Return>& ast_rt);
 
       Value generate_expr(std::unique_ptr<ast::Expr>& expr);
-      void create_store(Register dst, Value src);
-      Register allocate_register(Type type);
+      void create_store(VirtReg dst, Value src);
+      VirtReg allocate_vritual_register(Type type);
+      PhysReg allocate_physical_register(Type type);
+
+      Type value_type(Value& value);
     };
   } // namespace ir
 } // namespace phantom

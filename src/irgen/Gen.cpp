@@ -64,7 +64,7 @@ namespace phantom {
           exit(1);
         }
 
-        Register reg = allocate_register(*param->type);
+        VirtReg reg = allocate_vritual_register(*param->type);
         fn.params.push_back(reg);
 
         scope_vars[param->name] = reg;
@@ -93,7 +93,7 @@ namespace phantom {
           exit(1);
         }
 
-        Register reg = allocate_register(*param->type);
+        VirtReg reg = allocate_vritual_register(*param->type);
         fn.params.push_back(reg);
 
         scope_vars[param->name] = reg;
@@ -182,7 +182,7 @@ namespace phantom {
             case Token::Kind::Minus: op = BinOp::Op::Sub; break;
             case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
             case Token::Kind::Div:   op = BinOp::Op::Div; break;
-            default:                std::abort();
+            default:                 std::abort();
           }
 
           // both are constants
@@ -244,8 +244,8 @@ namespace phantom {
           }
           // clang-format on
 
-          Type lty = (lhs.index() == 0) ? std::get<0>(lhs).type : std::get<1>(lhs).type;
-          Type rty = (rhs.index() == 0) ? std::get<0>(rhs).type : std::get<1>(rhs).type;
+          Type lty = value_type(lhs);
+          Type rty = value_type(rhs);
 
           Type type;
           type.bitwidth = (lty.bitwidth > rty.bitwidth) ? lty.bitwidth : rty.bitwidth;
@@ -256,12 +256,15 @@ namespace phantom {
           else
             type.kind = Type::Kind::UnsInt;
 
-          Register dst = allocate_register(type);
+          // INFO: Binary operations store the result in either register 'A' or 'C'
+          // indicating physical register "rax" and "rcx"
+          PhysReg dst = allocate_physical_register(type);
           current_function->body.push_back(BinOp{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst });
           return dst;
         }
         case 6: // UnOp
         {
+          // TODO: check this
           std::unique_ptr<ast::UnOp>& unop = std::get<6>(*expr);
           Value operand = generate_expr(unop->operand);
 
@@ -275,7 +278,7 @@ namespace phantom {
           // clang-format on
 
           Type type = (operand.index() == 0) ? std::get<0>(operand).type : std::get<1>(operand).type;
-          Register dst = allocate_register(type);
+          PhysReg dst = allocate_physical_register(type);
 
           current_function->body.push_back(UnOp{ .op = op, .operand = operand, .dst = dst });
           return dst;
@@ -296,7 +299,7 @@ namespace phantom {
           if (decl->init) {
             value = generate_expr(decl->init);
             initialized = true;
-            type = (value.index() == 0) ? std::get<0>(value).type : std::get<1>(value).type;
+            type = value_type(value);
           }
 
           // override even if there's an initialized
@@ -304,7 +307,7 @@ namespace phantom {
           if (decl->type)
             type = *decl->type;
 
-          Register reg = allocate_register(type);
+          VirtReg reg = allocate_vritual_register(type);
           scope_vars[decl->name] = reg;
 
           Alloca alloca{ .type = type, .reg = reg };
@@ -326,20 +329,43 @@ namespace phantom {
 
       std::abort();
     }
-    void Gen::create_store(Register dst, Value src) {
+    void Gen::create_store(VirtReg dst, Value src) {
       Store store;
       store.dst = dst;
       store.src = src;
 
       current_function->body.push_back(store);
     }
-    Register Gen::allocate_register(Type type) {
-      Register reg{
+    VirtReg Gen::allocate_vritual_register(Type type) {
+      VirtReg reg{
         .id = nrid++,
         .type = type
       };
 
       return reg;
+    }
+    PhysReg Gen::allocate_physical_register(Type type) {
+      char name = (lubpr == 'C') ? 'A' : 'C';
+      PhysReg reg{
+        .name = name,
+        .type = type
+      };
+
+      lubpr = name;
+      return reg;
+    }
+
+    Type Gen::value_type(Value& value) {
+      switch (value.index()) {
+        case 0: // constant
+          return std::get<0>(value).type;
+        case 1: // VirtReg
+          return std::get<1>(value).type;
+        case 2: // PhysReg
+          return std::get<2>(value).type;
+        default:
+          std::abort();
+      }
     }
   } // namespace ir
 } // namespace phantom

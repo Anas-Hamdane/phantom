@@ -8,7 +8,11 @@ using uint = unsigned int;
 
 namespace phantom {
   namespace ir {
-    struct Register {
+    struct PhysReg {
+      char name;
+      Type type;
+    };
+    struct VirtReg {
       uint id;
       Type type;
     };
@@ -17,7 +21,7 @@ namespace phantom {
       std::variant<int64_t, double> value;
     };
 
-    using Value = std::variant<Constant, Register>;
+    using Value = std::variant<Constant, VirtReg, PhysReg>;
 
     struct Return {
       Value value;
@@ -26,24 +30,24 @@ namespace phantom {
 
     struct Alloca {
       Type type;
-      Register reg;
+      VirtReg reg;
     };
     struct Store {
       Value src;
-      Register dst;
+      VirtReg dst;
     };
     struct BinOp {
       // clang-format off
       enum class Op { Add, Sub, Mul, Div } op;
       Value lhs, rhs;
-      Register dst;
+      PhysReg dst;
       // clang-format on
     };
     struct UnOp {
       // clang-format off
       enum class Op { Neg, Not } op;
       Value operand;
-      Register dst;
+      PhysReg dst;
       // clang-format on
     };
     using Instruction = std::variant<Alloca, Store, BinOp, UnOp>;
@@ -51,7 +55,7 @@ namespace phantom {
     struct Function {
       std::string name;
       Type return_type;
-      std::vector<Register> params;
+      std::vector<VirtReg> params;
       std::vector<Instruction> body;
       Terminator terminator;
       bool terminated = false;
