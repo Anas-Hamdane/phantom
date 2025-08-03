@@ -110,7 +110,7 @@ namespace phantom {
           std::unique_ptr<ast::IntLit>& lit = std::get<0>(*expr);
 
           Constant constant;
-          constant.type.kind = Type::Kind::Int;
+          constant.type.kind = Type::Kind::UnsInt;
 
           if (((int)lit->value) >= INT_MIN_VAL && ((int)lit->value) <= INT_MAX_VAL)
             constant.type.bitwidth = 32;
@@ -121,8 +121,8 @@ namespace phantom {
             exit(1);
           }
 
-          // uint64_t
-          constant.value = lit->value;
+          // int64_t
+          constant.value = (int64_t)lit->value;
           return constant;
         }
         case 1: // FloatLit
@@ -183,6 +183,64 @@ namespace phantom {
             case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
             case Token::Kind::Div:   op = BinOp::Op::Div; break;
             default:                std::abort();
+          }
+
+          // both are constants
+          // calculate it immediatly
+          if (lhs.index() == 0 && rhs.index() == 0) {
+            Constant lv = std::get<0>(lhs);
+            Constant rv = std::get<0>(rhs);
+            Type type;
+            type.bitwidth = (lv.type.bitwidth > rv.type.bitwidth) ? lv.type.bitwidth : rv.type.bitwidth;
+
+            if (lv.type.kind == Type::Kind::FP || rv.type.kind == Type::Kind::FP) {
+              type.kind = Type::Kind::FP;
+
+              double lvalue;
+              double rvalue;
+
+              if (lv.value.index() == 0)
+                  lvalue = std::get<0>(lv.value);
+              else
+                  lvalue = std::get<1>(lv.value);
+
+              if (rv.value.index() == 0)
+                  rvalue = std::get<0>(rv.value);
+              else
+                  rvalue = std::get<1>(rv.value);
+
+              switch (binop->op) {
+                case Token::Kind::Plus:  return Constant{.type = type, .value = lvalue + rvalue};
+                case Token::Kind::Minus: return Constant{.type = type, .value = lvalue - rvalue};
+                case Token::Kind::Mul:   return Constant{.type = type, .value = lvalue * rvalue};
+                case Token::Kind::Div:   return Constant{.type = type, .value = lvalue / rvalue};
+                default:                 std::abort();
+              }
+            }
+            else {
+              type.kind = Type::Kind::Int;
+
+              int64_t lvalue;
+              int64_t rvalue;
+
+              if (lv.value.index() == 0)
+                  lvalue = std::get<0>(lv.value);
+              else
+                  lvalue = std::get<1>(lv.value);
+
+              if (rv.value.index() == 0)
+                  rvalue = std::get<0>(rv.value);
+              else
+                  rvalue = std::get<1>(rv.value);
+
+              switch (binop->op) {
+                case Token::Kind::Plus:  return Constant{.type = type, .value = lvalue + rvalue};
+                case Token::Kind::Minus: return Constant{.type = type, .value = lvalue - rvalue};
+                case Token::Kind::Mul:   return Constant{.type = type, .value = lvalue * rvalue};
+                case Token::Kind::Div:   return Constant{.type = type, .value = lvalue / rvalue};
+                default:                 std::abort();
+              }
+            }
           }
           // clang-format on
 

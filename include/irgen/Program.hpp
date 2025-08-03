@@ -14,7 +14,7 @@ namespace phantom {
     };
     struct Constant {
       Type type;
-      std::variant<uint64_t, double> value;
+      std::variant<int64_t, double> value;
     };
 
     using Value = std::variant<Constant, Register>;

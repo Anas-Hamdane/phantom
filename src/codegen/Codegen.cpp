@@ -95,10 +95,10 @@ namespace phantom {
               ir::Constant constant = std::get<0>(store.src);
 
               switch (constant.value.index()) {
-                case 0: // uint64_t
+                case 0: // int64_t
                 {
-                  uint64_t value = std::get<0>(constant.value);
-                  utils::appendf(&output, "  mov%c    $%lu, -%zu(%%rbp)\n", dst_suff, value, dst.offset);
+                  int64_t value = std::get<0>(constant.value);
+                  utils::appendf(&output, "  mov%c    $%ld, -%zu(%%rbp)\n", dst_suff, value, dst.offset);
                   break;
                 }
                 case 1: // double
@@ -173,6 +173,9 @@ namespace phantom {
       }
     }
     void Gen::generate_data() {
+      if (const_fps.empty())
+        return;
+
       utils::append(&output, "# data\n");
 
       // helper
@@ -226,9 +229,9 @@ namespace phantom {
               ir::Constant& constant = std::get<0>(ret.value);
 
               switch (constant.value.index()) {
-                case 0: // uint64_t
+                case 0: // int64_t
                 {
-                  uint64_t value = std::get<0>(constant.value);
+                  int64_t value = std::get<0>(constant.value);
 
                   if (value == 0)
                     utils::appendf(&output, "  xor%c    %%%s, %%%s\n", ret_suff, ret_reg, ret_reg);

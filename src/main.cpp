@@ -43,7 +43,7 @@ const char* resolve_const(ir::Constant con) {
 
   switch (con.value.index()) {
     case 0:
-      asprintf(&s, "%lu", std::get<0>(con.value));
+      asprintf(&s, "%ld", std::get<0>(con.value));
       break;
     case 1:
       asprintf(&s, "%lf", std::get<1>(con.value));
@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
   ir::Gen irgen(ast);
   ir::Program prog = irgen.gen();
 
-  // print_program(prog);
+  print_program(prog);
 
   codegen::Gen codegen(prog);
   const char* assembly = codegen.gen();
