@@ -1,6 +1,5 @@
 #include "irgen/Gen.hpp"
 #include <cassert>
-#include <cstring>
 
 namespace phantom {
   namespace ir {
@@ -412,7 +411,7 @@ namespace phantom {
       std::string name;
 
       if (type.kind == Type::Kind::Int) {
-        name = subreg_name((lubpr == 'C') ? "rax" : "rcx", type.size);
+        name = get_register_by_size((lubpr == 'C') ? "rax" : "rcx", type.size);
         lubpr = (lubpr == 'C') ? 'A' : 'C';
       } else {
         name = (lubfppr == '1') ? "xmm0" : "xmm1";
@@ -469,10 +468,7 @@ namespace phantom {
       if (!need_cast(vtype, target))
         return;
 
-      if (v.index() == 2)
-        return generate_cast(v, std::get<2>(v), vtype, target);
-
-      PhysReg reg = allocate_physical_register(vtype);
+      PhysReg reg = allocate_physical_register(target);
       generate_cast(v, reg, vtype, target);
       v = reg;
     }
@@ -512,126 +508,6 @@ namespace phantom {
       }
 
       unreachable();
-    }
-
-    char* Gen::subreg_name(const std::string& reg, size_t size) {
-      // clang-format off
-      if (reg == "rax") {
-        switch (size) {
-         case 1: return (char*)"al";
-         case 2: return (char*)"ax";
-         case 4: return (char*)"eax";
-         case 8: return (char*)"rax";
-        }
-      } else if (reg == "rbx") {
-        switch (size) {
-         case 1: return (char*)"bl";
-         case 2: return (char*)"bx";
-         case 4: return (char*)"ebx";
-         case 8: return (char*)"rbx";
-        }
-      } else if (reg == "rcx") {
-        switch (size) {
-         case 1: return (char*)"cl";
-         case 2: return (char*)"cx";
-         case 4: return (char*)"ecx";
-         case 8: return (char*)"rcx";
-        }
-      } else if (reg == "rdx") {
-        switch (size) {
-         case 1: return (char*)"dl";
-         case 2: return (char*)"dx";
-         case 4: return (char*)"edx";
-         case 8: return (char*)"rdx";
-        }
-      } else if (reg == "rsp") {
-        switch (size) {
-         case 1: return (char*)"spl";
-         case 2: return (char*)"sp";
-         case 4: return (char*)"esp";
-         case 8: return (char*)"rsp";
-        }
-      } else if (reg == "rbp") {
-        switch (size) {
-         case 1: return (char*)"bpl";
-         case 2: return (char*)"bp";
-         case 4: return (char*)"ebp";
-         case 8: return (char*)"rbp";
-        }
-      } else if (reg == "rsi") {
-        switch (size) {
-         case 1: return (char*)"sil";
-         case 2: return (char*)"si";
-         case 4: return (char*)"esi";
-         case 8: return (char*)"rsi";
-        }
-      } else if (reg == "rdi") {
-        switch (size) {
-         case 1: return (char*)"dil";
-         case 2: return (char*)"di";
-         case 4: return (char*)"edi";
-         case 8: return (char*)"rdi";
-        }
-      } else if (reg == "r8") {
-        switch (size) {
-         case 1: return (char*)"r8b";
-         case 2: return (char*)"r8w";
-         case 4: return (char*)"r8d";
-         case 8: return (char*)"r8";
-        }
-      } else if (reg == "r9") {
-        switch (size) {
-         case 1: return (char*)"r9b";
-         case 2: return (char*)"r9w";
-         case 4: return (char*)"r9d";
-         case 8: return (char*)"r9";
-        }
-      } else if (reg == "r10") {
-        switch (size) {
-         case 1: return (char*)"r10b";
-         case 2: return (char*)"r10w";
-         case 4: return (char*)"r10d";
-         case 8: return (char*)"r10";
-        }
-      } else if (reg == "r11") {
-        switch (size) {
-         case 1: return (char*)"r11b";
-         case 2: return (char*)"r11w";
-         case 4: return (char*)"r11d";
-         case 8: return (char*)"r11";
-        }
-      } else if (reg == "r12") {
-        switch (size) {
-         case 1: return (char*)"r12b";
-         case 2: return (char*)"r12w";
-         case 4: return (char*)"r12d";
-         case 8: return (char*)"r12";
-        }
-      } else if (reg == "r13") {
-        switch (size) {
-         case 1: return (char*)"r13b";
-         case 2: return (char*)"r13w";
-         case 4: return (char*)"r13d";
-         case 8: return (char*)"r13";
-        }
-      } else if (reg == "r14") {
-        switch (size) {
-         case 1: return (char*)"r14b";
-         case 2: return (char*)"r14w";
-         case 4: return (char*)"r14d";
-         case 8: return (char*)"r14";
-        }
-      } else if (reg == "r15") {
-        switch (size) {
-         case 1: return (char*)"r15b";
-         case 2: return (char*)"r15w";
-         case 4: return (char*)"r15d";
-         case 8: return (char*)"r15";
-        }
-      }
-
-      unreachable();
-      // clang-format on
     }
   } // namespace ir
 } // namespace phantom

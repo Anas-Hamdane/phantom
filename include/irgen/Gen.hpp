@@ -51,8 +51,6 @@ namespace phantom {
 
       Type extract_value_type(Value& value);
       Type resolve_type(phantom::Type& type);
-
-      char* subreg_name(const std::string& reg, size_t size);
     };
   } // namespace ir
 } // namespace phantom
