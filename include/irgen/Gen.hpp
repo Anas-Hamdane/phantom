@@ -32,14 +32,24 @@ namespace phantom {
       void declare_function(std::unique_ptr<ast::FnDecl>& ast_fn);
       void generate_stmt(std::unique_ptr<ast::Stmt>& stmt);
       void generate_return(std::unique_ptr<ast::Return>& ast_rt);
-
-      void create_store(std::variant<VirtReg, PhysReg> dst, Value src);
-
       Value generate_expr(std::unique_ptr<ast::Expr>& expr);
+
+      void generate_assignment(VirtReg& dst, Value& src);
+      void generate_store(std::variant<VirtReg, PhysReg> dst, Value src);
+      void generate_cast(Value& src, PhysReg& dst, Type& src_type, Type& target);
+
       VirtReg allocate_vritual_register(Type& type);
       PhysReg allocate_physical_register(Type& type);
 
-      Type value_type(Value& value);
+      double extract_double_constant(std::variant<int64_t, double>& v);
+      int64_t extract_integer_constant(std::variant<int64_t, double>& v);
+      double calculate_double_constant(Token::Kind op, double lv, double rv);
+      int64_t calculate_integer_constant(Token::Kind op, int64_t lv, int64_t rv);
+
+      void cast_if_needed(Value& v, Type& vtype, Type& target);
+      bool need_cast(Type& dtype, Type& stype);
+
+      Type extract_value_type(Value& value);
       Type resolve_type(phantom::Type& type);
 
       char* subreg_name(const std::string& reg, size_t size);

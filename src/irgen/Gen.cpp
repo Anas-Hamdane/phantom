@@ -52,7 +52,7 @@ namespace phantom {
         ret.value = generate_expr(ast_rt->expr);
 
         // check return type
-        Type type = value_type(ret.value);
+        Type type = extract_value_type(ret.value);
         if (type.kind != current_function->return_type.kind) {
           printf("incorrect return type for function: %s\n", current_function->name.c_str());
           exit(1);
@@ -61,6 +61,224 @@ namespace phantom {
 
       current_function->terminator = ret;
       current_function->terminated = true;
+    }
+    Value Gen::generate_expr(std::unique_ptr<ast::Expr>& expr) {
+      switch (expr->index()) {
+        case 0: // IntLit
+        {
+          std::unique_ptr<ast::IntLit>& lit = std::get<0>(*expr);
+
+          Constant constant;
+          constant.type.kind = Type::Kind::Int;
+
+          int64_t value = (int64_t)lit->value;
+          if (value >= INT_MIN_VAL && value <= INT_MAX_VAL)
+            constant.type.size = 4;
+          else if (value >= LONG_MIN_VAL && value <= LONG_MAX_VAL)
+            constant.type.size = 8;
+          else {
+            // TODO: better errors
+            printf("Integer literal is too large to be represented in a data type\n");
+            exit(1);
+          }
+
+          // int64_t
+          constant.value = (int64_t)lit->value;
+          return constant;
+        }
+        case 1: // FloatLit
+        {
+          std::unique_ptr<ast::FloatLit>& lit = std::get<1>(*expr);
+
+          Constant constant;
+          constant.type.kind = Type::Kind::Float;
+
+          if (lit->value >= FLOAT_MIN_VAL && lit->value <= FLOAT_MAX_VAL)
+            constant.type.size = 4;
+          else if (lit->value >= DOUBLE_MIN_VAL && lit->value <= DOUBLE_MAX_VAL)
+            constant.type.size = 8;
+          else {
+            // TODO: better errors
+            printf("Float literal is too large to be represented in a data type\n");
+            exit(1);
+          }
+
+          // double
+          constant.value = lit->value;
+          return constant;
+        }
+        case 2: // StrLit
+        {
+          todo();
+        }
+        case 3: // ArrLit
+        {
+          todo();
+        }
+        case 4: // Identifier
+        {
+          std::unique_ptr<ast::Identifier>& ide = std::get<4>(*expr);
+          if (scope_vars.find(ide->name) == scope_vars.end()) {
+            printf("Use of undeclared Identifier: %s\n", ide->name.c_str());
+            exit(1);
+          }
+
+          return scope_vars[ide->name];
+        }
+        case 5: // BinOp
+        {
+          std::unique_ptr<ast::BinOp>& binop = std::get<5>(*expr);
+          Value lhs = generate_expr(binop->lhs);
+          Value rhs = generate_expr(binop->rhs);
+
+          // Handle assignment as a special case
+          if (binop->op == Token::Kind::Eq) {
+            assert(lhs.index() == 1 && "can't assign to a non-variable destination");
+            generate_assignment(std::get<1>(lhs), rhs);
+            return rhs;
+          }
+
+          // basic constant-folding
+          if (lhs.index() == 0 && rhs.index() == 0) {
+            Constant lv = std::get<0>(lhs);
+            Constant rv = std::get<0>(rhs);
+
+            Constant result;
+            result.type.size = std::max(lv.type.size, rv.type.size);
+
+            if (lv.type.kind == Type::Kind::Float || rv.type.kind == Type::Kind::Float) {
+              double lvalue = extract_double_constant(lv.value);
+              double rvalue = extract_double_constant(rv.value);
+
+              result.type.kind = Type::Kind::Float;
+              result.value = calculate_double_constant(binop->op, lvalue, rvalue);
+            } else {
+              int64_t lvalue = extract_integer_constant(lv.value);
+              int64_t rvalue = extract_integer_constant(rv.value);
+
+              result.type.kind = Type::Kind::Int;
+              result.value = calculate_integer_constant(binop->op, lvalue, rvalue);
+            }
+
+            return result;
+          }
+
+          // clang-format off
+          BinOp::Op op;
+          switch (binop->op) {
+            case Token::Kind::Plus:  op = BinOp::Op::Add; break;
+            case Token::Kind::Minus: op = BinOp::Op::Sub; break;
+            case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
+            case Token::Kind::Div:   op = BinOp::Op::Div; break;
+            default:                 unreachable();
+          }
+          // clang-format on
+
+          Type lty = extract_value_type(lhs);
+          Type rty = extract_value_type(rhs);
+
+          Type type;
+          type.size = lty.size > rty.size ? lty.size : rty.size;
+
+          if (lty.kind == Type::Kind::Float || rty.kind == Type::Kind::Float)
+            type.kind = Type::Kind::Float;
+          else
+            type.kind = Type::Kind::Int;
+
+          cast_if_needed(lhs, lty, type);
+          cast_if_needed(rhs, rty, type);
+
+          // Binary operations store the result in physical register treated temporaries
+          PhysReg dst;
+
+          // if any side is itself a physical register (temporary), use it to store
+          // the result value of the operation
+          if (lhs.index() == 2)
+            dst = std::get<2>(lhs);
+          else if (rhs.index() == 2)
+            dst = std::get<2>(rhs);
+
+          // if not allocate a new one
+          else
+            dst = allocate_physical_register(type);
+
+          // override the type to avoid using the `lhs` or `rhs` types
+          dst.type = type;
+
+          current_function->body.push_back(BinOp{
+              .op = op,
+              .lhs = lhs,
+              .rhs = rhs,
+              .dst = dst,
+          });
+
+          return dst;
+        }
+        case 6: // UnOp
+        {
+          // TODO: check this
+          std::unique_ptr<ast::UnOp>& unop = std::get<6>(*expr);
+          Value operand = generate_expr(unop->operand);
+
+          UnOp::Op op;
+          // clang-format off
+          switch (unop->op) {
+            case Token::Kind::Minus: op = UnOp::Op::Neg; break;
+            case Token::Kind::Not:   op = UnOp::Op::Not; break;
+            default:                 unreachable();
+          }
+          // clang-format on
+
+          Type type = (operand.index() == 0) ? std::get<0>(operand).type : std::get<1>(operand).type;
+          PhysReg dst = allocate_physical_register(type);
+
+          current_function->body.push_back(UnOp{ .op = op, .operand = operand, .dst = dst });
+          return dst;
+        }
+        case 7: // VarDecl
+        {
+          std::unique_ptr<ast::VarDecl>& decl = std::get<7>(*expr);
+
+          if (scope_vars.find(decl->name) != scope_vars.end()) {
+            printf("Redefinition of variable: %s\n", decl->name.c_str());
+            exit(1);
+          }
+
+          Type type;
+          Value value = {};
+          bool initialized = false;
+
+          if (decl->init) {
+            value = generate_expr(decl->init);
+            type = extract_value_type(value);
+            initialized = true;
+          }
+
+          // override even if there's an initialized
+          // Priority goes to the specified type
+          if (decl->type)
+            type = resolve_type(*decl->type);
+
+          VirtReg reg = allocate_vritual_register(type);
+          scope_vars[decl->name] = reg;
+
+          Alloca alloca{ .type = type, .reg = reg };
+          current_function->body.push_back(alloca);
+
+          if (initialized) {
+            generate_assignment(reg, value);
+            return value;
+          }
+
+          return {};
+        }
+        case 8: // FnCall
+        {
+          todo();
+        }
+      }
+
+      unreachable();
     }
 
     void Gen::define_function(std::unique_ptr<ast::FnDef>& ast_fn) {
@@ -131,250 +349,51 @@ namespace phantom {
       program.funcs.push_back(fn);
     }
 
-    Value Gen::generate_expr(std::unique_ptr<ast::Expr>& expr) {
-      switch (expr->index()) {
-        case 0: // IntLit
-        {
-          std::unique_ptr<ast::IntLit>& lit = std::get<0>(*expr);
+    void Gen::generate_assignment(VirtReg& dst, Value& src) {
+      Type dtype = dst.type;
+      Type stype = extract_value_type(src);
 
-          Constant constant;
-          constant.type.kind = Type::Kind::Int;
+      bool cast_needed = need_cast(dtype, stype);
 
-          int64_t value = (int64_t)lit->value;
-          if (value >= INT_MIN_VAL && value <= INT_MAX_VAL)
-            constant.type.size = 4;
-          else if (value >= LONG_MIN_VAL && value <= LONG_MAX_VAL)
-            constant.type.size = 8;
-          else {
-            // TODO: better errors
-            printf("Integer literal is too large to be represented in a data type\n");
-            exit(1);
-          }
+      if (!cast_needed)
+        return generate_store(dst, src);
 
-          // int64_t
-          constant.value = (int64_t)lit->value;
-          return constant;
-        }
-        case 1: // FloatLit
-        {
-          std::unique_ptr<ast::FloatLit>& lit = std::get<1>(*expr);
+      PhysReg reg = allocate_physical_register(dtype);
+      generate_cast(src, reg, stype, dtype);
+      src = reg;
 
-          Constant constant;
-          constant.type.kind = Type::Kind::Float;
-
-          if (lit->value >= FLOAT_MIN_VAL && lit->value <= FLOAT_MAX_VAL)
-            constant.type.size = 4;
-          else if (lit->value >= DOUBLE_MIN_VAL && lit->value <= DOUBLE_MAX_VAL)
-            constant.type.size = 8;
-          else {
-            // TODO: better errors
-            printf("Float literal is too large to be represented in a data type\n");
-            exit(1);
-          }
-
-          // double
-          constant.value = lit->value;
-          return constant;
-        }
-        case 2: // StrLit
-        {
-          todo();
-        }
-        case 3: // ArrLit
-        {
-          todo();
-        }
-        case 4: // Identifier
-        {
-          std::unique_ptr<ast::Identifier>& ide = std::get<4>(*expr);
-          if (scope_vars.find(ide->name) == scope_vars.end()) {
-            printf("Use of undeclared Identifier: %s\n", ide->name.c_str());
-            exit(1);
-          }
-
-          return scope_vars[ide->name];
-        }
-        case 5: // BinOp
-        {
-          std::unique_ptr<ast::BinOp>& binop = std::get<5>(*expr);
-          Value lhs = generate_expr(binop->lhs);
-          Value rhs = generate_expr(binop->rhs);
-
-          if (binop->op == Token::Kind::Eq) {
-            assert(lhs.index() == 1 && "can't assign to a non-variable destination");
-            create_store(std::get<1>(lhs), rhs);
-            return rhs;
-          }
-
-          // clang-format off
-          // both are constants
-          // calculate it immediatly
-          if (lhs.index() == 0 && rhs.index() == 0) {
-            Constant lv = std::get<0>(lhs);
-            Constant rv = std::get<0>(rhs);
-
-            Type type;
-            type.size = (lv.type.size > rv.type.size) ? lv.type.size : rv.type.size;
-
-            if (lv.type.kind == Type::Kind::Float || rv.type.kind == Type::Kind::Float) {
-              type.kind = Type::Kind::Float;
-
-              double lvalue;
-              double rvalue;
-
-              if (lv.value.index() == 0)
-                  lvalue = std::get<0>(lv.value);
-              else
-                  lvalue = std::get<1>(lv.value);
-
-              if (rv.value.index() == 0)
-                  rvalue = std::get<0>(rv.value);
-              else
-                  rvalue = std::get<1>(rv.value);
-
-              switch (binop->op) {
-                case Token::Kind::Plus:  return Constant{.type = type, .value = lvalue + rvalue};
-                case Token::Kind::Minus: return Constant{.type = type, .value = lvalue - rvalue};
-                case Token::Kind::Mul:   return Constant{.type = type, .value = lvalue * rvalue};
-                case Token::Kind::Div:   return Constant{.type = type, .value = lvalue / rvalue};
-                default:                 unreachable();
-              }
-            }
-            else {
-              type.kind = Type::Kind::Int;
-
-              int64_t lvalue;
-              int64_t rvalue;
-
-              if (lv.value.index() == 0)
-                  lvalue = std::get<0>(lv.value);
-              else
-                  lvalue = std::get<1>(lv.value);
-
-              if (rv.value.index() == 0)
-                  rvalue = std::get<0>(rv.value);
-              else
-                  rvalue = std::get<1>(rv.value);
-
-              switch (binop->op) {
-                case Token::Kind::Plus:  return Constant{.type = type, .value = lvalue + rvalue};
-                case Token::Kind::Minus: return Constant{.type = type, .value = lvalue - rvalue};
-                case Token::Kind::Mul:   return Constant{.type = type, .value = lvalue * rvalue};
-                case Token::Kind::Div:   return Constant{.type = type, .value = lvalue / rvalue};
-                default:                 unreachable();
-              }
-            }
-          }
-
-          BinOp::Op op;
-          switch (binop->op) {
-            case Token::Kind::Plus:  op = BinOp::Op::Add; break;
-            case Token::Kind::Minus: op = BinOp::Op::Sub; break;
-            case Token::Kind::Mul:   op = BinOp::Op::Mul; break;
-            case Token::Kind::Div:   op = BinOp::Op::Div; break;
-            default:                 unreachable();
-          }
-          // clang-format on
-
-          Type lty = value_type(lhs);
-          Type rty = value_type(rhs);
-
-          Type type;
-          type.size = (lty.size > rty.size) ? lty.size : rty.size;
-          if (lty.kind == Type::Kind::Float || rty.kind == Type::Kind::Float)
-            type.kind = Type::Kind::Float;
-          else
-            type.kind = Type::Kind::Int;
-
-          // INFO: Binary operations store the result in either register 'A' or 'C'
-          // indicating physical register "rax" and "rcx"
-          PhysReg dst;
-          if (lhs.index() == 2) {
-            dst = std::get<2>(lhs);
-            dst.type = type;
-          } else if (rhs.index() == 2) {
-            dst = std::get<2>(rhs);
-            dst.type = type;
-          } else {
-            dst = allocate_physical_register(type);
-          }
-
-          current_function->body.push_back(BinOp{ .op = op, .lhs = lhs, .rhs = rhs, .dst = dst });
-          return dst;
-        }
-        case 6: // UnOp
-        {
-          // TODO: check this
-          std::unique_ptr<ast::UnOp>& unop = std::get<6>(*expr);
-          Value operand = generate_expr(unop->operand);
-
-          UnOp::Op op;
-          // clang-format off
-          switch (unop->op) {
-            case Token::Kind::Minus: op = UnOp::Op::Neg; break;
-            case Token::Kind::Not:   op = UnOp::Op::Not; break;
-            default:                 unreachable();
-          }
-          // clang-format on
-
-          Type type = (operand.index() == 0) ? std::get<0>(operand).type : std::get<1>(operand).type;
-          PhysReg dst = allocate_physical_register(type);
-
-          current_function->body.push_back(UnOp{ .op = op, .operand = operand, .dst = dst });
-          return dst;
-        }
-        case 7: // VarDecl
-        {
-          std::unique_ptr<ast::VarDecl>& decl = std::get<7>(*expr);
-
-          if (scope_vars.find(decl->name) != scope_vars.end()) {
-            printf("Redefinition of variable: %s\n", decl->name.c_str());
-            exit(1);
-          }
-
-          Type type;
-          Value value = {};
-          bool initialized = false;
-
-          if (decl->init) {
-            value = generate_expr(decl->init);
-            type = value_type(value);
-            initialized = true;
-          }
-
-          // override even if there's an initialized
-          // Priority goes to the specified type
-          if (decl->type)
-            type = resolve_type(*decl->type);
-
-          VirtReg reg = allocate_vritual_register(type);
-          scope_vars[decl->name] = reg;
-
-          Alloca alloca{ .type = type, .reg = reg };
-          current_function->body.push_back(alloca);
-
-          if (initialized) {
-            create_store(reg, value);
-            return value;
-          }
-
-          return {};
-        }
-        case 8: // FnCall
-        {
-          todo();
-        }
-      }
-
-      unreachable();
+      generate_store(dst, src);
     }
-    void Gen::create_store(std::variant<VirtReg, PhysReg> dst, Value src) {
-      Store store;
-      store.dst = dst;
-      store.src = src;
-
+    void Gen::generate_store(std::variant<VirtReg, PhysReg> dst, Value src) {
+      Store store{ .src = src, .dst = dst };
       current_function->body.push_back(store);
     }
+    void Gen::generate_cast(Value& src, PhysReg& dst, Type& stype, Type& dtype) {
+      Instruction cast;
+      if (stype.kind == Type::Kind::Int && dtype.kind == Type::Kind::Float) {
+        if (dtype.size == 4)
+          cast = Int2Float{ .value = src, .dst = dst };
+        else if (dtype.size == 8)
+          cast = Int2Double{ .value = src, .dst = dst };
+      }
+
+      else if (stype.kind == Type::Kind::Float && dtype.kind == Type::Kind::Int) {
+        if (stype.size == 4)
+          cast = Float2Int{ .value = src, .dst = dst };
+        else if (stype.size == 8)
+          cast = Double2Int{ .value = src, .dst = dst };
+      }
+
+      else { // FP to FP
+        if (stype.size == 4 && dtype.size == 8)
+          cast = Float2Double{ .value = src, .dst = dst };
+        else if (stype.size == 8 && dtype.size == 4)
+          cast = Double2Float{ .value = src, .dst = dst };
+      }
+
+      current_function->body.push_back(cast);
+    }
+
     VirtReg Gen::allocate_vritual_register(Type& type) {
       VirtReg reg{
         .id = nrid++,
@@ -402,7 +421,66 @@ namespace phantom {
       return reg;
     }
 
-    Type Gen::value_type(Value& value) {
+    double Gen::extract_double_constant(std::variant<int64_t, double>& v) {
+      if (v.index() == 0)
+        return (double)std::get<0>(v);
+      else
+        return std::get<1>(v);
+    }
+    int64_t Gen::extract_integer_constant(std::variant<int64_t, double>& v) {
+      if (v.index() == 0)
+        return std::get<0>(v);
+      else
+        return (int64_t)std::get<1>(v);
+    }
+    double Gen::calculate_double_constant(Token::Kind op, double lv, double rv) {
+      switch (op) {
+        case Token::Kind::Plus:
+          return lv + rv;
+        case Token::Kind::Minus:
+          return lv - rv;
+        case Token::Kind::Mul:
+          return lv * rv;
+        case Token::Kind::Div:
+          return lv / rv;
+        default:
+          unreachable();
+      }
+    }
+    int64_t Gen::calculate_integer_constant(Token::Kind op, int64_t lv, int64_t rv) {
+      // clang-format off
+      switch (op) {
+        case Token::Kind::Plus:  return lv + rv;
+        case Token::Kind::Minus: return lv - rv;
+        case Token::Kind::Mul:   return lv * rv;
+        case Token::Kind::Div:   return lv / rv;
+        default:                 unreachable();
+      }
+      // clang-format on
+    }
+
+    void Gen::cast_if_needed(Value& v, Type& vtype, Type& target) {
+      if (!need_cast(vtype, target))
+        return;
+
+      if (v.index() == 2)
+        return generate_cast(v, std::get<2>(v), vtype, target);
+
+      PhysReg reg = allocate_physical_register(vtype);
+      generate_cast(v, reg, vtype, target);
+      v = reg;
+    }
+    bool Gen::need_cast(Type& dtype, Type& stype) {
+      if (dtype.kind == stype.kind && dtype.size == stype.size)
+        return false;
+
+      // integers don't need cast
+      if (dtype.kind == Type::Kind::Int && stype.kind == Type::Kind::Int)
+        return false;
+
+      return true;
+    }
+    Type Gen::extract_value_type(Value& value) {
       switch (value.index()) {
         case 0: // constant
           return std::get<0>(value).type;
@@ -414,7 +492,6 @@ namespace phantom {
           unreachable();
       }
     }
-
     Type Gen::resolve_type(phantom::Type& type) {
       if (type.kind == phantom::Type::Kind::FP) {
         uint size = type.bitwidth / 8;

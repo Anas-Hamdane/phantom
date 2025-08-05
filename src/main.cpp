@@ -29,7 +29,6 @@ const char* resolve_type(ir::Type& ty) {
   const char* s_leg = strdup(s.c_str());
   return s_leg;
 }
-
 const char* resolve_reg(std::variant<ir::VirtReg, ir::PhysReg> reg) {
   char* s;
   switch (reg.index()) {
@@ -101,10 +100,36 @@ const char* unop_op(ir::UnOp::Op op) {
 void print_instruction(ir::Instruction inst) {
   // clang-format off
   switch (inst.index()) {
-    case 0: printf("  alloca %s, %s\n", resolve_type(std::get<0>(inst).type), resolve_reg(std::get<0>(inst).reg)); break;
-    case 1: printf("  store %s, %s\n", resolve_value(std::get<1>(inst).src), resolve_reg(std::get<1>(inst).dst)); break;
-    case 2: printf("  %s = %s %s, %s \n", resolve_reg(std::get<2>(inst).dst), binop_op(std::get<2>(inst).op), resolve_value(std::get<2>(inst).lhs), resolve_value(std::get<2>(inst).rhs)); break;
-    case 3: printf("  %s = %s %s\n", resolve_reg(std::get<3>(inst).dst), unop_op(std::get<3>(inst).op), resolve_value(std::get<3>(inst).operand)); break;
+    case 0: printf("  alloca %s, %s\n", resolve_type(std::get<0>(inst).type),
+                resolve_reg(std::get<0>(inst).reg)); break;
+
+    case 1: printf("  store %s, %s\n", resolve_value(std::get<1>(inst).src),
+                resolve_reg(std::get<1>(inst).dst)); break;
+
+    case 2: printf("  %s = %s %s, %s \n", resolve_reg(std::get<2>(inst).dst),
+                binop_op(std::get<2>(inst).op), resolve_value(std::get<2>(inst).lhs),
+                resolve_value(std::get<2>(inst).rhs)); break;
+
+    case 3: printf("  %s = %s %s\n", resolve_reg(std::get<3>(inst).dst),
+                unop_op(std::get<3>(inst).op), resolve_value(std::get<3>(inst).operand)); break;
+
+    case 4: printf("  %s = int2float %s\n", resolve_reg(std::get<4>(inst).dst),
+                resolve_value(std::get<4>(inst).value)); break;
+
+    case 5: printf("  %s = int2double %s\n", resolve_reg(std::get<5>(inst).dst),
+                resolve_value(std::get<5>(inst).value)); break;
+
+    case 6: printf("  %s = float2int %s\n", resolve_reg(std::get<6>(inst).dst),
+                resolve_value(std::get<6>(inst).value)); break;
+
+    case 7: printf("  %s = float2double %s\n", resolve_reg(std::get<7>(inst).dst),
+                resolve_value(std::get<7>(inst).value)); break;
+
+    case 8: printf("  %s = double2int %s\n", resolve_reg(std::get<8>(inst).dst),
+                resolve_value(std::get<8>(inst).value)); break;
+
+    case 9: printf("  %s = double2float %s\n", resolve_reg(std::get<9>(inst).dst),
+                resolve_value(std::get<9>(inst).value)); break;
   }
   // clang-format on
 }
@@ -224,12 +249,12 @@ int main(int argc, char* argv[]) {
   ir::Gen irgen(ast);
   ir::Program prog = irgen.gen();
 
-  // print_program(prog);
+  print_program(prog);
 
-  codegen::Gen codegen(prog);
-  const char* assembly = codegen.gen();
-
-  printf("%s", assembly);
+  // codegen::Gen codegen(prog);
+  // const char* assembly = codegen.gen();
+  //
+  // printf("%s", assembly);
 
   return 0;
 }

@@ -228,10 +228,23 @@ namespace phantom {
 
                 if (src.type.size > dst_type.size)
                   utils::appendf(&output, "  movs%c%c  %%%s, %s\n",
-                                 integer_suffix(src_size), integer_suffix(dst_size), reg, dst);
+                                 integer_suffix(src_size), integer_suffix(dst_size), reg, dst.content);
 
                 else
                   utils::appendf(&output, "  mov%c    %%%s, %s\n", integer_suffix(dst_size), reg, dst.content);
+              } else if (src.type.kind == ir::Type::Kind::Float && dst_type.kind == ir::Type::Kind::Float) {
+                if (src.type.size == dst_type.size)
+                  utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(src.type.size), reg, dst.content);
+
+                else if (src.type.size > dst_type.size) {
+                  utils::appendf(&output, "  cvts%c2s%c %%%s, %%%s\n", fp_suffix(src.type.size), fp_suffix(dst_type.size), reg, reg);
+                  utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_type.size), reg, dst.content);
+                }
+
+                else if (dst_type.size > src.type.size) {
+                  utils::appendf(&output, "  cvts%c2s%c %%%s, %%%s\n", fp_suffix(src.type.size), fp_suffix(dst_type.size), reg, reg);
+                  utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_type.size), reg, dst.content);
+                }
               } else {
                 todo();
               }
@@ -250,10 +263,13 @@ namespace phantom {
           switch (binop.op) {
             case ir::BinOp::Op::Add: // addition
             {
-              uint dst_size = binop.dst.type.size;
+              ir::Type dst_type = binop.dst.type;
               const char* dst = binop.dst.name.c_str();
-              const char dst_suff = integer_suffix(dst_size);
+              const char dst_suff = type_suffix(dst_type);
 
+              const char* extra = (dst_type.kind == ir::Type::Kind::Float) ? "s" : "";
+
+              // PhysReg
               if (binop.lhs.index() == 2) {
                 ir::PhysReg lreg = std::get<2>(binop.lhs);
 
@@ -263,13 +279,39 @@ namespace phantom {
                     case 0: // Constant
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
-                      if (constant.value.index() == 0) {
+                      if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
+                        double value;
+                        if (constant.value.index() == 0)
+                          value = std::get<0>(constant.value);
+                        else
+                          value = std::get<1>(constant.value);
+
+                        DataLabel label;
+                        if (const_fps.find(value) == const_fps.end()) {
+                          Directive::Kind kind;
+
+                          if (dst_type.size == 4)
+                            kind = Directive::Kind::Float;
+                          else if (dst_type.size == 8)
+                            kind = Directive::Kind::Double;
+                          else
+                            unreachable();
+
+                          label.name = ".CFPS" + std::to_string(const_fps.size());
+                          label.dirs.push_back(Directive{ .kind = kind, .data = value });
+                          const_fps[value] = label;
+                        }
+
+                        // already exist
+                        else
+                          label = const_fps[value];
+
+                        utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                      }
+
+                      else if (constant.value.index() == 0) {
                         int64_t value = std::get<0>(constant.value);
                         utils::appendf(&src, "$%ld", value);
-                      }
-                      if (constant.value.index() == 1) {
-                        double value = std::get<1>(constant.value);
-                        utils::appendf(&src, "$%lf", value);
                       }
                       break;
                     }
@@ -287,11 +329,12 @@ namespace phantom {
                       break;
                     }
                   }
-                  utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+
+                  utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, dst_suff, src.content, dst);
+                  utils::dump(&src);
                   break;
                 }
               }
-
               if (binop.rhs.index() == 2) {
                 ir::PhysReg rreg = std::get<2>(binop.rhs);
 
@@ -300,14 +343,40 @@ namespace phantom {
                   switch (binop.lhs.index()) {
                     case 0: // Constant
                     {
-                      ir::Constant constant = std::get<0>(binop.lhs);
-                      if (constant.value.index() == 0) {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+                      if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
+                        double value;
+                        if (constant.value.index() == 0)
+                          value = std::get<0>(constant.value);
+                        else
+                          value = std::get<1>(constant.value);
+
+                        DataLabel label;
+                        if (const_fps.find(value) == const_fps.end()) {
+                          Directive::Kind kind;
+
+                          if (dst_type.size == 4)
+                            kind = Directive::Kind::Float;
+                          else if (dst_type.size == 8)
+                            kind = Directive::Kind::Double;
+                          else
+                            unreachable();
+
+                          label.name = ".CFPS" + std::to_string(const_fps.size());
+                          label.dirs.push_back(Directive{ .kind = kind, .data = value });
+                          const_fps[value] = label;
+                        }
+
+                        // already exist
+                        else
+                          label = const_fps[value];
+
+                        utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                      }
+
+                      else if (constant.value.index() == 0) {
                         int64_t value = std::get<0>(constant.value);
                         utils::appendf(&src, "$%ld", value);
-                      }
-                      if (constant.value.index() == 1) {
-                        double value = std::get<1>(constant.value);
-                        utils::appendf(&src, "$%lf", value);
                       }
                       break;
                     }
@@ -325,27 +394,56 @@ namespace phantom {
                       break;
                     }
                   }
-                  utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+
+                  utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, dst_suff, src.content, dst);
+                  utils::dump(&src);
                   break;
                 }
               }
 
+              // VirtReg
               if (binop.lhs.index() == 1) {
                 Variable var = local_vars[std::get<1>(binop.lhs).id];
-                utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", dst_suff, var.offset, dst);
+                utils::appendf(&output, "  mov%s%c    -%zu(%%rbp), %%%s\n", extra, dst_suff, var.offset, dst);
 
                 utils::Str src = utils::init(4);
                 switch (binop.rhs.index()) {
                   case 0: // Constant
                   {
                     ir::Constant constant = std::get<0>(binop.rhs);
-                    if (constant.value.index() == 0) {
+                    if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
+                      double value;
+                      if (constant.value.index() == 0)
+                        value = std::get<0>(constant.value);
+                      else
+                        value = std::get<1>(constant.value);
+
+                      DataLabel label;
+                      if (const_fps.find(value) == const_fps.end()) {
+                        Directive::Kind kind;
+
+                        if (dst_type.size == 4)
+                          kind = Directive::Kind::Float;
+                        else if (dst_type.size == 8)
+                          kind = Directive::Kind::Double;
+                        else
+                          unreachable();
+
+                        label.name = ".CFPS" + std::to_string(const_fps.size());
+                        label.dirs.push_back(Directive{ .kind = kind, .data = value });
+                        const_fps[value] = label;
+                      }
+
+                      // already exist
+                      else
+                        label = const_fps[value];
+
+                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                    }
+
+                    else if (constant.value.index() == 0) {
                       int64_t value = std::get<0>(constant.value);
                       utils::appendf(&src, "$%ld", value);
-                    }
-                    if (constant.value.index() == 1) {
-                      double value = std::get<1>(constant.value);
-                      utils::appendf(&src, "$%lf", value);
                     }
                     break;
                   }
@@ -359,26 +457,52 @@ namespace phantom {
                     unreachable();
                 }
 
-                utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, dst_suff, src.content, dst);
+                utils::dump(&src);
                 break;
               }
-
               if (binop.rhs.index() == 1) {
                 Variable var = local_vars[std::get<1>(binop.rhs).id];
-                utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", dst_suff, var.offset, dst);
+                utils::appendf(&output, "  mov%s%c    -%zu(%%rbp), %%%s\n", extra, dst_suff, var.offset, dst);
 
                 utils::Str src = utils::init(4);
                 switch (binop.lhs.index()) {
                   case 0: // Constant
                   {
-                    ir::Constant constant = std::get<0>(binop.lhs);
-                    if (constant.value.index() == 0) {
+                    ir::Constant constant = std::get<0>(binop.rhs);
+                    if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
+                      double value;
+                      if (constant.value.index() == 0)
+                        value = std::get<0>(constant.value);
+                      else
+                        value = std::get<1>(constant.value);
+
+                      DataLabel label;
+                      if (const_fps.find(value) == const_fps.end()) {
+                        Directive::Kind kind;
+
+                        if (dst_type.size == 4)
+                          kind = Directive::Kind::Float;
+                        else if (dst_type.size == 8)
+                          kind = Directive::Kind::Double;
+                        else
+                          unreachable();
+
+                        label.name = ".CFPS" + std::to_string(const_fps.size());
+                        label.dirs.push_back(Directive{ .kind = kind, .data = value });
+                        const_fps[value] = label;
+                      }
+
+                      // already exist
+                      else
+                        label = const_fps[value];
+
+                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                    }
+
+                    else if (constant.value.index() == 0) {
                       int64_t value = std::get<0>(constant.value);
                       utils::appendf(&src, "$%ld", value);
-                    }
-                    if (constant.value.index() == 1) {
-                      double value = std::get<1>(constant.value);
-                      utils::appendf(&src, "$%lf", value);
                     }
                     break;
                   }
@@ -392,7 +516,8 @@ namespace phantom {
                     unreachable();
                 }
 
-                utils::appendf(&output, "  add%c    %s, %%%s\n", dst_suff, src.content, dst);
+                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, dst_suff, src.content, dst);
+                utils::dump(&src);
                 break;
               }
 
