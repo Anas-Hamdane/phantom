@@ -545,6 +545,232 @@ namespace phantom {
         {
           todo();
         }
+        case 4: // Int2Float
+        {
+          ir::Int2Float cvt = std::get<4>(inst);
+          const char* dst = cvt.dst.name.c_str();
+          switch (cvt.value.index()) {
+            case 0: // Constant
+            {
+              ir::Constant constant = std::get<0>(cvt.value);
+              if (constant.value.index() != 0) std::abort();
+
+              int64_t value = std::get<0>(constant.value);
+              if (value == 0) {
+                utils::appendf(&output, "  pxor    %%%s, %%%s\n", dst, dst);
+                break;
+              }
+
+              DataLabel label;
+              if (const_fps.find(value) == const_fps.end()) {
+                auto kind = Directive::Kind::Float;
+                label.name = ".CFPS" + std::to_string(const_fps.size());
+
+                label.dirs.push_back(Directive{
+                    .kind = kind,
+                    .data = (double) value,
+                });
+                const_fps[(double) value] = label;
+              }
+
+              // already exist
+              else
+                label = const_fps[value];
+
+              utils::appendf(&output, "  movss   %s(%%rip), %%%s\n", label.name.c_str(), dst);
+              break;
+            }
+            case 1: // VirtReg
+            {
+              Variable var = local_vars[std::get<1>(cvt.value).id];
+              const char suffix = integer_suffix(var.type.size);
+              utils::appendf(&output, "  cvtsi2ss%c -%zu(%%rbp), %%%s\n", suffix, var.offset, dst);
+              break;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg pr = std::get<2>(cvt.value);
+              utils::appendf(&output, "  cvtsi2ss %%%s, %%%s\n", pr.name.c_str(), dst);
+              break;
+            }
+          }
+          break;
+        }
+        case 5: // Int2Double
+        {
+          ir::Int2Double cvt = std::get<5>(inst);
+          const char* dst = cvt.dst.name.c_str();
+          switch (cvt.value.index()) {
+            case 0: // Constant
+            {
+              ir::Constant constant = std::get<0>(cvt.value);
+              if (constant.value.index() != 0) std::abort();
+
+              int64_t value = std::get<0>(constant.value);
+              if (value == 0) {
+                utils::appendf(&output, "  pxor    %%%s, %%%s\n", dst, dst);
+                break;
+              }
+
+              DataLabel label;
+              if (const_fps.find(value) == const_fps.end()) {
+                auto kind = Directive::Kind::Double;
+                label.name = ".CFPS" + std::to_string(const_fps.size());
+
+                label.dirs.push_back(Directive{
+                    .kind = kind,
+                    .data = (double) value,
+                });
+                const_fps[(double) value] = label;
+              }
+
+              // already exist
+              else
+                label = const_fps[value];
+
+              utils::appendf(&output, "  movsd   %s(%%rip), %%%s\n", label.name.c_str(), dst);
+              break;
+            }
+            case 1: // VirtReg
+            {
+              Variable var = local_vars[std::get<1>(cvt.value).id];
+              const char suffix = integer_suffix(var.type.size);
+              utils::appendf(&output, "  cvtsi2sd%c -%zu(%%rbp), %%%s\n", suffix, var.offset, dst);
+              break;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg pr = std::get<2>(cvt.value);
+              utils::appendf(&output, "  cvtsi2sd %%%s, %%%s\n", pr.name.c_str(), dst);
+              break;
+            }
+          }
+          break;
+        }
+        case 6: // Float2Int
+        {
+          ir::Float2Int cvt = std::get<6>(inst);
+          const char* dst = cvt.dst.name.c_str();
+          switch (cvt.value.index()) {
+            case 0: // Constant
+            {
+              torevise();
+              break;
+            }
+            case 1: // VirtReg
+            {
+              Variable var = local_vars[std::get<1>(cvt.value).id];
+              utils::appendf(&output, "  cvtss2si -%zu(%%rbp), %%%s\n", var.offset, dst);
+              break;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg pr = std::get<2>(cvt.value);
+              utils::appendf(&output, "  cvtss2si %%%s, %%%s\n", pr.name.c_str(), dst);
+              break;
+            }
+          }
+          break;
+        }
+        case 7: // Float2Double
+        {
+          ir::Float2Double cvt = std::get<7>(inst);
+          const char* dst = cvt.dst.name.c_str();
+          switch (cvt.value.index()) {
+            case 0: // Constant
+            {
+              ir::Constant constant = std::get<0>(cvt.value);
+              if (constant.value.index() != 1) std::abort();
+
+              double value = std::get<1>(constant.value);
+              if (value == 0) {
+                utils::appendf(&output, "  pxor    %%%s, %%%s\n", dst, dst);
+                break;
+              }
+
+              DataLabel label;
+              if (const_fps.find(value) == const_fps.end()) {
+                auto kind = Directive::Kind::Double;
+                label.name = ".CFPD" + std::to_string(const_fps.size());
+
+                label.dirs.push_back(Directive{
+                    .kind = kind,
+                    .data = value,
+                });
+                const_fps[value] = label;
+              }
+
+              // already exist
+              else
+                label = const_fps[value];
+
+              utils::appendf(&output, "  movsd   %s(%%rip), %%%s\n", label.name.c_str(), dst);
+              break;
+            }
+            case 1: // VirtReg
+            {
+              Variable var = local_vars[std::get<1>(cvt.value).id];
+              utils::appendf(&output, "  cvtss2sd -%zu(%%rbp), %%%s\n", var.offset, dst);
+              break;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg pr = std::get<2>(cvt.value);
+              utils::appendf(&output, "  cvtss2sd %%%s, %%%s\n", pr.name.c_str(), dst);
+              break;
+            }
+          }
+          break;
+        }
+        case 8: // Double2Int
+        {
+          ir::Double2Int cvt = std::get<8>(inst);
+          const char* dst = cvt.dst.name.c_str();
+          switch (cvt.value.index()) {
+            case 0: // Constant
+            {
+              torevise();
+              break;
+            }
+            case 1: // VirtReg
+            {
+              Variable var = local_vars[std::get<1>(cvt.value).id];
+              utils::appendf(&output, "  cvtsd2si -%zu(%%rbp), %%%s\n", var.offset, dst);
+              break;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg pr = std::get<2>(cvt.value);
+              utils::appendf(&output, "  cvtsd2si %%%s, %%%s\n", pr.name.c_str(), dst);
+              break;
+            }
+          }
+          break;
+        }
+        case 9: // Double2Float
+        {
+          ir::Double2Float cvt = std::get<9>(inst);
+          const char* dst = cvt.dst.name.c_str();
+          switch (cvt.value.index()) {
+            case 0: // Constant
+            {
+              torevise();
+            }
+            case 1: // VirtReg
+            {
+              Variable var = local_vars[std::get<1>(cvt.value).id];
+              utils::appendf(&output, "  cvtsd2ss -%zu(%%rbp), %%%s\n", var.offset, dst);
+              break;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg pr = std::get<2>(cvt.value);
+              utils::appendf(&output, "  cvtsd2ss %%%s, %%%s\n", pr.name.c_str(), dst);
+              break;
+            }
+          }
+          break;
+        }
       }
     }
     void Gen::generate_data() {

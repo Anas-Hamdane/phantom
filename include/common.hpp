@@ -49,4 +49,7 @@ namespace phantom {
 
   [[noreturn]] void __todo__impl(const char* file, int line, const char* func);
   #define todo() __todo__impl(__FILE__, __LINE__, __func__)
+
+  [[noreturn]] void __torevise__impl(const char* file, int line, const char* func);
+  #define torevise() __torevise__impl(__FILE__, __LINE__, __func__)
 } // namespace phantom
