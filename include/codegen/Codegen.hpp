@@ -136,6 +136,8 @@ namespace phantom {
 
       char* type_default_register(ir::Type& type);
       char* size_areg(unsigned int size);
+
+      char* resolve_physical_register(ir::PhysReg& pr);
     };
   } // namespace codegen
 } // namespace phantom

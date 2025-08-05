@@ -14,6 +14,14 @@ void print_tokens(const std::vector<Token>& tokens) {
   }
 }
 
+const char* resolve_physical_register(ir::PhysReg::Reg reg) {
+  switch (reg) {
+    case ir::PhysReg::Reg::I1: return "I1";
+    case ir::PhysReg::Reg::I2: return "I2";
+    case ir::PhysReg::Reg::F1: return "F1";
+    case ir::PhysReg::Reg::F2: return "F2";
+  }
+}
 const char* resolve_type(ir::Type& ty) {
   std::string s;
   // clang-format off
@@ -41,7 +49,7 @@ const char* resolve_reg(std::variant<ir::VirtReg, ir::PhysReg> reg) {
     case 1: // physical
     {
       ir::PhysReg& physi_reg = std::get<1>(reg);
-      asprintf(&s, "%%%s", physi_reg.name.c_str());
+      asprintf(&s, "%%%s", resolve_physical_register(physi_reg.reg));
       break;
     }
     default:

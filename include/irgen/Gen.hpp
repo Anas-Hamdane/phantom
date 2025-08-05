@@ -20,10 +20,15 @@ namespace phantom {
       std::unordered_map<std::string, VirtReg> scope_vars;
       std::unordered_map<std::string, Function> funcs_table;
 
-      // last used BinOp physical register, 'A' -> "rax", 'C' -> "rcx"
-      char lubpr = 'C';
-      // last used BinOp floating point physical register, '0' -> "xmm0", '1' -> "xmm1"
-      char lubfppr = '1';
+      // used to track which registers are currently holding values
+      // only two integer registers and two floating point registers
+      // are allowed since at the maximum possible you will have a BinOp
+      // that in worst cases does two different things at the same time,
+      // meaning each side could use one register in worst cases.
+      bool I1REG_OCCUPIED = false;
+      bool I2REG_OCCUPIED = false;
+      bool F1REG_OCCUPIED = false;
+      bool F2REG_OCCUPIED = false;
 
       uint nrid = 0; // next register id
       Function* current_function = nullptr;
@@ -40,6 +45,7 @@ namespace phantom {
 
       VirtReg allocate_vritual_register(Type& type);
       PhysReg allocate_physical_register(Type& type);
+      void free_register(PhysReg::Reg reg);
 
       double extract_double_constant(std::variant<int64_t, double>& v);
       int64_t extract_integer_constant(std::variant<int64_t, double>& v);

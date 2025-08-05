@@ -130,7 +130,7 @@ namespace phantom {
           Value lhs = generate_expr(binop->lhs);
           Value rhs = generate_expr(binop->rhs);
 
-          // Handle assignment as a special case
+          // Handle assignment as a store
           if (binop->op == Token::Kind::Eq) {
             assert(lhs.index() == 1 && "can't assign to a non-variable destination");
             generate_assignment(std::get<1>(lhs), rhs);
@@ -177,7 +177,7 @@ namespace phantom {
           Type rty = extract_value_type(rhs);
 
           Type type;
-          type.size = lty.size > rty.size ? lty.size : rty.size;
+          type.size = std::max(lty.size, rty.size);
 
           if (lty.kind == Type::Kind::Float || rty.kind == Type::Kind::Float)
             type.kind = Type::Kind::Float;
@@ -187,22 +187,14 @@ namespace phantom {
           cast_if_needed(lhs, lty, type);
           cast_if_needed(rhs, rty, type);
 
-          // Binary operations store the result in physical register treated temporaries
-          PhysReg dst;
-
-          // if any side is itself a physical register (temporary), use it to store
-          // the result value of the operation
+          // free registers
           if (lhs.index() == 2)
-            dst = std::get<2>(lhs);
-          else if (rhs.index() == 2)
-            dst = std::get<2>(rhs);
+            free_register(std::get<2>(lhs).reg);
+          if (rhs.index() == 2)
+            free_register(std::get<2>(rhs).reg);
 
-          // if not allocate a new one
-          else
-            dst = allocate_physical_register(type);
-
-          // override the type to avoid using the `lhs` or `rhs` types
-          dst.type = type;
+          // Binary operations store the result in physical register treated temporaries
+          PhysReg dst = allocate_physical_register(type);
 
           current_function->body.push_back(BinOp{
               .op = op,
@@ -366,6 +358,9 @@ namespace phantom {
     void Gen::generate_store(std::variant<VirtReg, PhysReg> dst, Value src) {
       Store store{ .src = src, .dst = dst };
       current_function->body.push_back(store);
+
+      if (src.index() == 2)
+        free_register(std::get<2>(src).reg);
     }
     void Gen::generate_cast(Value& src, PhysReg dst, Type& stype, Type& dtype) {
       Instruction cast;
@@ -387,7 +382,6 @@ namespace phantom {
       else { // Float -> Int
 
         // WARNING: make sure here the register is 32-bit (4-bytes)
-        dst.name = get_register_by_size(dst.name.c_str(), 4);
         dst.type.size = 4;
 
         if (stype.size == 4)
@@ -408,22 +402,42 @@ namespace phantom {
       return reg;
     }
     PhysReg Gen::allocate_physical_register(Type& type) {
-      std::string name;
+      PhysReg::Reg reg;
 
+      // integers
       if (type.kind == Type::Kind::Int) {
-        name = get_register_by_size((lubpr == 'C') ? "rax" : "rcx", type.size);
-        lubpr = (lubpr == 'C') ? 'A' : 'C';
-      } else {
-        name = (lubfppr == '1') ? "xmm0" : "xmm1";
-        lubfppr = (lubfppr == '1') ? '0' : '1';
+        reg = I1REG_OCCUPIED ? PhysReg::Reg::I2 : PhysReg::Reg::I1;
+        if (reg == PhysReg::Reg::I1)
+          I1REG_OCCUPIED = true;
+        else
+          I2REG_OCCUPIED = true;
       }
 
-      PhysReg reg{
-        .name = name,
+      // floating points
+      else {
+        reg = F1REG_OCCUPIED ? PhysReg::Reg::F2 : PhysReg::Reg::F1;
+        if (reg == PhysReg::Reg::F1)
+          F1REG_OCCUPIED = true;
+        else
+          F2REG_OCCUPIED = true;
+      }
+
+      PhysReg pr{
+        .reg = reg,
         .type = type
       };
 
-      return reg;
+      return pr;
+    }
+    void Gen::free_register(PhysReg::Reg reg) {
+      // clang-format off
+      switch (reg) {
+        case PhysReg::Reg::I1: I1REG_OCCUPIED = false; break;
+        case PhysReg::Reg::I2: I2REG_OCCUPIED = false; break;
+        case PhysReg::Reg::F1: F1REG_OCCUPIED = false; break;
+        case PhysReg::Reg::F2: F2REG_OCCUPIED = false; break;
+      }
+      // clang-format on
     }
 
     double Gen::extract_double_constant(std::variant<int64_t, double>& v) {

@@ -8,13 +8,21 @@ using uint = unsigned int;
 namespace phantom {
   namespace ir {
     struct Type {
-      enum class Kind { Int, Float } kind;
+      enum class Kind {
+        Int,
+        Float
+      } kind;
       uint size;
       bool is_void;
     };
 
     struct PhysReg {
-      std::string name; // register name
+      enum class Reg {
+        I1,
+        I2,
+        F1,
+        F2
+      } reg;
       Type type;
     };
     struct VirtReg {
@@ -91,7 +99,6 @@ namespace phantom {
       Value value;
       PhysReg dst;
     };
-
 
     using Instruction = std::variant<Alloca, Store, BinOp, UnOp,
                                      Int2Float, Int2Double, Float2Int, Float2Double, Double2Int, Double2Float>;
