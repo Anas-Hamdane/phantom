@@ -128,6 +128,7 @@ namespace phantom {
       void generate_default_terminator(ir::Type& type);
 
       void generate_data();
+      DataLabel constant_fp_label(double value, Directive::Kind kind);
 
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
@@ -135,7 +136,6 @@ namespace phantom {
 
       char* type_default_register(ir::Type& type);
       char* size_areg(unsigned int size);
-      char* subreg_name(const std::string& reg, size_t size);
     };
   } // namespace codegen
 } // namespace phantom

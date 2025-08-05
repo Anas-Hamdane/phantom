@@ -36,7 +36,7 @@ namespace phantom {
 
       void generate_assignment(VirtReg& dst, Value& src);
       void generate_store(std::variant<VirtReg, PhysReg> dst, Value src);
-      void generate_cast(Value& src, PhysReg& dst, Type& src_type, Type& target);
+      void generate_cast(Value& src, PhysReg dst, Type& src_type, Type& target);
 
       VirtReg allocate_vritual_register(Type& type);
       PhysReg allocate_physical_register(Type& type);

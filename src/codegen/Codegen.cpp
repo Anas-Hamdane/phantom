@@ -40,7 +40,7 @@ namespace phantom {
         ir::VirtReg param = fn.params.at(i);
 
         const char suff = integer_suffix(param.type.size);
-        const char* reg = subreg_name(regs[i], param.type.size);
+        const char* reg = get_register_by_size(regs[i], param.type.size);
 
         utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + param.type.size);
         offset += param.type.size;
@@ -112,7 +112,6 @@ namespace phantom {
             case 0: // Constant
             {
               ir::Constant constant = std::get<0>(store.src);
-
               switch (constant.value.index()) {
                 case 0: // int64_t
                 {
@@ -156,7 +155,6 @@ namespace phantom {
                 default:
                   unreachable();
               };
-
               break;
             }
             case 1: // VirtReg
@@ -168,51 +166,35 @@ namespace phantom {
               uint src_size = src.type.size;
               utils::Str reg = utils::init(5);
 
-              if (src.type.kind == ir::Type::Kind::Float && dst_type.kind == ir::Type::Kind::Int) {
+              if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
                 utils::append(&reg, type_default_register(dst_type));
-                utils::appendf(&output, "  cvtts%c2si -%zu(%%rbp), %%eax\n", fp_suffix(src_size), src.offset);
-              }
+                const char src_suff = integer_suffix(src_size);
+                const char dst_suff = integer_suffix(dst_size);
 
-              else if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Float) {
-                utils::append(&reg, type_default_register(dst_type));
-                utils::appendf(&output, "  cvtsi2s%c -%zu(%%rbp), %%%s\n",
-                               fp_suffix(dst_size), src.offset, reg.content);
-              }
-
-              else if (src.type.kind == ir::Type::Kind::Float && dst_type.kind == ir::Type::Kind::Float) {
-                utils::append(&reg, type_default_register(src.type));
-
-                if (src.type.size != dst_type.size) {
-                  const char src_suff = fp_suffix(src_size);
-                  const char dst_suff = fp_suffix(dst_size);
-                  utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n", src_suff, src.offset, reg.content);
-                  utils::appendf(&output, "  cvts%c2s%c %%%s, %%%s\n", src_suff, dst_suff, reg.content, reg.content);
-                }
-
-                else {
-                  utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n", fp_suffix(src_size), src.offset, reg.content);
-                }
-              }
-
-              else if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
-                utils::append(&reg, type_default_register(dst_type));
-
-                if (src.type.size > dst_type.size)
-                  utils::appendf(&output, "  movs%c%c  -%zu(%%rbp), %%%s\n",
-                                 integer_suffix(src_size), integer_suffix(dst_size), src.offset, reg.content);
-
+                utils::Str mov = utils::init(10);
+                if (src_size > dst_size)
+                  utils::appendf(&mov, "movs%c%c", src_suff, dst_suff);
                 else
-                  utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", integer_suffix(dst_size), src.offset, reg.content);
+                  utils::appendf(&mov, "mov%c", dst_suff);
+
+                utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n",
+                               mov.content, src.offset, reg.content);
+
+                utils::dump(&mov);
               }
 
               else {
-                todo();
+                utils::append(&reg, type_default_register(src.type));
+                utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n",
+                               fp_suffix(src_size), src.offset, reg.content);
               }
 
               if (dst_type.kind == ir::Type::Kind::Float)
-                utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_size), reg.content, dst.content);
+                utils::appendf(&output, "  movs%c   %%%s, %s\n",
+                               fp_suffix(dst_size), reg.content, dst.content);
               else if (dst_type.kind == ir::Type::Kind::Int)
-                utils::appendf(&output, "  mov%c    %%%s, %s\n", integer_suffix(dst_size), reg.content, dst.content);
+                utils::appendf(&output, "  mov%c    %%%s, %s\n",
+                               integer_suffix(dst_size), reg.content, dst.content);
 
               utils::dump(&reg);
               break;
@@ -222,32 +204,26 @@ namespace phantom {
               ir::PhysReg src = std::get<2>(store.src);
               const char* reg = src.name.c_str();
 
+              // both are integers
               if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
                 uint dst_size = dst_type.size;
                 uint src_size = src.type.size;
+                const char src_suff = integer_suffix(src_size);
+                const char dst_suff = integer_suffix(dst_size);
 
-                if (src.type.size > dst_type.size)
-                  utils::appendf(&output, "  movs%c%c  %%%s, %s\n",
-                                 integer_suffix(src_size), integer_suffix(dst_size), reg, dst.content);
-
+                utils::Str mov = utils::init(10);
+                if (src_size > dst_size)
+                  utils::appendf(&mov, "movs%c%c", src_suff, dst_suff);
                 else
-                  utils::appendf(&output, "  mov%c    %%%s, %s\n", integer_suffix(dst_size), reg, dst.content);
-              } else if (src.type.kind == ir::Type::Kind::Float && dst_type.kind == ir::Type::Kind::Float) {
-                if (src.type.size == dst_type.size)
-                  utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(src.type.size), reg, dst.content);
+                  utils::appendf(&mov, "mov%c", dst_suff);
 
-                else if (src.type.size > dst_type.size) {
-                  utils::appendf(&output, "  cvts%c2s%c %%%s, %%%s\n", fp_suffix(src.type.size), fp_suffix(dst_type.size), reg, reg);
-                  utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_type.size), reg, dst.content);
-                }
-
-                else if (dst_type.size > src.type.size) {
-                  utils::appendf(&output, "  cvts%c2s%c %%%s, %%%s\n", fp_suffix(src.type.size), fp_suffix(dst_type.size), reg, reg);
-                  utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(dst_type.size), reg, dst.content);
-                }
-              } else {
-                todo();
+                utils::appendf(&output, "  %-7s %%%s, %s\n", mov.content, reg, dst.content);
+                utils::dump(&mov);
+                break;
               }
+
+              // both are floats
+              utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(src.type.size), reg, dst.content);
               break;
             }
             default:
@@ -264,6 +240,7 @@ namespace phantom {
             case ir::BinOp::Op::Add: // addition
             {
               ir::Type dst_type = binop.dst.type;
+
               const char* dst = binop.dst.name.c_str();
               const char dst_suff = type_suffix(dst_type);
 
@@ -279,39 +256,22 @@ namespace phantom {
                     case 0: // Constant
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
-                      if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
-                        double value;
-                        if (constant.value.index() == 0)
-                          value = std::get<0>(constant.value);
-                        else
-                          value = std::get<1>(constant.value);
-
-                        DataLabel label;
-                        if (const_fps.find(value) == const_fps.end()) {
-                          Directive::Kind kind;
-
-                          if (dst_type.size == 4)
-                            kind = Directive::Kind::Float;
-                          else if (dst_type.size == 8)
-                            kind = Directive::Kind::Double;
-                          else
-                            unreachable();
-
-                          label.name = ".CFPS" + std::to_string(const_fps.size());
-                          label.dirs.push_back(Directive{ .kind = kind, .data = value });
-                          const_fps[value] = label;
-                        }
-
-                        // already exist
-                        else
-                          label = const_fps[value];
-
-                        utils::appendf(&src, "%s(%%rip)", label.name.c_str());
-                      }
-
-                      else if (constant.value.index() == 0) {
+                      if (constant.value.index() == 0) {
                         int64_t value = std::get<0>(constant.value);
                         utils::appendf(&src, "$%ld", value);
+                      }
+
+                      else if (constant.value.index() == 1) {
+                        double value = std::get<1>(constant.value);
+                        Directive::Kind kind;
+
+                        if (dst_type.size == 4)
+                          kind = Directive::Kind::Float;
+                        else
+                          kind = Directive::Kind::Double;
+
+                        DataLabel label = constant_fp_label(value, kind);
+                        utils::appendf(&src, "%s(%%rip)", label.name.c_str());
                       }
                       break;
                     }
@@ -343,40 +303,23 @@ namespace phantom {
                   switch (binop.lhs.index()) {
                     case 0: // Constant
                     {
-                      ir::Constant constant = std::get<0>(binop.rhs);
-                      if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
-                        double value;
-                        if (constant.value.index() == 0)
-                          value = std::get<0>(constant.value);
-                        else
-                          value = std::get<1>(constant.value);
-
-                        DataLabel label;
-                        if (const_fps.find(value) == const_fps.end()) {
-                          Directive::Kind kind;
-
-                          if (dst_type.size == 4)
-                            kind = Directive::Kind::Float;
-                          else if (dst_type.size == 8)
-                            kind = Directive::Kind::Double;
-                          else
-                            unreachable();
-
-                          label.name = ".CFPS" + std::to_string(const_fps.size());
-                          label.dirs.push_back(Directive{ .kind = kind, .data = value });
-                          const_fps[value] = label;
-                        }
-
-                        // already exist
-                        else
-                          label = const_fps[value];
-
-                        utils::appendf(&src, "%s(%%rip)", label.name.c_str());
-                      }
-
-                      else if (constant.value.index() == 0) {
+                      ir::Constant constant = std::get<0>(binop.lhs);
+                      if (constant.value.index() == 0) {
                         int64_t value = std::get<0>(constant.value);
                         utils::appendf(&src, "$%ld", value);
+                      }
+
+                      else if (constant.value.index() == 1) {
+                        double value = std::get<1>(constant.value);
+                        Directive::Kind kind;
+
+                        if (dst_type.size == 4)
+                          kind = Directive::Kind::Float;
+                        else
+                          kind = Directive::Kind::Double;
+
+                        DataLabel label = constant_fp_label(value, kind);
+                        utils::appendf(&src, "%s(%%rip)", label.name.c_str());
                       }
                       break;
                     }
@@ -411,39 +354,22 @@ namespace phantom {
                   case 0: // Constant
                   {
                     ir::Constant constant = std::get<0>(binop.rhs);
-                    if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
-                      double value;
-                      if (constant.value.index() == 0)
-                        value = std::get<0>(constant.value);
-                      else
-                        value = std::get<1>(constant.value);
-
-                      DataLabel label;
-                      if (const_fps.find(value) == const_fps.end()) {
-                        Directive::Kind kind;
-
-                        if (dst_type.size == 4)
-                          kind = Directive::Kind::Float;
-                        else if (dst_type.size == 8)
-                          kind = Directive::Kind::Double;
-                        else
-                          unreachable();
-
-                        label.name = ".CFPS" + std::to_string(const_fps.size());
-                        label.dirs.push_back(Directive{ .kind = kind, .data = value });
-                        const_fps[value] = label;
-                      }
-
-                      // already exist
-                      else
-                        label = const_fps[value];
-
-                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
-                    }
-
-                    else if (constant.value.index() == 0) {
+                    if (constant.value.index() == 0) {
                       int64_t value = std::get<0>(constant.value);
                       utils::appendf(&src, "$%ld", value);
+                    }
+
+                    else if (constant.value.index() == 1) {
+                      double value = std::get<1>(constant.value);
+                      Directive::Kind kind;
+
+                      if (dst_type.size == 4)
+                        kind = Directive::Kind::Float;
+                      else
+                        kind = Directive::Kind::Double;
+
+                      DataLabel label = constant_fp_label(value, kind);
+                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
                     }
                     break;
                   }
@@ -469,40 +395,23 @@ namespace phantom {
                 switch (binop.lhs.index()) {
                   case 0: // Constant
                   {
-                    ir::Constant constant = std::get<0>(binop.rhs);
-                    if (dst_type.kind == ir::Type::Kind::Float || constant.value.index() == 1) {
-                      double value;
-                      if (constant.value.index() == 0)
-                        value = std::get<0>(constant.value);
-                      else
-                        value = std::get<1>(constant.value);
-
-                      DataLabel label;
-                      if (const_fps.find(value) == const_fps.end()) {
-                        Directive::Kind kind;
-
-                        if (dst_type.size == 4)
-                          kind = Directive::Kind::Float;
-                        else if (dst_type.size == 8)
-                          kind = Directive::Kind::Double;
-                        else
-                          unreachable();
-
-                        label.name = ".CFPS" + std::to_string(const_fps.size());
-                        label.dirs.push_back(Directive{ .kind = kind, .data = value });
-                        const_fps[value] = label;
-                      }
-
-                      // already exist
-                      else
-                        label = const_fps[value];
-
-                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
-                    }
-
-                    else if (constant.value.index() == 0) {
+                    ir::Constant constant = std::get<0>(binop.lhs);
+                    if (constant.value.index() == 0) {
                       int64_t value = std::get<0>(constant.value);
                       utils::appendf(&src, "$%ld", value);
+                    }
+
+                    else if (constant.value.index() == 1) {
+                      double value = std::get<1>(constant.value);
+                      Directive::Kind kind;
+
+                      if (dst_type.size == 4)
+                        kind = Directive::Kind::Float;
+                      else
+                        kind = Directive::Kind::Double;
+
+                      DataLabel label = constant_fp_label(value, kind);
+                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
                     }
                     break;
                   }
@@ -538,7 +447,6 @@ namespace phantom {
               todo();
             }
           }
-
           break;
         }
         case 3: // UnOp
@@ -561,30 +469,14 @@ namespace phantom {
                 break;
               }
 
-              DataLabel label;
-              if (const_fps.find(value) == const_fps.end()) {
-                auto kind = Directive::Kind::Float;
-                label.name = ".CFPS" + std::to_string(const_fps.size());
-
-                label.dirs.push_back(Directive{
-                    .kind = kind,
-                    .data = (double) value,
-                });
-                const_fps[(double) value] = label;
-              }
-
-              // already exist
-              else
-                label = const_fps[value];
-
+              DataLabel label = constant_fp_label(value, Directive::Kind::Float);
               utils::appendf(&output, "  movss   %s(%%rip), %%%s\n", label.name.c_str(), dst);
               break;
             }
             case 1: // VirtReg
             {
               Variable var = local_vars[std::get<1>(cvt.value).id];
-              const char suffix = integer_suffix(var.type.size);
-              utils::appendf(&output, "  cvtsi2ss%c -%zu(%%rbp), %%%s\n", suffix, var.offset, dst);
+              utils::appendf(&output, "  cvtsi2ss -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
             case 2: // PhysReg
@@ -600,6 +492,7 @@ namespace phantom {
         {
           ir::Int2Double cvt = std::get<5>(inst);
           const char* dst = cvt.dst.name.c_str();
+
           switch (cvt.value.index()) {
             case 0: // Constant
             {
@@ -612,30 +505,14 @@ namespace phantom {
                 break;
               }
 
-              DataLabel label;
-              if (const_fps.find(value) == const_fps.end()) {
-                auto kind = Directive::Kind::Double;
-                label.name = ".CFPS" + std::to_string(const_fps.size());
-
-                label.dirs.push_back(Directive{
-                    .kind = kind,
-                    .data = (double) value,
-                });
-                const_fps[(double) value] = label;
-              }
-
-              // already exist
-              else
-                label = const_fps[value];
-
+              DataLabel label = constant_fp_label(value, Directive::Kind::Double);
               utils::appendf(&output, "  movsd   %s(%%rip), %%%s\n", label.name.c_str(), dst);
               break;
             }
             case 1: // VirtReg
             {
               Variable var = local_vars[std::get<1>(cvt.value).id];
-              const char suffix = integer_suffix(var.type.size);
-              utils::appendf(&output, "  cvtsi2sd%c -%zu(%%rbp), %%%s\n", suffix, var.offset, dst);
+              utils::appendf(&output, "  cvtsi2sd -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
             case 2: // PhysReg
@@ -688,22 +565,7 @@ namespace phantom {
                 break;
               }
 
-              DataLabel label;
-              if (const_fps.find(value) == const_fps.end()) {
-                auto kind = Directive::Kind::Double;
-                label.name = ".CFPD" + std::to_string(const_fps.size());
-
-                label.dirs.push_back(Directive{
-                    .kind = kind,
-                    .data = value,
-                });
-                const_fps[value] = label;
-              }
-
-              // already exist
-              else
-                label = const_fps[value];
-
+              DataLabel label = constant_fp_label(value, Directive::Kind::Double);
               utils::appendf(&output, "  movsd   %s(%%rip), %%%s\n", label.name.c_str(), dst);
               break;
             }
@@ -902,6 +764,18 @@ namespace phantom {
       utils::appendf(&output, "  ret\n");
     }
 
+    DataLabel Gen::constant_fp_label(double value, Directive::Kind kind) {
+      if (const_fps.find(value) != const_fps.end())
+        return const_fps[value];
+
+      DataLabel label;
+      label.dirs.push_back(Directive{ .kind = kind, .data = value });
+      label.name = ".CFPS" + std::to_string(const_fps.size());
+      const_fps[value] = label;
+
+      return label;
+    }
+
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
         case ir::Type::Kind::Float: // f32/f64
@@ -979,125 +853,6 @@ namespace phantom {
            printf("Undefined size for A register: %u\n", size);
            exit(1);
       }
-      // clang-format on
-    }
-    char* Gen::subreg_name(const std::string& reg, size_t size) {
-      // clang-format off
-      if (reg == "rax") {
-        switch (size) {
-         case 1: return (char*)"al";
-         case 2: return (char*)"ax";
-         case 4: return (char*)"eax";
-         case 8: return (char*)"rax";
-        }
-      } else if (reg == "rbx") {
-        switch (size) {
-         case 1: return (char*)"bl";
-         case 2: return (char*)"bx";
-         case 4: return (char*)"ebx";
-         case 8: return (char*)"rbx";
-        }
-      } else if (reg == "rcx") {
-        switch (size) {
-         case 1: return (char*)"cl";
-         case 2: return (char*)"cx";
-         case 4: return (char*)"ecx";
-         case 8: return (char*)"rcx";
-        }
-      } else if (reg == "rdx") {
-        switch (size) {
-         case 1: return (char*)"dl";
-         case 2: return (char*)"dx";
-         case 4: return (char*)"edx";
-         case 8: return (char*)"rdx";
-        }
-      } else if (reg == "rsp") {
-        switch (size) {
-         case 1: return (char*)"spl";
-         case 2: return (char*)"sp";
-         case 4: return (char*)"esp";
-         case 8: return (char*)"rsp";
-        }
-      } else if (reg == "rbp") {
-        switch (size) {
-         case 1: return (char*)"bpl";
-         case 2: return (char*)"bp";
-         case 4: return (char*)"ebp";
-         case 8: return (char*)"rbp";
-        }
-      } else if (reg == "rsi") {
-        switch (size) {
-         case 1: return (char*)"sil";
-         case 2: return (char*)"si";
-         case 4: return (char*)"esi";
-         case 8: return (char*)"rsi";
-        }
-      } else if (reg == "rdi") {
-        switch (size) {
-         case 1: return (char*)"dil";
-         case 2: return (char*)"di";
-         case 4: return (char*)"edi";
-         case 8: return (char*)"rdi";
-        }
-      } else if (reg == "r8") {
-        switch (size) {
-         case 1: return (char*)"r8b";
-         case 2: return (char*)"r8w";
-         case 4: return (char*)"r8d";
-         case 8: return (char*)"r8";
-        }
-      } else if (reg == "r9") {
-        switch (size) {
-         case 1: return (char*)"r9b";
-         case 2: return (char*)"r9w";
-         case 4: return (char*)"r9d";
-         case 8: return (char*)"r9";
-        }
-      } else if (reg == "r10") {
-        switch (size) {
-         case 1: return (char*)"r10b";
-         case 2: return (char*)"r10w";
-         case 4: return (char*)"r10d";
-         case 8: return (char*)"r10";
-        }
-      } else if (reg == "r11") {
-        switch (size) {
-         case 1: return (char*)"r11b";
-         case 2: return (char*)"r11w";
-         case 4: return (char*)"r11d";
-         case 8: return (char*)"r11";
-        }
-      } else if (reg == "r12") {
-        switch (size) {
-         case 1: return (char*)"r12b";
-         case 2: return (char*)"r12w";
-         case 4: return (char*)"r12d";
-         case 8: return (char*)"r12";
-        }
-      } else if (reg == "r13") {
-        switch (size) {
-         case 1: return (char*)"r13b";
-         case 2: return (char*)"r13w";
-         case 4: return (char*)"r13d";
-         case 8: return (char*)"r13";
-        }
-      } else if (reg == "r14") {
-        switch (size) {
-         case 1: return (char*)"r14b";
-         case 2: return (char*)"r14w";
-         case 4: return (char*)"r14d";
-         case 8: return (char*)"r14";
-        }
-      } else if (reg == "r15") {
-        switch (size) {
-         case 1: return (char*)"r15b";
-         case 2: return (char*)"r15w";
-         case 4: return (char*)"r15d";
-         case 8: return (char*)"r15";
-        }
-      }
-
-      unreachable();
       // clang-format on
     }
   } // namespace codegen

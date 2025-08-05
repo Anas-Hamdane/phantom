@@ -368,8 +368,9 @@ namespace phantom {
       Store store{ .src = src, .dst = dst };
       current_function->body.push_back(store);
     }
-    void Gen::generate_cast(Value& src, PhysReg& dst, Type& stype, Type& dtype) {
+    void Gen::generate_cast(Value& src, PhysReg dst, Type& stype, Type& dtype) {
       Instruction cast;
+
       if (stype.kind == Type::Kind::Int && dtype.kind == Type::Kind::Float) {
         if (dtype.size == 4)
           cast = Int2Float{ .value = src, .dst = dst };
@@ -377,18 +378,23 @@ namespace phantom {
           cast = Int2Double{ .value = src, .dst = dst };
       }
 
-      else if (stype.kind == Type::Kind::Float && dtype.kind == Type::Kind::Int) {
-        if (stype.size == 4)
-          cast = Float2Int{ .value = src, .dst = dst };
-        else if (stype.size == 8)
-          cast = Double2Int{ .value = src, .dst = dst };
-      }
-
-      else { // FP to FP
+      else if (stype.kind == Type::Kind::Float && dtype.kind == Type::Kind::Float) {
         if (stype.size == 4 && dtype.size == 8)
           cast = Float2Double{ .value = src, .dst = dst };
         else if (stype.size == 8 && dtype.size == 4)
           cast = Double2Float{ .value = src, .dst = dst };
+      }
+
+      else { // Float -> Int
+
+        // WARNING: make sure here the register is 32-bit (4-bytes)
+        dst.name = get_register_by_size(dst.name.c_str(), 4);
+        dst.type.size = 4;
+
+        if (stype.size == 4)
+          cast = Float2Int{ .value = src, .dst = dst };
+        else if (stype.size == 8)
+          cast = Double2Int{ .value = src, .dst = dst };
       }
 
       current_function->body.push_back(cast);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace phantom {
   // 8-bit integer
@@ -45,11 +46,14 @@ namespace phantom {
   };
 
   [[noreturn]] void __unreachable__impl(const char* file, int line, const char* func);
-  #define unreachable() __unreachable__impl(__FILE__, __LINE__, __func__)
+#define unreachable() __unreachable__impl(__FILE__, __LINE__, __func__)
 
   [[noreturn]] void __todo__impl(const char* file, int line, const char* func);
-  #define todo() __todo__impl(__FILE__, __LINE__, __func__)
+#define todo() __todo__impl(__FILE__, __LINE__, __func__)
 
   [[noreturn]] void __torevise__impl(const char* file, int line, const char* func);
-  #define torevise() __torevise__impl(__FILE__, __LINE__, __func__)
+#define torevise() __torevise__impl(__FILE__, __LINE__, __func__)
+
+  // helper funcion for x86_64
+  char* get_register_by_size(const std::string& reg, int size);
 } // namespace phantom
