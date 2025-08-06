@@ -52,7 +52,7 @@ namespace phantom {
         ir::VirtReg param = fn.params.at(i);
 
         const char suff = integer_suffix(param.type.size);
-        const char* reg = size_areg(param.type.size);
+        const char* reg = get_register_by_size("rax", param.type.size);
 
         utils::appendf(&output, "  mov%c    %zu(%%rbp), %%%s\n", suff, ((i - tmp) + 2) * 8, reg);
         utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + param.type.size);
@@ -83,143 +83,58 @@ namespace phantom {
         case 1: // Store
         {
           ir::Store& store = std::get<1>(inst);
-          utils::Str dst = utils::init(4);
-          ir::Type dst_type;
-          char dst_suff;
 
           switch (store.dst.index()) {
             case 0: // VirtReg
             {
-              Variable var = local_vars[std::get<0>(store.dst).id];
-              dst_suff = type_suffix(var.type);
-              dst_type = var.type;
-              utils::appendf(&dst, "-%zu(%%rbp)", var.offset);
-              break;
+              ir::VirtReg memory = std::get<0>(store.dst);
+              switch (store.src.index()) {
+                case 0: // Constant
+                {
+                  ir::Constant constant = std::get<0>(store.src);
+                  return store_constant_in_memory(memory, constant);
+                }
+                case 1: // VirtReg
+                {
+                  ir::VirtReg value = std::get<1>(store.src);
+                  return store_memory_in_memory(memory, value);
+                }
+                case 2: // PhysReg
+                {
+                  ir::PhysReg value = std::get<2>(store.src);
+                  return store_register_in_memory(memory, value);
+                }
+                default:
+                  unreachable();
+              }
             }
             case 1: // PhysReg
             {
               ir::PhysReg phy = std::get<1>(store.dst);
-              dst_suff = type_suffix(phy.type);
-              dst_type = phy.type;
-              utils::appendf(&dst, "%%%s", resolve_physical_register(phy));
-              break;
-            }
-            default:
-              unreachable();
-          }
-
-          switch (store.src.index()) {
-            case 0: // Constant
-            {
-              ir::Constant constant = std::get<0>(store.src);
-              switch (constant.value.index()) {
-                case 0: // int64_t
+              switch (store.src.index()) {
+                case 0: // Constant
                 {
-                  int64_t value = std::get<0>(constant.value);
-                  utils::appendf(&output, "  mov%c    $%ld, %s\n", dst_suff, value, dst.content);
-                  break;
+                  ir::Constant constant = std::get<0>(store.src);
+                  return store_constant_in_register(phy, constant);
                 }
-                case 1: // double
+                case 1: // VirtReg
                 {
-                  double value = std::get<1>(constant.value);
-                  if (value == 0) {
-                    utils::append(&output, "  pxor    %xmm0, %xmm0\n");
-                    utils::appendf(&output, "  movs%c    %%xmm0, %s\n", dst_suff, dst.content);
-                    break;
-                  }
-
-                  Directive::Kind kind;
-
-                  if (constant.type.size == 4)
-                    kind = Directive::Kind::Float;
-                  else
-                    kind = Directive::Kind::Double;
-
-                  DataLabel label = constant_fp_label(value, kind);
-
-                  utils::appendf(&output, "  movs%c   %s(%%rip), %%xmm0\n", dst_suff, label.name.c_str());
-                  utils::appendf(&output, "  movs%c   %%xmm0, %s\n", dst_suff, dst.content);
-                  break;
+                  ir::VirtReg value = std::get<1>(store.src);
+                  return store_memory_in_register(phy, value);
+                }
+                case 2: // PhysReg
+                {
+                  ir::PhysReg value = std::get<2>(store.src);
+                  return store_register_in_register(phy, value);
                 }
                 default:
                   unreachable();
-              };
-              break;
-            }
-            case 1: // VirtReg
-            {
-              Variable src = local_vars[std::get<1>(store.src).id];
-
-              // the intermediate register that we will move to and from
-              uint dst_size = dst_type.size;
-              uint src_size = src.type.size;
-              utils::Str reg = utils::init(5);
-
-              if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
-                utils::append(&reg, type_default_register(dst_type));
-                const char src_suff = integer_suffix(src_size);
-                const char dst_suff = integer_suffix(dst_size);
-
-                utils::Str mov = utils::init(10);
-                if (src_size > dst_size)
-                  utils::appendf(&mov, "movs%c%c", src_suff, dst_suff);
-                else
-                  utils::appendf(&mov, "mov%c", dst_suff);
-
-                utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n",
-                               mov.content, src.offset, reg.content);
-
-                utils::dump(&mov);
               }
-
-              else {
-                utils::append(&reg, type_default_register(src.type));
-                utils::appendf(&output, "  movs%c   -%zu(%%rbp), %%%s\n",
-                               fp_suffix(src_size), src.offset, reg.content);
-              }
-
-              if (dst_type.kind == ir::Type::Kind::Float)
-                utils::appendf(&output, "  movs%c   %%%s, %s\n",
-                               fp_suffix(dst_size), reg.content, dst.content);
-              else if (dst_type.kind == ir::Type::Kind::Int)
-                utils::appendf(&output, "  mov%c    %%%s, %s\n",
-                               integer_suffix(dst_size), reg.content, dst.content);
-
-              utils::dump(&reg);
-              break;
-            }
-            case 2: // PhysReg
-            {
-              ir::PhysReg src = std::get<2>(store.src);
-              const char* reg = resolve_physical_register(src);
-
-              // both are integers
-              if (src.type.kind == ir::Type::Kind::Int && dst_type.kind == ir::Type::Kind::Int) {
-                uint dst_size = dst_type.size;
-                uint src_size = src.type.size;
-                const char src_suff = integer_suffix(src_size);
-                const char dst_suff = integer_suffix(dst_size);
-
-                utils::Str mov = utils::init(10);
-                if (dst_size > src_size)
-                  utils::appendf(&mov, "movs%c%c", src_suff, dst_suff);
-                else
-                  utils::appendf(&mov, "mov%c", dst_suff);
-
-                utils::appendf(&output, "  %-7s %%%s, %s\n", mov.content, reg, dst.content);
-                utils::dump(&mov);
-                break;
-              }
-
-              // both are floats
-              utils::appendf(&output, "  movs%c   %%%s, %s\n", fp_suffix(src.type.size), reg, dst.content);
-              break;
             }
             default:
               unreachable();
           }
 
-          utils::dump(&dst);
           break;
         }
         case 2: // BinOp
@@ -754,7 +669,6 @@ namespace phantom {
       utils::appendf(&output, "  popq    %%rbp\n");
       utils::appendf(&output, "  ret\n");
     }
-
     DataLabel Gen::constant_fp_label(double value, Directive::Kind kind) {
       if (const_fps.find(value) != const_fps.end())
         return const_fps[value];
@@ -765,6 +679,147 @@ namespace phantom {
       const_fps[value] = label;
 
       return label;
+    }
+
+    void Gen::store_constant_in_memory(ir::VirtReg& memory, ir::Constant& constant) {
+      Variable variable = local_vars[memory.id];
+      const char ds = type_suffix(variable.type);
+      const size_t vo = variable.offset;
+
+      if (constant.value.index() == 0) {
+        int64_t v = std::get<0>(constant.value);
+        utils::appendf(&output, "  mov%c    $%ld, -%zu(%%rbp)\n", ds, v, vo);
+        return;
+      }
+
+      // else 'double' case
+      double v = std::get<1>(constant.value);
+
+      if (v == 0) {
+        utils::append(&output, "  pxor %xmm3, %xmm3\n");
+        utils::appendf(&output, "  movs%c    %%xmm3, -%zu(%%rbp)\n", ds, vo);
+        return;
+      }
+
+      Directive::Kind kind;
+      // clang-format off
+      if (constant.type.size == 4) kind = Directive::Kind::Float;
+      else kind = Directive::Kind::Double;
+      // clang-format on
+
+      DataLabel label = constant_fp_label(v, kind);
+
+      utils::appendf(&output, "  movs%c   %s(%%rip), %%xmm0\n", ds, label.name.c_str());
+      utils::appendf(&output, "  movs%c   %%xmm0, %zu(%%rbp)\n", ds, vo);
+    }
+    void Gen::store_constant_in_register(ir::PhysReg& reg, ir::Constant& constant) {
+      const char* name = resolve_physical_register(reg);
+      const char ds = type_suffix(reg.type);
+
+      if (constant.value.index() == 0) {
+        int64_t v = std::get<0>(constant.value);
+        utils::appendf(&output, "  mov%c    $%ld, %%%s\n", ds, v, name);
+        return;
+      }
+
+      // else 'double' case
+      double v = std::get<1>(constant.value);
+
+      if (v == 0) {
+        utils::appendf(&output, "  pxor %%%s, %%%s\n", name, name);
+        return;
+      }
+
+      Directive::Kind kind;
+      // clang-format off
+      if (constant.type.size == 4) kind = Directive::Kind::Float;
+      else kind = Directive::Kind::Double;
+      // clang-format on
+
+      DataLabel label = constant_fp_label(v, kind);
+
+      utils::appendf(&output, "  movs%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), name);
+    }
+    void Gen::store_register_in_register(ir::PhysReg& reg, ir::PhysReg& value) {
+      const char* rn = resolve_physical_register(reg);
+      const char* vn = resolve_physical_register(value);
+
+      char* mov;
+      if (is_float(value.type) || is_float(reg.type))
+        mov = generate_floating_point_move(value.type);
+      else
+        mov = generate_integer_move(value.type, reg.type);
+
+      utils::appendf(&output, "  %-7s %%%s, %%%s\n", mov, vn, rn);
+      free(mov);
+    }
+    void Gen::store_register_in_memory(ir::VirtReg& memory, ir::PhysReg& reg) {
+      Variable variable = local_vars[memory.id];
+      const char* rn = resolve_physical_register(reg);
+      const size_t vo = variable.offset;
+
+      char* mov;
+      if (is_float(variable.type) || is_float(reg.type))
+        mov = generate_floating_point_move(variable.type);
+      else
+        mov = generate_integer_move(reg.type, variable.type);
+
+      if (variable.type.size <= reg.type.size) {
+        utils::appendf(&output, "  %-7s %%%s, -%zu(%%rbp)\n", mov, rn, vo);
+        free(mov);
+        return;
+      }
+
+      // (destination > src) => extension needed => you can't store the result
+      // directly into a variable.
+
+      // the mov instruction has the correct conversion but in x86-64
+      // if the mov convert (movslq) the destination should be a register
+      // therefor we will have to use an 'intermediate register'.
+
+      // intermediate register
+      const char* ir = get_register_by_size("rdx", variable.type.size);
+      utils::appendf(&output, "  %-7s %%%s, %%%s\n", mov, rn, ir);
+      utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", type_suffix(variable.type), ir, vo);
+      free(mov);
+    }
+    void Gen::store_memory_in_memory(ir::VirtReg& memory, ir::VirtReg& value) {
+      Variable variable = local_vars[memory.id];
+      Variable dst = local_vars[value.id];
+
+      // intermediate register
+      const char* ir = get_register_by_size("rdx", dst.type.size);
+      char* mov;
+
+      if (is_float(dst.type) || is_float(variable.type))
+        mov = generate_floating_point_move(dst.type);
+      else
+        mov = generate_integer_move(dst.type, dst.type);
+
+      utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n", mov, dst.offset, ir);
+      free(mov);
+
+      if (is_float(dst.type) || is_float(variable.type))
+        mov = generate_floating_point_move(variable.type);
+      else
+        mov = generate_integer_move(dst.type, variable.type);
+
+      utils::appendf(&output, "  %-7s %%%s, -%zu(%%rbp)\n", mov, ir, variable.offset);
+      free(mov);
+    }
+    void Gen::store_memory_in_register(ir::PhysReg& reg, ir::VirtReg& memory) {
+      Variable variable = local_vars[memory.id];
+      const size_t vo = variable.offset;
+      const char* rn = resolve_physical_register(reg);
+
+      char* mov;
+      if (is_float(reg.type) || is_float(variable.type))
+        mov = generate_floating_point_move(reg.type);
+      else
+        mov = generate_integer_move(variable.type, reg.type);
+
+      utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n", mov, vo, rn);
+      free(mov);
     }
 
     char Gen::type_suffix(ir::Type& type) {
@@ -832,20 +887,6 @@ namespace phantom {
       }
       // clang-format on
     }
-
-    char* Gen::size_areg(unsigned int size) {
-      // clang-format off
-      switch (size) {
-         case 1: return (char*)"al"; 
-         case 2: return (char*)"ax";
-         case 4: return (char*)"eax"; 
-         case 8: return (char*)"rax";
-         default:
-           printf("Undefined size for A register: %u\n", size);
-           exit(1);
-      }
-      // clang-format on
-    }
     char* Gen::resolve_physical_register(ir::PhysReg& pr) {
       // clang-format off
       switch (pr.reg) {
@@ -855,6 +896,34 @@ namespace phantom {
         case ir::PhysReg::Reg::F2: return (char*) "xmm1";
       }
       // clang-format on
+    }
+
+    char* Gen::generate_integer_move(ir::Type& src, ir::Type& dst) {
+      utils::Str mov = utils::init("mov");
+      const char ds = integer_suffix(dst.size);
+      const char ss = integer_suffix(src.size);
+
+      if (dst.size <= src.size)
+        utils::appendf(&mov, "%c", ds);
+
+      else
+        utils::appendf(&mov, "s%c%c", ss, ds);
+
+      return mov.content;
+    }
+    char* Gen::generate_floating_point_move(ir::Type& type) {
+      utils::Str mov = utils::init("movs");
+      const char suff = fp_suffix(type.size);
+
+      utils::appendf(&mov, "%c", suff);
+      return mov.content;
+    }
+
+    bool Gen::is_integer(ir::Type& type) {
+      return (type.kind == ir::Type::Kind::Int);
+    }
+    bool Gen::is_float(ir::Type& type) {
+      return (type.kind == ir::Type::Kind::Float);
     }
   } // namespace codegen
 } // namespace phantom

@@ -130,14 +130,32 @@ namespace phantom {
       void generate_data();
       DataLabel constant_fp_label(double value, Directive::Kind kind);
 
+      void store_constant_in_memory(ir::VirtReg& memory, ir::Constant& constant);
+      void store_constant_in_register(ir::PhysReg& reg, ir::Constant& constant);
+
+      void store_register_in_register(ir::PhysReg& reg, ir::PhysReg& value);
+      void store_register_in_memory(ir::VirtReg& memory, ir::PhysReg& reg);
+
+      void store_memory_in_memory(ir::VirtReg& memory, ir::VirtReg& value);
+      void store_memory_in_register(ir::PhysReg& reg, ir::VirtReg& memory);
+
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
       char fp_suffix(unsigned int size);
 
       char* type_default_register(ir::Type& type);
-      char* size_areg(unsigned int size);
 
       char* resolve_physical_register(ir::PhysReg& pr);
+
+      // remember to free the returned value
+      char* generate_integer_move(ir::Type& src, ir::Type& dst);
+
+      // the type of the other side rather than the xmm register
+      // remember to free the returned value
+      char* generate_floating_point_move(ir::Type& type);
+
+      bool is_integer(ir::Type& type);
+      bool is_float(ir::Type& type);
     };
   } // namespace codegen
 } // namespace phantom

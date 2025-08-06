@@ -344,10 +344,7 @@ namespace phantom {
       Type dtype = dst.type;
       Type stype = extract_value_type(src);
 
-      // Integer constants doesn't need a cast even if it valid
-      bool cast_needed = false;
-      if (src.index() != 0 || stype.kind != Type::Kind::Int)
-        cast_needed = need_cast(stype, dtype);
+      bool cast_needed = need_cast(stype, dtype);
 
       if (!cast_needed)
         return generate_store(dst, src);
@@ -372,7 +369,7 @@ namespace phantom {
         case Type::Kind::Int:
           switch (dst_type.kind) {
             case Type::Kind::Int:
-              cast = IntExtend{ .value = src, .dst = dst };
+              unreachable();
               break;
             case Type::Kind::Float:
               if (dst_type.size == 4)
@@ -508,7 +505,7 @@ namespace phantom {
         return false;
 
       if (type.kind == Type::Kind::Int && target.kind == Type::Kind::Int)
-        return type.size < target.size;
+        return false;
 
       return true;
     }
