@@ -769,7 +769,7 @@ namespace phantom {
         }
         case 1: // double
         {
-          double v = std::get<0>(constant.value);
+          double v = std::get<1>(constant.value);
           if (v == 0) return;
 
           Directive::Kind kind;
