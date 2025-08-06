@@ -140,204 +140,93 @@ namespace phantom {
         case 2: // BinOp
         {
           ir::BinOp binop = std::get<2>(inst);
-          ir::PhysReg dst = binop.dst;
-          const char* dn = resolve_physical_register(dst);
+
           switch (binop.op) {
             case ir::BinOp::Op::Add: // addition
             {
-              const char dst_suff = type_suffix(dst.type);
-              const char* extra = is_float(dst.type) ? "s" : "";
-
-              // PhysReg
-              if (binop.lhs.index() == 2) {
-                ir::PhysReg left = std::get<2>(binop.lhs);
-                const char* lrn = resolve_physical_register(left);
-                const char lrs = type_suffix(left.type);
-
-                utils::Str src = utils::init(4);
-                switch (binop.rhs.index()) {
-                  case 0: // Constant
-                  {
-                    ir::Constant constant = std::get<0>(binop.rhs);
-                    if (constant.value.index() == 0) {
-                      int64_t value = std::get<0>(constant.value);
-                      utils::appendf(&src, "$%ld", value);
+              switch (binop.lhs.index()) {
+                case 0: // Constant
+                {
+                  ir::Constant constant = std::get<0>(binop.lhs);
+                  switch (binop.rhs.index()) {
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg virt = std::get<1>(binop.rhs);
+                      return add_constant_to_memory(constant, virt, binop.dst);
                     }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg phy = std::get<2>(binop.rhs);
+                      add_constant_to_register(constant, phy);
 
-                    else if (constant.value.index() == 1) {
-                      double value = std::get<1>(constant.value);
-                      Directive::Kind kind;
+                      if (phy.reg != binop.dst.reg)
+                        store_register_in_register(binop.dst, phy);
 
-                      // clang-format off
-                      if (dst.type.size == 4) kind = Directive::Kind::Float;
-                      else kind = Directive::Kind::Double;
-                      // clang-format on
-
-                      DataLabel label = constant_fp_label(value, kind);
-                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                      return;
                     }
-                    break;
-                  }
-                  case 1: // VirtReg
-                  {
-                    Variable var = local_vars[std::get<1>(binop.rhs).id];
-                    utils::appendf(&src, "-%zu(%%rbp)", var.offset);
-                    break;
-                  }
-                  case 2: // PhysReg
-                  {
-                    ir::PhysReg phy = std::get<2>(binop.rhs);
-                    const char* reg = resolve_physical_register(phy);
-                    utils::appendf(&src, "%%%s", reg);
-                    break;
+                    default:
+                      unreachable();
                   }
                 }
-
-                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, lrs, src.content, lrn);
-
-                if (lrn != dn)
-                  store_register_in_register(binop.dst, left);
-
-                utils::dump(&src);
-                break;
-              }
-              if (binop.rhs.index() == 2) {
-                ir::PhysReg right = std::get<2>(binop.rhs);
-                const char* rrn = resolve_physical_register(right);
-                const char rrs = type_suffix(right.type);
-
-                utils::Str src = utils::init(4);
-                switch (binop.lhs.index()) {
-                  case 0: // Constant
-                  {
-                    ir::Constant constant = std::get<0>(binop.lhs);
-                    if (constant.value.index() == 0) {
-                      int64_t value = std::get<0>(constant.value);
-                      utils::appendf(&src, "$%ld", value);
+                case 1: // VirtReg
+                {
+                  ir::VirtReg virt = std::get<1>(binop.lhs);
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+                      return add_constant_to_memory(constant, virt, binop.dst);
                     }
-
-                    else if (constant.value.index() == 1) {
-                      double value = std::get<1>(constant.value);
-                      Directive::Kind kind;
-
-                      // clang-format off
-                      if (dst.type.size == 4) kind = Directive::Kind::Float;
-                      else kind = Directive::Kind::Double;
-                      // clang-format on
-
-                      DataLabel label = constant_fp_label(value, kind);
-                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg virt2 = std::get<1>(binop.rhs);
+                      return add_memory_to_memory(virt, virt2, binop.dst);
                     }
-                    break;
-                  }
-                  case 1: // VirtReg
-                  {
-                    Variable var = local_vars[std::get<1>(binop.lhs).id];
-                    utils::appendf(&src, "-%zu(%%rbp)", var.offset);
-                    break;
-                  }
-                  case 2: // PhysReg
-                  {
-                    ir::PhysReg phy = std::get<2>(binop.lhs);
-                    const char* reg = resolve_physical_register(phy);
-                    utils::appendf(&src, "%%%s", reg);
-                    break;
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg phy = std::get<2>(binop.rhs);
+                      add_memory_to_register(virt, phy);
+
+                      if (phy.reg != binop.dst.reg)
+                        store_register_in_register(binop.dst, phy);
+
+                      return;
+                    }
+                    default:
+                      unreachable();
                   }
                 }
-
-                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, rrs, src.content, rrn);
-
-                if (rrn != dn)
-                  store_register_in_register(binop.dst, right);
-
-                utils::dump(&src);
-                break;
-              }
-
-              // VirtReg
-              if (binop.lhs.index() == 1) {
-                Variable var = local_vars[std::get<1>(binop.lhs).id];
-                utils::appendf(&output, "  mov%s%c    -%zu(%%rbp), %%%s\n", extra, dst_suff, var.offset, dst);
-
-                utils::Str src = utils::init(4);
-                switch (binop.rhs.index()) {
-                  case 0: // Constant
-                  {
-                    ir::Constant constant = std::get<0>(binop.rhs);
-                    if (constant.value.index() == 0) {
-                      int64_t value = std::get<0>(constant.value);
-                      utils::appendf(&src, "$%ld", value);
+                case 2: // PhysReg
+                {
+                  ir::PhysReg phy = std::get<2>(binop.lhs);
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+                      add_constant_to_register(constant, phy);
+                      break;
                     }
-
-                    else if (constant.value.index() == 1) {
-                      double value = std::get<1>(constant.value);
-                      Directive::Kind kind;
-
-                      if (dst.type.size == 4)
-                        kind = Directive::Kind::Float;
-                      else
-                        kind = Directive::Kind::Double;
-
-                      DataLabel label = constant_fp_label(value, kind);
-                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg virt = std::get<1>(binop.rhs);
+                      add_memory_to_register(virt, phy);
+                      break;
                     }
-                    break;
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg p = std::get<2>(binop.rhs);
+                      add_register_to_register(phy, p);
+                      break;
+                    }
+                    default:
+                      unreachable();
                   }
-                  case 1: // VirtReg
-                  {
-                    Variable var = local_vars[std::get<1>(binop.rhs).id];
-                    utils::appendf(&src, "-%zu(%%rbp)", var.offset);
-                    break;
-                  }
-                  default:
-                    unreachable();
+
+                  if (phy.reg != binop.dst.reg)
+                    store_register_in_register(binop.dst, phy);
+
+                  return;
                 }
-
-                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, dst_suff, src.content, dst);
-                utils::dump(&src);
-                break;
-              }
-              if (binop.rhs.index() == 1) {
-                Variable var = local_vars[std::get<1>(binop.rhs).id];
-                utils::appendf(&output, "  mov%s%c    -%zu(%%rbp), %%%s\n", extra, dst_suff, var.offset, dst);
-
-                utils::Str src = utils::init(4);
-                switch (binop.lhs.index()) {
-                  case 0: // Constant
-                  {
-                    ir::Constant constant = std::get<0>(binop.lhs);
-                    if (constant.value.index() == 0) {
-                      int64_t value = std::get<0>(constant.value);
-                      utils::appendf(&src, "$%ld", value);
-                    }
-
-                    else if (constant.value.index() == 1) {
-                      double value = std::get<1>(constant.value);
-                      Directive::Kind kind;
-
-                      if (dst.type.size == 4)
-                        kind = Directive::Kind::Float;
-                      else
-                        kind = Directive::Kind::Double;
-
-                      DataLabel label = constant_fp_label(value, kind);
-                      utils::appendf(&src, "%s(%%rip)", label.name.c_str());
-                    }
-                    break;
-                  }
-                  case 1: // VirtReg
-                  {
-                    Variable var = local_vars[std::get<1>(binop.lhs).id];
-                    utils::appendf(&src, "-%zu(%%rbp)", var.offset);
-                    break;
-                  }
-                  default:
-                    unreachable();
-                }
-
-                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, dst_suff, src.content, dst);
-                utils::dump(&src);
-                break;
               }
 
               // the only remaining case is Constant with Constant
@@ -706,47 +595,6 @@ namespace phantom {
       utils::appendf(&output, "  movs%c   %s(%%rip), %%xmm0\n", ds, label.name.c_str());
       utils::appendf(&output, "  movs%c   %%xmm0, %zu(%%rbp)\n", ds, vo);
     }
-    void Gen::store_constant_in_register(ir::PhysReg& reg, ir::Constant& constant) {
-      const char* name = resolve_physical_register(reg);
-      const char ds = type_suffix(reg.type);
-
-      if (constant.value.index() == 0) {
-        int64_t v = std::get<0>(constant.value);
-        utils::appendf(&output, "  mov%c    $%ld, %%%s\n", ds, v, name);
-        return;
-      }
-
-      // else 'double' case
-      double v = std::get<1>(constant.value);
-
-      if (v == 0) {
-        utils::appendf(&output, "  pxor %%%s, %%%s\n", name, name);
-        return;
-      }
-
-      Directive::Kind kind;
-      // clang-format off
-      if (constant.type.size == 4) kind = Directive::Kind::Float;
-      else kind = Directive::Kind::Double;
-      // clang-format on
-
-      DataLabel label = constant_fp_label(v, kind);
-
-      utils::appendf(&output, "  movs%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), name);
-    }
-    void Gen::store_register_in_register(ir::PhysReg& reg, ir::PhysReg& value) {
-      const char* rn = resolve_physical_register(reg);
-      const char* vn = resolve_physical_register(value);
-
-      char* mov;
-      if (is_float(value.type) || is_float(reg.type))
-        mov = generate_floating_point_move(value.type);
-      else
-        mov = generate_integer_move(value.type, reg.type);
-
-      utils::appendf(&output, "  %-7s %%%s, %%%s\n", mov, vn, rn);
-      free(mov);
-    }
     void Gen::store_register_in_memory(ir::VirtReg& memory, ir::PhysReg& reg) {
       Variable variable = local_vars[memory.id];
       const char* rn = resolve_physical_register(reg);
@@ -801,6 +649,47 @@ namespace phantom {
       utils::appendf(&output, "  %-7s %%%s, -%zu(%%rbp)\n", mov, ir, variable.offset);
       free(mov);
     }
+    void Gen::store_constant_in_register(ir::PhysReg& reg, ir::Constant& constant) {
+      const char* name = resolve_physical_register(reg);
+      const char ds = type_suffix(reg.type);
+
+      if (constant.value.index() == 0) {
+        int64_t v = std::get<0>(constant.value);
+        utils::appendf(&output, "  mov%c    $%ld, %%%s\n", ds, v, name);
+        return;
+      }
+
+      // else 'double' case
+      double v = std::get<1>(constant.value);
+
+      if (v == 0) {
+        utils::appendf(&output, "  pxor %%%s, %%%s\n", name, name);
+        return;
+      }
+
+      Directive::Kind kind;
+      // clang-format off
+      if (constant.type.size == 4) kind = Directive::Kind::Float;
+      else kind = Directive::Kind::Double;
+      // clang-format on
+
+      DataLabel label = constant_fp_label(v, kind);
+
+      utils::appendf(&output, "  movs%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), name);
+    }
+    void Gen::store_register_in_register(ir::PhysReg& reg, ir::PhysReg& value) {
+      const char* rn = resolve_physical_register(reg);
+      const char* vn = resolve_physical_register(value);
+
+      char* mov;
+      if (is_float(value.type) || is_float(reg.type))
+        mov = generate_floating_point_move(value.type);
+      else
+        mov = generate_integer_move(value.type, reg.type);
+
+      utils::appendf(&output, "  %-7s %%%s, %%%s\n", mov, vn, rn);
+      free(mov);
+    }
     void Gen::store_memory_in_register(ir::PhysReg& reg, ir::VirtReg& memory) {
       Variable variable = local_vars[memory.id];
       const size_t vo = variable.offset;
@@ -814,6 +703,100 @@ namespace phantom {
 
       utils::appendf(&output, "  %-7s -%zu(%%rbp), %%%s\n", mov, vo, rn);
       free(mov);
+    }
+
+    void Gen::add_constant_to_register(ir::Constant& constant, ir::PhysReg& phy) {
+      const char* rn = resolve_physical_register(phy);
+      const char rs = type_suffix(phy.type);
+
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t v = std::get<0>(constant.value);
+          if (v == 0) return;
+          utils::appendf(&output, "  add%c    $%lu, %%%s\n", rs, v, rn);
+          return;
+        }
+        case 1: // double
+        {
+          double v = std::get<1>(constant.value);
+          if (v == 0) return;
+
+          Directive::Kind kind;
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_fp_label(v, kind);
+          utils::appendf(&output, "  adds%c   %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
+          return;
+        }
+      }
+      unreachable();
+    }
+    void Gen::add_register_to_register(ir::PhysReg& value, ir::PhysReg& dst) {
+      const char* dn = resolve_physical_register(dst);
+      const char* vn = resolve_physical_register(value);
+
+      const char ds = type_suffix(dst.type);
+      const char* extra = is_float(dst.type) ? "s" : "";
+
+      utils::appendf(&output, "  add%s%c   %%%s, %%%s\n", extra, ds, vn, dn);
+    }
+    void Gen::add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& phy) {
+      Variable variable = local_vars[memory.id];
+      const size_t vo = variable.offset;
+
+      const char* dn = resolve_physical_register(phy);
+      const char ds = type_suffix(phy.type);
+
+      const char* extra = is_float(phy.type) ? "s" : "";
+      utils::appendf(&output, "  add%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
+    }
+    void Gen::add_constant_to_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst) {
+      store_memory_in_register(dst, memory);
+      const char* dn = resolve_physical_register(dst);
+      const char ds = type_suffix(dst.type);
+
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t v = std::get<0>(constant.value);
+          if (v == 0) return;
+          utils::appendf(&output, "  add%c    $%lu, %%%s\n", ds, v, dn);
+          return;
+        }
+        case 1: // double
+        {
+          double v = std::get<0>(constant.value);
+          if (v == 0) return;
+
+          Directive::Kind kind;
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_fp_label(v, kind);
+          utils::appendf(&output, "  adds%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), dn);
+          return;
+        }
+      }
+
+      unreachable();
+    }
+    void Gen::add_memory_to_memory(ir::VirtReg& value, ir::VirtReg& memory, ir::PhysReg& dst) {
+      store_memory_in_register(dst, memory);
+
+      Variable variable = local_vars[value.id];
+      const size_t vo = variable.offset;
+
+      const char* dn = resolve_physical_register(dst);
+      const char ds = type_suffix(dst.type);
+
+      const char* extra = is_float(dst.type) ? "s" : "";
+      utils::appendf(&output, "  add%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
     }
 
     char Gen::type_suffix(ir::Type& type) {
@@ -855,7 +838,7 @@ namespace phantom {
       }
       // clang-format on
     }
-    char Gen::fp_suffix(unsigned int size) {
+    char Gen::floating_point_suffix(unsigned int size) {
       // clang-format off
       switch (size) {
          case 4: return 's'; 
@@ -907,7 +890,7 @@ namespace phantom {
     }
     char* Gen::generate_floating_point_move(ir::Type& type) {
       utils::Str mov = utils::init("movs");
-      const char suff = fp_suffix(type.size);
+      const char suff = floating_point_suffix(type.size);
 
       utils::appendf(&mov, "%c", suff);
       return mov.content;

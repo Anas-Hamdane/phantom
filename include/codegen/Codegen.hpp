@@ -131,17 +131,21 @@ namespace phantom {
       DataLabel constant_fp_label(double value, Directive::Kind kind);
 
       void store_constant_in_memory(ir::VirtReg& memory, ir::Constant& constant);
-      void store_constant_in_register(ir::PhysReg& reg, ir::Constant& constant);
-
-      void store_register_in_register(ir::PhysReg& reg, ir::PhysReg& value);
       void store_register_in_memory(ir::VirtReg& memory, ir::PhysReg& reg);
-
       void store_memory_in_memory(ir::VirtReg& memory, ir::VirtReg& value);
+      void store_constant_in_register(ir::PhysReg& reg, ir::Constant& constant);
+      void store_register_in_register(ir::PhysReg& reg, ir::PhysReg& value);
       void store_memory_in_register(ir::PhysReg& reg, ir::VirtReg& memory);
+
+      void add_constant_to_register(ir::Constant& constant, ir::PhysReg& phy);
+      void add_register_to_register(ir::PhysReg& value, ir::PhysReg& dst);
+      void add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& phy);
+      void add_constant_to_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst);
+      void add_memory_to_memory(ir::VirtReg& value, ir::VirtReg& memory, ir::PhysReg& dst);
 
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
-      char fp_suffix(unsigned int size);
+      char floating_point_suffix(unsigned int size);
 
       char* type_default_register(ir::Type& type);
 
