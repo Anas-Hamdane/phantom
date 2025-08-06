@@ -344,7 +344,10 @@ namespace phantom {
       Type dtype = dst.type;
       Type stype = extract_value_type(src);
 
-      bool cast_needed = need_cast(dtype, stype);
+      // Integer constants doesn't need a cast even if it valid
+      bool cast_needed = false;
+      if (src.index() != 0 || stype.kind != Type::Kind::Int)
+        cast_needed = need_cast(stype, dtype);
 
       if (!cast_needed)
         return generate_store(dst, src);
@@ -362,32 +365,46 @@ namespace phantom {
       if (src.index() == 2)
         free_register(std::get<2>(src).reg);
     }
-    void Gen::generate_cast(Value& src, PhysReg dst, Type& stype, Type& dtype) {
+    void Gen::generate_cast(Value& src, PhysReg dst, Type& src_type, Type& dst_type) {
       Instruction cast;
 
-      if (stype.kind == Type::Kind::Int && dtype.kind == Type::Kind::Float) {
-        if (dtype.size == 4)
-          cast = Int2Float{ .value = src, .dst = dst };
-        else if (dtype.size == 8)
-          cast = Int2Double{ .value = src, .dst = dst };
-      }
+      switch (src_type.kind) {
+        case Type::Kind::Int:
+          switch (dst_type.kind) {
+            case Type::Kind::Int:
+              cast = IntExtend{ .value = src, .dst = dst };
+              break;
+            case Type::Kind::Float:
+              if (dst_type.size == 4)
+                cast = Int2Float{ .value = src, .dst = dst };
+              else
+                cast = Int2Double{ .value = src, .dst = dst };
 
-      else if (stype.kind == Type::Kind::Float && dtype.kind == Type::Kind::Float) {
-        if (stype.size == 4 && dtype.size == 8)
-          cast = Float2Double{ .value = src, .dst = dst };
-        else if (stype.size == 8 && dtype.size == 4)
-          cast = Double2Float{ .value = src, .dst = dst };
-      }
+              break;
+          }
 
-      else { // Float -> Int
+          break;
+        case Type::Kind::Float:
+          switch (dst_type.kind) {
+            case Type::Kind::Int:
+              dst.type.size = 4;
 
-        // WARNING: make sure here the register is 32-bit (4-bytes)
-        dst.type.size = 4;
+              if (src_type.size == 4)
+                cast = Float2Int{ .value = src, .dst = dst };
+              else if (src_type.size == 8)
+                cast = Double2Int{ .value = src, .dst = dst };
 
-        if (stype.size == 4)
-          cast = Float2Int{ .value = src, .dst = dst };
-        else if (stype.size == 8)
-          cast = Double2Int{ .value = src, .dst = dst };
+              break;
+            case Type::Kind::Float:
+              if (src_type.size == 4 && dst_type.size == 8)
+                cast = Float2Double{ .value = src, .dst = dst };
+              else
+                cast = Double2Float{ .value = src, .dst = dst };
+
+              break;
+          }
+
+          break;
       }
 
       current_function->body.push_back(cast);
@@ -478,21 +495,20 @@ namespace phantom {
       // clang-format on
     }
 
-    void Gen::cast_if_needed(Value& v, Type& vtype, Type& target) {
-      if (!need_cast(vtype, target))
+    void Gen::cast_if_needed(Value& v, Type& type, Type& target) {
+      if (!need_cast(type, target))
         return;
 
       PhysReg reg = allocate_physical_register(target);
-      generate_cast(v, reg, vtype, target);
+      generate_cast(v, reg, type, target);
       v = reg;
     }
-    bool Gen::need_cast(Type& dtype, Type& stype) {
-      if (dtype.kind == stype.kind && dtype.size == stype.size)
+    bool Gen::need_cast(Type& type, Type& target) {
+      if (type.kind == target.kind && type.size == target.size)
         return false;
 
-      // integers don't need cast
-      if (dtype.kind == Type::Kind::Int && stype.kind == Type::Kind::Int)
-        return false;
+      if (type.kind == Type::Kind::Int && target.kind == Type::Kind::Int)
+        return type.size < target.size;
 
       return true;
     }

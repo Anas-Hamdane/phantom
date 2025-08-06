@@ -1,7 +1,7 @@
 #include "Driver.hpp"
 #include "Lexer.hpp"
 #include "ast/Parser.hpp"
-#include "codegen/Codegen.hpp"
+// #include "codegen/Codegen.hpp"
 #include "irgen/Gen.hpp"
 #include <cstring>
 
@@ -138,6 +138,9 @@ void print_instruction(ir::Instruction inst) {
 
     case 9: printf("  %s = double2float %s\n", resolve_reg(std::get<9>(inst).dst),
                 resolve_value(std::get<9>(inst).value)); break;
+
+    case 10: printf("  %s = iext %s\n", resolve_reg(std::get<10>(inst).dst),
+                 resolve_value(std::get<10>(inst).value)); break;
   }
   // clang-format on
 }
@@ -257,12 +260,12 @@ int main(int argc, char* argv[]) {
   ir::Gen irgen(ast);
   ir::Program prog = irgen.gen();
 
-  // print_program(prog);
+  print_program(prog);
 
-  codegen::Gen codegen(prog);
-  const char* assembly = codegen.gen();
+  // codegen::Gen codegen(prog);
+  // const char* assembly = codegen.gen();
 
-  printf("%s", assembly);
+  // printf("%s", assembly);
 
   return 0;
 }

@@ -249,6 +249,7 @@ namespace phantom {
         }
         default:
           // Implement support for expressions that starts with `" + Token::kind_to_string(peek().kind) + "`\n"
+          printf("Implement support for expressions that starts with `%s`\n", Token::kind_to_string(peek().kind).c_str());
           todo();
           return nullptr;
       }
