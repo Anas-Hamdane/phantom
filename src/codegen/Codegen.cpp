@@ -140,21 +140,19 @@ namespace phantom {
         case 2: // BinOp
         {
           ir::BinOp binop = std::get<2>(inst);
+          ir::PhysReg dst = binop.dst;
+          const char* dn = resolve_physical_register(dst);
           switch (binop.op) {
             case ir::BinOp::Op::Add: // addition
             {
-              ir::Type dst_type = binop.dst.type;
-
-              const char* dst = resolve_physical_register(binop.dst);
-              const char dst_suff = type_suffix(dst_type);
-
-              const char* extra = (dst_type.kind == ir::Type::Kind::Float) ? "s" : "";
+              const char dst_suff = type_suffix(dst.type);
+              const char* extra = is_float(dst.type) ? "s" : "";
 
               // PhysReg
               if (binop.lhs.index() == 2) {
-                ir::PhysReg l = std::get<2>(binop.lhs);
-                const char* lr = resolve_physical_register(l);
-                const char ls = type_suffix(l.type);
+                ir::PhysReg left = std::get<2>(binop.lhs);
+                const char* lrn = resolve_physical_register(left);
+                const char lrs = type_suffix(left.type);
 
                 utils::Str src = utils::init(4);
                 switch (binop.rhs.index()) {
@@ -170,10 +168,10 @@ namespace phantom {
                       double value = std::get<1>(constant.value);
                       Directive::Kind kind;
 
-                      if (dst_type.size == 4)
-                        kind = Directive::Kind::Float;
-                      else
-                        kind = Directive::Kind::Double;
+                      // clang-format off
+                      if (dst.type.size == 4) kind = Directive::Kind::Float;
+                      else kind = Directive::Kind::Double;
+                      // clang-format on
 
                       DataLabel label = constant_fp_label(value, kind);
                       utils::appendf(&src, "%s(%%rip)", label.name.c_str());
@@ -195,22 +193,18 @@ namespace phantom {
                   }
                 }
 
-                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, ls, src.content, lr);
+                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, lrs, src.content, lrn);
 
-                if (lr != dst) {
-                  if (dst_type.size > l.type.size)
-                    utils::appendf(&output, "  movs%c%c   %%%s, %%%s\n", ls, dst_suff, lr, dst);
-                  else
-                    utils::appendf(&output, "  mov%s%c   %%%s, %%%s\n", extra, dst_suff, lr, dst);
-                }
+                if (lrn != dn)
+                  store_register_in_register(binop.dst, left);
 
                 utils::dump(&src);
                 break;
               }
               if (binop.rhs.index() == 2) {
-                ir::PhysReg r = std::get<2>(binop.rhs);
-                const char* rr = resolve_physical_register(r);
-                const char rs = type_suffix(r.type);
+                ir::PhysReg right = std::get<2>(binop.rhs);
+                const char* rrn = resolve_physical_register(right);
+                const char rrs = type_suffix(right.type);
 
                 utils::Str src = utils::init(4);
                 switch (binop.lhs.index()) {
@@ -226,10 +220,10 @@ namespace phantom {
                       double value = std::get<1>(constant.value);
                       Directive::Kind kind;
 
-                      if (dst_type.size == 4)
-                        kind = Directive::Kind::Float;
-                      else
-                        kind = Directive::Kind::Double;
+                      // clang-format off
+                      if (dst.type.size == 4) kind = Directive::Kind::Float;
+                      else kind = Directive::Kind::Double;
+                      // clang-format on
 
                       DataLabel label = constant_fp_label(value, kind);
                       utils::appendf(&src, "%s(%%rip)", label.name.c_str());
@@ -251,10 +245,10 @@ namespace phantom {
                   }
                 }
 
-                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, rs, src.content, rr);
+                utils::appendf(&output, "  add%s%c    %s, %%%s\n", extra, rrs, src.content, rrn);
 
-                if (rr != dst)
-                  utils::appendf(&output, "  mov%s%c    %%%s, %%%s\n", extra, dst_suff, rr, dst);
+                if (rrn != dn)
+                  store_register_in_register(binop.dst, right);
 
                 utils::dump(&src);
                 break;
@@ -279,7 +273,7 @@ namespace phantom {
                       double value = std::get<1>(constant.value);
                       Directive::Kind kind;
 
-                      if (dst_type.size == 4)
+                      if (dst.type.size == 4)
                         kind = Directive::Kind::Float;
                       else
                         kind = Directive::Kind::Double;
@@ -321,7 +315,7 @@ namespace phantom {
                       double value = std::get<1>(constant.value);
                       Directive::Kind kind;
 
-                      if (dst_type.size == 4)
+                      if (dst.type.size == 4)
                         kind = Directive::Kind::Float;
                       else
                         kind = Directive::Kind::Double;
