@@ -317,7 +317,17 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              utils::appendf(&output, "  cvtsi2sd %%%s, %%%s\n", resolve_physical_register(pr), dst);
+              const char* prn = resolve_physical_register(pr);
+
+              if (pr.type.size < 4) {
+                const char* ir = get_register_by_size(prn, 4);
+                const char prs = type_suffix(pr.type);
+
+                utils::appendf(&output, "  movs%cl  %%%s, %%%s\n", prs, prn, ir);
+                prn = ir;
+              }
+
+              utils::appendf(&output, "  cvtsi2sd %%%s, %%%s\n", prn, dst);
               break;
             }
           }
@@ -741,6 +751,14 @@ namespace phantom {
 
       const char ds = type_suffix(dst.type);
       const char* extra = is_float(dst.type) ? "s" : "";
+
+      if (dst.type.size > value.type.size) {
+        const char* ir = get_register_by_size(vn, dst.type.size);
+        const char vs = type_suffix(value.type);
+
+        utils::appendf(&output, "  movs%c%c %%%s, %%%s\n", vs, ds, vn, ir);
+        vn = ir;
+      }
 
       utils::appendf(&output, "  add%s%c   %%%s, %%%s\n", extra, ds, vn, dn);
     }
