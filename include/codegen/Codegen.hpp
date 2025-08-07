@@ -137,9 +137,13 @@ namespace phantom {
       void store_register_in_register(ir::PhysReg& src, ir::PhysReg& dst);
       void store_memory_in_register(ir::VirtReg& memory, ir::PhysReg& reg);
 
-      void add_constant_to_register(ir::Constant& constant, ir::PhysReg& phy);
-      void add_register_to_register(ir::PhysReg& value, ir::PhysReg& dst);
-      void add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& phy);
+      void add_constant_to_register(ir::Constant& constant, ir::PhysReg& reg);
+      void add_register_to_register(ir::PhysReg& src, ir::PhysReg& dst);
+      void add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& reg);
+
+      void sub_constant_from_register(ir::Constant& constant, ir::PhysReg& reg);
+      void sub_register_from_register(ir::PhysReg& src, ir::PhysReg& dst);
+      void sub_memory_from_register(ir::VirtReg& memory, ir::PhysReg& reg);
 
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);

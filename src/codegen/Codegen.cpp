@@ -142,9 +142,9 @@ namespace phantom {
           ir::BinOp binop = std::get<2>(inst);
 
           switch (binop.op) {
+            // NOTE: Constant + Constant is handled in the IR generation
             case ir::BinOp::Op::Add: // addition
             {
-              // NOTE: Constant + Constant is handled in the IR generation
               switch (binop.lhs.index()) {
                 case 0: // Constant
                 {
@@ -162,9 +162,8 @@ namespace phantom {
                       ir::PhysReg src = std::get<2>(binop.rhs);
                       return add_register_to_register(src, binop.dst);
                     }
-                    default:
-                      unreachable();
                   }
+                  unreachable();
                 }
                 case 1: // VirtReg
                 {
@@ -187,9 +186,8 @@ namespace phantom {
                       ir::PhysReg src = std::get<2>(binop.rhs);
                       return add_register_to_register(src, binop.dst);
                     }
-                    default:
-                      unreachable();
                   }
+                  unreachable();
                 }
                 case 2: // PhysReg
                 {
@@ -212,17 +210,84 @@ namespace phantom {
                       ir::PhysReg src = std::get<2>(binop.rhs);
                       return add_register_to_register(src, binop.dst);
                     }
-                    default:
-                      unreachable();
                   }
+                  unreachable();
                 }
               }
-
               unreachable();
             }
             case ir::BinOp::Op::Sub: // substraction
             {
-              todo();
+              switch (binop.lhs.index()) {
+                case 0: // Constant
+                {
+                  ir::Constant constant = std::get<0>(binop.lhs);
+                  store_constant_in_register(constant, binop.dst);
+
+                  switch (binop.rhs.index()) {
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg memory = std::get<1>(binop.rhs);
+                      return sub_memory_from_register(memory, binop.dst);
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg reg = std::get<2>(binop.rhs);
+                      return sub_register_from_register(reg, binop.dst);
+                    }
+                  }
+                  unreachable();
+                }
+                case 1: // VirtReg
+                {
+                  ir::VirtReg memory = std::get<1>(binop.lhs);
+                  store_memory_in_register(memory, binop.dst);
+
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+                      return sub_constant_from_register(constant, binop.dst);
+                    }
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg src = std::get<1>(binop.rhs);
+                      return sub_memory_from_register(src, binop.dst);
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg reg = std::get<2>(binop.rhs);
+                      return sub_register_from_register(reg, binop.dst);
+                    }
+                  }
+                  unreachable();
+                }
+                case 2: // PhysReg
+                {
+                  ir::PhysReg reg = std::get<2>(binop.lhs);
+                  store_register_in_register(reg, binop.dst);
+
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+                      return sub_constant_from_register(constant, binop.dst);
+                    }
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg memory = std::get<1>(binop.rhs);
+                      return sub_memory_from_register(memory, binop.dst);
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg src = std::get<2>(binop.rhs);
+                      return sub_register_from_register(src, binop.dst);
+                    }
+                  }
+                  unreachable();
+                }
+              }
+              unreachable();
             }
             case ir::BinOp::Op::Mul: // multiplication
             {
@@ -759,50 +824,64 @@ namespace phantom {
       const char* extra = is_float(reg.type) ? "s" : "";
       utils::appendf(&output, "  add%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
     }
-    // void Gen::add_constant_to_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst) {
-    //   store_memory_in_register(dst, memory);
-    //   const char* dn = resolve_physical_register(dst);
-    //   const char ds = type_suffix(dst.type);
-    //
-    //   switch (constant.value.index()) {
-    //     case 0: // int64_t
-    //     {
-    //       int64_t v = std::get<0>(constant.value);
-    //       if (v == 0) return;
-    //       utils::appendf(&output, "  add%c    $%lu, %%%s\n", ds, v, dn);
-    //       return;
-    //     }
-    //     case 1: // double
-    //     {
-    //       double v = std::get<1>(constant.value);
-    //       if (v == 0) return;
-    //
-    //       Directive::Kind kind;
-    //       // clang-format off
-    //       if (constant.type.size == 4) kind = Directive::Kind::Float;
-    //       else kind = Directive::Kind::Double;
-    //       // clang-format on
-    //
-    //       DataLabel label = constant_fp_label(v, kind);
-    //       utils::appendf(&output, "  adds%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), dn);
-    //       return;
-    //     }
-    //   }
-    //
-    //   unreachable();
-    // }
-    // void Gen::add_memory_to_memory(ir::VirtReg& value, ir::VirtReg& memory, ir::PhysReg& dst) {
-    //   store_memory_in_register(dst, memory);
-    //
-    //   Variable variable = local_vars[value.id];
-    //   const size_t vo = variable.offset;
-    //
-    //   const char* dn = resolve_physical_register(dst);
-    //   const char ds = type_suffix(dst.type);
-    //
-    //   const char* extra = is_float(dst.type) ? "s" : "";
-    //   utils::appendf(&output, "  add%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
-    // }
+
+    void Gen::sub_constant_from_register(ir::Constant& constant, ir::PhysReg& reg) {
+      const char* rn = resolve_physical_register(reg);
+      const char rs = type_suffix(reg.type);
+
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t v = std::get<0>(constant.value);
+          if (v == 0) return;
+          utils::appendf(&output, "  sub%c    $%lu, %%%s\n", rs, v, rn);
+          return;
+        }
+        case 1: // double
+        {
+          double v = std::get<1>(constant.value);
+          if (v == 0) return;
+
+          Directive::Kind kind;
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_fp_label(v, kind);
+          utils::appendf(&output, "  sub%c   %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
+          return;
+        }
+      }
+      unreachable();
+    }
+    void Gen::sub_register_from_register(ir::PhysReg& src, ir::PhysReg& dst) {
+      const char* dn = resolve_physical_register(dst);
+      const char* vn = resolve_physical_register(src);
+
+      const char ds = type_suffix(dst.type);
+      const char* extra = is_float(dst.type) ? "s" : "";
+
+      if (dst.type.size > src.type.size) {
+        const char* ir = get_register_by_size(vn, dst.type.size);
+        const char vs = type_suffix(src.type);
+
+        utils::appendf(&output, "  movs%c%c %%%s, %%%s\n", vs, ds, vn, ir);
+        vn = ir;
+      }
+
+      utils::appendf(&output, "  sub%s%c   %%%s, %%%s\n", extra, ds, vn, dn);
+    }
+    void Gen::sub_memory_from_register(ir::VirtReg& memory, ir::PhysReg& reg) {
+      Variable variable = local_vars[memory.id];
+      const size_t vo = variable.offset;
+
+      const char* dn = resolve_physical_register(reg);
+      const char ds = type_suffix(reg.type);
+
+      const char* extra = is_float(reg.type) ? "s" : "";
+      utils::appendf(&output, "  sub%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
+    }
 
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
