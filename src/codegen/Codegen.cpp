@@ -333,7 +333,17 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              utils::appendf(&output, "  cvtsi2ss %%%s, %%%s\n", resolve_physical_register(pr), dst);
+              const char* prn = resolve_physical_register(pr);
+
+              if (pr.type.size < 4) {
+                const char* ir = get_register_by_size(prn, 4);
+                const char prs = type_suffix(pr.type);
+
+                utils::appendf(&output, "  movs%cl  %%%s, %%%s\n", prs, prn, ir);
+                prn = ir;
+              }
+
+              utils::appendf(&output, "  cvtsi2ss %%%s, %%%s\n", prn, dst);
               break;
             }
           }
@@ -655,7 +665,7 @@ namespace phantom {
       DataLabel label = constant_fp_label(v, kind);
 
       utils::appendf(&output, "  movs%c   %s(%%rip), %%xmm0\n", ds, label.name.c_str());
-      utils::appendf(&output, "  movs%c   %%xmm0, %zu(%%rbp)\n", ds, vo);
+      utils::appendf(&output, "  movs%c   %%xmm0, -%zu(%%rbp)\n", ds, vo);
     }
     void Gen::store_register_in_memory(ir::PhysReg& reg, ir::VirtReg& memory) {
       Variable variable = local_vars[memory.id];
@@ -849,7 +859,7 @@ namespace phantom {
           // clang-format on
 
           DataLabel label = constant_fp_label(v, kind);
-          utils::appendf(&output, "  sub%c   %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
+          utils::appendf(&output, "  subs%c   %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
           return;
         }
       }
