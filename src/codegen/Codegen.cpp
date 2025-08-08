@@ -142,7 +142,6 @@ namespace phantom {
           ir::BinOp binop = std::get<2>(inst);
 
           switch (binop.op) {
-            // BUG: REGISTER OVERRIDING
             // NOTE: Constant + Constant is handled in the IR generation
             case ir::BinOp::Op::Add: // addition
             {
@@ -150,18 +149,23 @@ namespace phantom {
                 case 0: // Constant
                 {
                   ir::Constant constant = std::get<0>(binop.lhs);
-                  store_constant_in_register(constant, binop.dst);
 
                   switch (binop.rhs.index()) {
                     case 1: // VirtReg
                     {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
+                      store_constant_in_register(constant, binop.dst);
                       return add_memory_to_register(memory, binop.dst);
                     }
                     case 2: // PhysReg
                     {
                       ir::PhysReg src = std::get<2>(binop.rhs);
-                      return add_register_to_register(src, binop.dst);
+                      add_constant_to_register(constant, src);
+
+                      if (src.reg != binop.dst.reg)
+                        store_register_in_register(src, binop.dst);
+
+                      return;
                     }
                   }
                   unreachable();
@@ -169,47 +173,69 @@ namespace phantom {
                 case 1: // VirtReg
                 {
                   ir::VirtReg memory = std::get<1>(binop.lhs);
-                  store_memory_in_register(memory, binop.dst);
 
                   switch (binop.rhs.index()) {
                     case 0: // Constant
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
+                      store_memory_in_register(memory, binop.dst);
                       return add_constant_to_register(constant, binop.dst);
                     }
                     case 1: // VirtReg
                     {
                       ir::VirtReg src = std::get<1>(binop.rhs);
+                      store_memory_in_register(memory, binop.dst);
                       return add_memory_to_register(src, binop.dst);
                     }
                     case 2: // PhysReg
                     {
                       ir::PhysReg src = std::get<2>(binop.rhs);
-                      return add_register_to_register(src, binop.dst);
+                      add_memory_to_register(memory, src);
+
+                      if (src.reg != binop.dst.reg)
+                        store_register_in_register(src, binop.dst);
+
+                      return;
                     }
                   }
                   unreachable();
                 }
                 case 2: // PhysReg
                 {
-                  ir::PhysReg reg = std::get<2>(binop.lhs);
-                  store_register_in_register(reg, binop.dst);
+                  ir::PhysReg left = std::get<2>(binop.lhs);
 
                   switch (binop.rhs.index()) {
                     case 0: // Constant
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
-                      return add_constant_to_register(constant, binop.dst);
+                      add_constant_to_register(constant, left);
+
+                      if (left.reg != binop.dst.reg)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
                     }
                     case 1: // VirtReg
                     {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
-                      return add_memory_to_register(memory, binop.dst);
+                      add_memory_to_register(memory, left);
+
+                      if (left.reg != binop.dst.reg)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
                     }
                     case 2: // PhysReg
                     {
-                      ir::PhysReg src = std::get<2>(binop.rhs);
-                      return add_register_to_register(src, binop.dst);
+                      ir::PhysReg right = std::get<2>(binop.rhs);
+
+                      if (left.reg == binop.dst.reg)
+                        return add_register_to_register(right, left);
+                      else if (right.reg == binop.dst.reg)
+                        return add_register_to_register(left, right);
+
+                      add_register_to_register(right, left);
+                      return store_register_in_register(left, binop.dst);
                     }
                   }
                   unreachable();
@@ -219,6 +245,7 @@ namespace phantom {
             }
             case ir::BinOp::Op::Sub: // substraction
             {
+              // BUG: REGISTER OVERRIDING
               switch (binop.lhs.index()) {
                 case 0: // Constant
                 {
