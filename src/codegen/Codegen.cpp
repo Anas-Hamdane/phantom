@@ -142,6 +142,7 @@ namespace phantom {
           ir::BinOp binop = std::get<2>(inst);
 
           switch (binop.op) {
+            // BUG: REGISTER OVERRIDING
             // NOTE: Constant + Constant is handled in the IR generation
             case ir::BinOp::Op::Add: // addition
             {
@@ -503,6 +504,34 @@ namespace phantom {
             }
           }
           break;
+        }
+        case 10: // IntExtend
+        {
+          ir::IntExtend extend = std::get<10>(inst);
+          const char* drn = resolve_physical_register(extend.dst);
+          const char drs = type_suffix(extend.dst.type);
+
+          switch (extend.value.index()) {
+            case 1: // VirtReg
+            {
+              Variable variable = local_vars[std::get<1>(extend.value).id];
+              const char vs = type_suffix(variable.type);
+              const size_t vo = variable.offset;
+
+              utils::appendf(&output, "  movs%c%c  -%zu(%%rbp), %%%s\n", vs, drs, vo, drn);
+              return;
+            }
+            case 2: // PhysReg
+            {
+              ir::PhysReg reg = std::get<2>(extend.value);
+              const char* rn = resolve_physical_register(reg);
+              const char rs = type_suffix(reg.type);
+
+              utils::appendf(&output, "  movs%c%c  %%%s, %%%s\n", rs, drs, rn, drn);
+              return;
+            }
+          }
+          unreachable();
         }
       }
     }
