@@ -341,16 +341,16 @@ namespace phantom {
     }
 
     void Gen::generate_assignment(VirtReg& dst, Value& src) {
-      Type dtype = dst.type;
-      Type stype = extract_value_type(src);
+      Type dst_type = dst.type;
+      Type src_type = extract_value_type(src);
 
-      bool cast_needed = need_cast(stype, dtype);
+      bool cast_needed = need_cast(src_type, dst_type, src.index() == 0);
 
       if (!cast_needed)
         return generate_store(dst, src);
 
-      PhysReg reg = allocate_physical_register(dtype);
-      generate_cast(src, reg, stype, dtype);
+      PhysReg reg = allocate_physical_register(dst_type);
+      generate_cast(src, reg, src_type, dst_type);
       src = reg;
 
       generate_store(dst, src);
@@ -369,7 +369,7 @@ namespace phantom {
         case Type::Kind::Int:
           switch (dst_type.kind) {
             case Type::Kind::Int:
-              unreachable();
+              cast = IntExtend{.value = src, .dst = dst};
               break;
             case Type::Kind::Float:
               if (dst_type.size == 4)
@@ -493,19 +493,22 @@ namespace phantom {
     }
 
     void Gen::cast_if_needed(Value& v, Type& type, Type& target) {
-      if (!need_cast(type, target))
+      if (!need_cast(type, target, v.index() == 0))
         return;
+
+      if (v.index() == 2)
+        free_register(std::get<2>(v).reg);
 
       PhysReg reg = allocate_physical_register(target);
       generate_cast(v, reg, type, target);
       v = reg;
     }
-    bool Gen::need_cast(Type& type, Type& target) {
+    bool Gen::need_cast(Type& type, Type& target, bool constant) {
       if (type.kind == target.kind && type.size == target.size)
         return false;
 
       if (type.kind == Type::Kind::Int && target.kind == Type::Kind::Int)
-        return false;
+        return (type.size < target.size) && !constant;
 
       return true;
     }

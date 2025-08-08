@@ -53,7 +53,7 @@ namespace phantom {
       int64_t calculate_integer_constant(Token::Kind op, int64_t lv, int64_t rv);
 
       void cast_if_needed(Value& v, Type& vtype, Type& target);
-      bool need_cast(Type& dtype, Type& stype);
+      bool need_cast(Type& type, Type& target, bool constant);
 
       Type extract_value_type(Value& value);
       Type resolve_type(phantom::Type& type);

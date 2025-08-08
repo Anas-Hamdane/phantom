@@ -87,14 +87,12 @@ private:
         "void",
 
         // integers
-        "i1",
         "i8",
         "i16",
         "i32",
         "i64",
 
         // unsigned integers
-        // "u1",
         // "u8",
         // "u16",
         // "u32",

@@ -100,9 +100,15 @@ namespace phantom {
       PhysReg dst;
     };
 
+    struct IntExtend {
+      Value value;
+      PhysReg dst;
+    };
+
     using Instruction = std::variant<Alloca, Store, BinOp, UnOp,
                                      Int2Float, Int2Double, Float2Int,
-                                     Float2Double, Double2Int, Double2Float>;
+                                     Float2Double, Double2Int, Double2Float,
+                                     IntExtend>;
 
     struct Function {
       std::string name;
