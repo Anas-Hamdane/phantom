@@ -17,12 +17,7 @@ namespace phantom {
     };
 
     struct PhysReg {
-      enum class Reg {
-        I1,
-        I2,
-        F1,
-        F2
-      } reg;
+      uint rid;
       Type type;
     };
     struct VirtReg {

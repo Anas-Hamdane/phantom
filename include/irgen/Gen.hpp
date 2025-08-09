@@ -3,6 +3,7 @@
 #include "Program.hpp"
 #include "ast/Stmt.hpp"
 #include <unordered_map>
+#include <array>
 
 namespace phantom {
   namespace ir {
@@ -25,10 +26,8 @@ namespace phantom {
       // are allowed since at the maximum possible you will have a BinOp
       // that in worst cases does two different things at the same time,
       // meaning each side could use one register in worst cases.
-      bool I1REG_OCCUPIED = false;
-      bool I2REG_OCCUPIED = false;
-      bool F1REG_OCCUPIED = false;
-      bool F2REG_OCCUPIED = false;
+      std::array<bool, 3> integer_registers = {false, false, false};
+      std::array<bool, 3> float_registers = {false, false, false};
 
       uint nrid = 0; // next register id
       Function* current_function = nullptr;
@@ -39,13 +38,13 @@ namespace phantom {
       void generate_return(std::unique_ptr<ast::Return>& ast_rt);
       Value generate_expr(std::unique_ptr<ast::Expr>& expr);
 
-      void generate_assignment(VirtReg& dst, Value& src);
+      void generate_assignment(Value& value, VirtReg& dst);
       void generate_store(std::variant<VirtReg, PhysReg> dst, Value src);
       void generate_cast(Value& src, PhysReg dst, Type& src_type, Type& target);
 
       VirtReg allocate_vritual_register(Type& type);
       PhysReg allocate_physical_register(Type& type);
-      void free_register(PhysReg::Reg reg);
+      void free_register(PhysReg reg);
 
       double extract_double_constant(std::variant<int64_t, double>& v);
       int64_t extract_integer_constant(std::variant<int64_t, double>& v);

@@ -133,7 +133,7 @@ namespace phantom {
           // Handle assignment as a store
           if (binop->op == Token::Kind::Eq) {
             assert(lhs.index() == 1 && "can't assign to a non-variable destination");
-            generate_assignment(std::get<1>(lhs), rhs);
+            generate_assignment(rhs, std::get<1>(lhs));
             return rhs;
           }
 
@@ -189,9 +189,9 @@ namespace phantom {
 
           // free registers
           if (lhs.index() == 2)
-            free_register(std::get<2>(lhs).reg);
+            free_register(std::get<2>(lhs));
           if (rhs.index() == 2)
-            free_register(std::get<2>(rhs).reg);
+            free_register(std::get<2>(rhs));
 
           // Binary operations store the result in physical register treated temporaries
           PhysReg dst = allocate_physical_register(type);
@@ -257,7 +257,7 @@ namespace phantom {
           current_function->body.push_back(alloca);
 
           if (initialized) {
-            generate_assignment(reg, value);
+            generate_assignment(value, reg);
             return value;
           }
 
@@ -340,27 +340,17 @@ namespace phantom {
       program.funcs.push_back(fn);
     }
 
-    void Gen::generate_assignment(VirtReg& dst, Value& src) {
-      Type dst_type = dst.type;
-      Type src_type = extract_value_type(src);
-
-      bool cast_needed = need_cast(src_type, dst_type, src.index() == 0);
-
-      if (!cast_needed)
-        return generate_store(dst, src);
-
-      PhysReg reg = allocate_physical_register(dst_type);
-      generate_cast(src, reg, src_type, dst_type);
-      src = reg;
-
-      generate_store(dst, src);
+    void Gen::generate_assignment(Value& value, VirtReg& dst) {
+      Type vt = extract_value_type(value);
+      cast_if_needed(value, vt, dst.type);
+      generate_store(dst, value);
     }
     void Gen::generate_store(std::variant<VirtReg, PhysReg> dst, Value src) {
       Store store{ .src = src, .dst = dst };
       current_function->body.push_back(store);
 
       if (src.index() == 2)
-        free_register(std::get<2>(src).reg);
+        free_register(std::get<2>(src));
     }
     void Gen::generate_cast(Value& src, PhysReg dst, Type& src_type, Type& dst_type) {
       Instruction cast;
@@ -369,7 +359,7 @@ namespace phantom {
         case Type::Kind::Int:
           switch (dst_type.kind) {
             case Type::Kind::Int:
-              cast = IntExtend{.value = src, .dst = dst};
+              cast = IntExtend{ .value = src, .dst = dst };
               break;
             case Type::Kind::Float:
               if (dst_type.size == 4)
@@ -416,42 +406,39 @@ namespace phantom {
       return reg;
     }
     PhysReg Gen::allocate_physical_register(Type& type) {
-      PhysReg::Reg reg;
+      int rid = -1;
 
       // integers
       if (type.kind == Type::Kind::Int) {
-        reg = I1REG_OCCUPIED ? PhysReg::Reg::I2 : PhysReg::Reg::I1;
-        if (reg == PhysReg::Reg::I1)
-          I1REG_OCCUPIED = true;
-        else
-          I2REG_OCCUPIED = true;
+        for (size_t i = 0; i < integer_registers.size(); ++i) {
+          if (integer_registers[i])
+            continue; // reserved
+          else
+            rid = i;
+        }
       }
 
-      // floating points
-      else {
-        reg = F1REG_OCCUPIED ? PhysReg::Reg::F2 : PhysReg::Reg::F1;
-        if (reg == PhysReg::Reg::F1)
-          F1REG_OCCUPIED = true;
-        else
-          F2REG_OCCUPIED = true;
+      else if (type.kind == Type::Kind::Float) {
+        for (size_t i = 0; i < float_registers.size(); ++i) {
+          if (float_registers[i])
+            continue; // reserved
+          else
+            rid = i;
+        }
       }
 
-      PhysReg pr{
-        .reg = reg,
-        .type = type
-      };
+      if (rid == -1) {
+        printf("not enough temporary register\n");
+        exit(1);
+      }
 
-      return pr;
+      return { .rid = (uint) rid, .type = type };
     }
-    void Gen::free_register(PhysReg::Reg reg) {
-      // clang-format off
-      switch (reg) {
-        case PhysReg::Reg::I1: I1REG_OCCUPIED = false; break;
-        case PhysReg::Reg::I2: I2REG_OCCUPIED = false; break;
-        case PhysReg::Reg::F1: F1REG_OCCUPIED = false; break;
-        case PhysReg::Reg::F2: F2REG_OCCUPIED = false; break;
-      }
-      // clang-format on
+    void Gen::free_register(PhysReg reg) {
+      if (reg.type.kind == Type::Kind::Int)
+        integer_registers[reg.rid] = false;
+      else
+        float_registers[reg.rid] = false;
     }
 
     double Gen::extract_double_constant(std::variant<int64_t, double>& v) {
@@ -497,7 +484,7 @@ namespace phantom {
         return;
 
       if (v.index() == 2)
-        free_register(std::get<2>(v).reg);
+        free_register(std::get<2>(v));
 
       PhysReg reg = allocate_physical_register(target);
       generate_cast(v, reg, type, target);

@@ -23,6 +23,18 @@ namespace phantom {
   char* get_register_by_size(const std::string& reg, int size) {
     // clang-format off
     std::string base = reg;
+
+    // floating points registers
+    if (reg == "xmm0")      return (char*) "xmm0";
+    else if (reg == "xmm1") return (char*) "xmm1";
+    else if (reg == "xmm2") return (char*) "xmm2";
+    else if (reg == "xmm3") return (char*) "xmm3";
+    else if (reg == "xmm4") return (char*) "xmm4";
+    else if (reg == "xmm5") return (char*) "xmm5";
+    else if (reg == "xmm6") return (char*) "xmm6";
+    else if (reg == "xmm7") return (char*) "xmm7";
+
+    // others
     if      (reg == "al"  || reg == "ax" || reg == "eax" || reg == "rax") base = "rax";
     else if (reg == "bl"  || reg == "bx" || reg == "ebx" || reg == "rbx") base = "rbx";
     else if (reg == "cl"  || reg == "cx" || reg == "ecx" || reg == "rcx") base = "rcx";
@@ -139,6 +151,7 @@ namespace phantom {
     }
     // clang-format on
 
+    printf("%s, base: %s, size: %d\n", reg.c_str(), base.c_str(), size);
     unreachable();
   }
 } // namespace phantom

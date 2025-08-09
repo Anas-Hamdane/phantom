@@ -1,5 +1,6 @@
 #include "codegen/Codegen.hpp"
 #include "common.hpp"
+#include <cassert>
 #include <cstring>
 
 namespace phantom {
@@ -45,7 +46,7 @@ namespace phantom {
         utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + param.type.size);
         offset += param.type.size;
 
-        local_vars[param.id] = Variable{ .type = param.type, .offset = offset };
+        scope_vars[param.id] = Variable{ .type = param.type, .offset = offset };
       }
 
       for (size_t i = tmp; i < params_size; ++i) {
@@ -58,7 +59,7 @@ namespace phantom {
         utils::appendf(&output, "  mov%c    %%%s, -%zu(%%rbp)\n", suff, reg, offset + param.type.size);
         offset += param.type.size;
 
-        local_vars[param.id] = Variable{ .type = param.type, .offset = offset };
+        scope_vars[param.id] = Variable{ .type = param.type, .offset = offset };
       }
 
       for (ir::Instruction& inst : fn.body)
@@ -77,7 +78,7 @@ namespace phantom {
         {
           ir::Alloca& alloca = std::get<0>(inst);
           offset += alloca.type.size;
-          local_vars[alloca.reg.id] = Variable{ .type = alloca.type, .offset = offset };
+          scope_vars[alloca.reg.id] = Variable{ .type = alloca.type, .offset = offset };
           break;
         }
         case 1: // Store
@@ -145,6 +146,7 @@ namespace phantom {
             // NOTE: Constant + Constant is handled in the IR generation
             case ir::BinOp::Op::Add: // addition
             {
+              // REVISE
               switch (binop.lhs.index()) {
                 case 0: // Constant
                 {
@@ -245,7 +247,6 @@ namespace phantom {
             }
             case ir::BinOp::Op::Sub: // substraction
             {
-              // BUG: REGISTER OVERRIDING
               switch (binop.lhs.index()) {
                 case 0: // Constant
                 {
@@ -260,8 +261,8 @@ namespace phantom {
                     }
                     case 2: // PhysReg
                     {
-                      ir::PhysReg reg = std::get<2>(binop.rhs);
-                      return sub_register_from_register(reg, binop.dst);
+                      ir::PhysReg right = std::get<2>(binop.rhs);
+                      return sub_register_from_register(right, binop.dst);
                     }
                   }
                   unreachable();
@@ -284,32 +285,45 @@ namespace phantom {
                     }
                     case 2: // PhysReg
                     {
-                      ir::PhysReg reg = std::get<2>(binop.rhs);
-                      return sub_register_from_register(reg, binop.dst);
+                      ir::PhysReg right = std::get<2>(binop.rhs);
+                      return sub_register_from_register(right, binop.dst);
                     }
                   }
                   unreachable();
                 }
                 case 2: // PhysReg
                 {
-                  ir::PhysReg reg = std::get<2>(binop.lhs);
-                  store_register_in_register(reg, binop.dst);
+                  //  REVISE:
+                  ir::PhysReg left = std::get<2>(binop.lhs);
 
                   switch (binop.rhs.index()) {
                     case 0: // Constant
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
+
+                      if (left.reg != binop.dst.reg)
+                        store_register_in_register(left, binop.dst);
+
                       return sub_constant_from_register(constant, binop.dst);
                     }
                     case 1: // VirtReg
                     {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
+
+                      if (left.reg != binop.dst.reg)
+                        store_register_in_register(left, binop.dst);
+
                       return sub_memory_from_register(memory, binop.dst);
                     }
                     case 2: // PhysReg
                     {
-                      ir::PhysReg src = std::get<2>(binop.rhs);
-                      return sub_register_from_register(src, binop.dst);
+                      ir::PhysReg right = std::get<2>(binop.rhs);
+                      sub_register_from_register(right, left);
+
+                      if (left.reg != binop.dst.reg)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
                     }
                   }
                   unreachable();
@@ -348,13 +362,13 @@ namespace phantom {
                 break;
               }
 
-              DataLabel label = constant_fp_label(value, Directive::Kind::Float);
+              DataLabel label = constant_label((float)value, Directive::Kind::Float);
               utils::appendf(&output, "  movss   %s(%%rip), %%%s\n", label.name.c_str(), dst);
               break;
             }
             case 1: // VirtReg
             {
-              Variable var = local_vars[std::get<1>(cvt.value).id];
+              Variable var = scope_vars[std::get<1>(cvt.value).id];
               utils::appendf(&output, "  cvtsi2ss -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
@@ -394,13 +408,13 @@ namespace phantom {
                 break;
               }
 
-              DataLabel label = constant_fp_label(value, Directive::Kind::Double);
+              DataLabel label = constant_label((double)value, Directive::Kind::Double);
               utils::appendf(&output, "  movsd   %s(%%rip), %%%s\n", label.name.c_str(), dst);
               break;
             }
             case 1: // VirtReg
             {
-              Variable var = local_vars[std::get<1>(cvt.value).id];
+              Variable var = scope_vars[std::get<1>(cvt.value).id];
               utils::appendf(&output, "  cvtsi2sd -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
@@ -435,7 +449,7 @@ namespace phantom {
             }
             case 1: // VirtReg
             {
-              Variable var = local_vars[std::get<1>(cvt.value).id];
+              Variable var = scope_vars[std::get<1>(cvt.value).id];
               utils::appendf(&output, "  cvtss2si -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
@@ -464,13 +478,13 @@ namespace phantom {
                 break;
               }
 
-              DataLabel label = constant_fp_label(value, Directive::Kind::Double);
+              DataLabel label = constant_label(value, Directive::Kind::Double);
               utils::appendf(&output, "  movsd   %s(%%rip), %%%s\n", label.name.c_str(), dst);
               break;
             }
             case 1: // VirtReg
             {
-              Variable var = local_vars[std::get<1>(cvt.value).id];
+              Variable var = scope_vars[std::get<1>(cvt.value).id];
               utils::appendf(&output, "  cvtss2sd -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
@@ -495,7 +509,7 @@ namespace phantom {
             }
             case 1: // VirtReg
             {
-              Variable var = local_vars[std::get<1>(cvt.value).id];
+              Variable var = scope_vars[std::get<1>(cvt.value).id];
               utils::appendf(&output, "  cvtsd2si -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
@@ -519,7 +533,7 @@ namespace phantom {
             }
             case 1: // VirtReg
             {
-              Variable var = local_vars[std::get<1>(cvt.value).id];
+              Variable var = scope_vars[std::get<1>(cvt.value).id];
               utils::appendf(&output, "  cvtsd2ss -%zu(%%rbp), %%%s\n", var.offset, dst);
               break;
             }
@@ -541,7 +555,7 @@ namespace phantom {
           switch (extend.value.index()) {
             case 1: // VirtReg
             {
-              Variable variable = local_vars[std::get<1>(extend.value).id];
+              Variable variable = scope_vars[std::get<1>(extend.value).id];
               const char vs = type_suffix(variable.type);
               const size_t vo = variable.offset;
 
@@ -563,44 +577,44 @@ namespace phantom {
       }
     }
     void Gen::generate_data() {
-      if (const_fps.empty())
-        return;
-
+      // TODO: reformat
       utils::append(&output, "# data\n");
 
-      // helper
-      auto kind_to_string = [](Directive::Kind kind) {
-        switch (kind) {
-          case Directive::Kind::Float:
-            return ".float";
-          case Directive::Kind::Double:
-            return ".double";
-          case Directive::Kind::Asciz:
-            return ".asciz";
-          default:
-            unreachable();
-        }
-      };
-
-      for (auto element : const_fps) {
+      for (auto element : floats_data) {
         DataLabel label = element.second;
         utils::appendf(&output, "%s:\n", label.name.c_str());
 
         for (auto dir : label.dirs) {
-          switch (dir.data.index()) {
-            case 0: // double
-            {
-              double value = std::get<0>(dir.data);
-              utils::appendf(&output, "  %s  %lf\n", kind_to_string(dir.kind), value);
-              break;
-            }
-            case 1: // std::string
-            {
-              std::string value = std::get<1>(dir.data);
-              utils::appendf(&output, "  %s  %s\n", kind_to_string(dir.kind), value.c_str());
-              break;
-            }
-          }
+          float value = std::get<1>(dir.data);
+          utils::appendf(&output, "  .float  %f\n", value);
+        }
+      }
+
+      for (auto element : doubles_data) {
+        DataLabel label = element.second;
+        utils::appendf(&output, "%s:\n", label.name.c_str());
+
+        for (auto dir : label.dirs) {
+          double value = std::get<2>(dir.data);
+          utils::appendf(&output, "  .double  %lf\n", value);
+        }
+      }
+
+      if (float_sign_mask_label.has_value()) {
+        utils::appendf(&output, "%s:\n", float_sign_mask_label->name.c_str());
+
+        for (auto dir : float_sign_mask_label->dirs) {
+          long value = std::get<0>(dir.data);
+          utils::appendf(&output, "  .long  %ld\n", value);
+        }
+      }
+
+      if (double_sign_mask_label.has_value()) {
+        utils::appendf(&output, "%s:\n", double_sign_mask_label->name.c_str());
+
+        for (auto dir : double_sign_mask_label->dirs) {
+          long value = std::get<0>(dir.data);
+          utils::appendf(&output, "  .long  %ld\n", value);
         }
       }
     }
@@ -646,7 +660,7 @@ namespace phantom {
                   else
                     kind = Directive::Kind::Double;
 
-                  DataLabel label = constant_fp_label(value, kind);
+                  DataLabel label = constant_label(value, kind);
                   utils::appendf(&output, "  movs%c   %s(%%rip), %%%s\n", ret_suff, label.name.c_str(), ret_reg);
                 }
               }
@@ -655,7 +669,7 @@ namespace phantom {
             }
             case 1: // Register
             {
-              Variable value = local_vars[std::get<1>(ret.value).id];
+              Variable value = scope_vars[std::get<1>(ret.value).id];
               utils::appendf(&output, "  mov%c    -%zu(%%rbp), %%%s\n", ret_suff, value.offset, ret_reg);
               break;
             }
@@ -680,20 +694,46 @@ namespace phantom {
       utils::appendf(&output, "  popq    %%rbp\n");
       utils::appendf(&output, "  ret\n");
     }
-    DataLabel Gen::constant_fp_label(double value, Directive::Kind kind) {
-      if (const_fps.find(value) != const_fps.end())
-        return const_fps[value];
+    DataLabel Gen::constant_label(std::variant<double, std::string> value, Directive::Kind kind) {
+      switch (kind) {
+        case Directive::Kind::Float: {
+          assert(value.index() == 0);
+          float fv = std::get<0>(value);
 
-      DataLabel label;
-      label.dirs.push_back(Directive{ .kind = kind, .data = value });
-      label.name = ".CFPS" + std::to_string(const_fps.size());
-      const_fps[value] = label;
+          if (floats_data.find(fv) != floats_data.end())
+            return floats_data[fv];
 
-      return label;
+          DataLabel label;
+          label.dirs.push_back(Directive{ .data = fv, .kind = kind });
+          label.name = ".CSTS" + std::to_string(constants_size++);
+          floats_data[fv] = label;
+          return label;
+        }
+        case Directive::Kind::Double: {
+          assert(value.index() == 0);
+          double dv = std::get<0>(value);
+
+          if (doubles_data.find(dv) != doubles_data.end())
+            return doubles_data[dv];
+
+          DataLabel label;
+          label.dirs.push_back(Directive{ .data = dv, .kind = kind });
+          label.name = ".CSTS" + std::to_string(constants_size++);
+          doubles_data[dv] = label;
+          return label;
+        }
+        case Directive::Kind::Asciz: {
+          todo();
+        }
+        case Directive::Kind::Long: {
+          todo();
+        }
+      }
+      unreachable();
     }
 
     void Gen::store_constant_in_memory(ir::Constant& constant, ir::VirtReg& memory) {
-      Variable variable = local_vars[memory.id];
+      Variable variable = scope_vars[memory.id];
       const char ds = type_suffix(variable.type);
       const size_t vo = variable.offset;
 
@@ -718,14 +758,14 @@ namespace phantom {
       else kind = Directive::Kind::Double;
       // clang-format on
 
-      DataLabel label = constant_fp_label(v, kind);
+      DataLabel label = constant_label(v, kind);
 
       utils::appendf(&output, "  movs%c   %s(%%rip), %%xmm0\n", ds, label.name.c_str());
       utils::appendf(&output, "  movs%c   %%xmm0, -%zu(%%rbp)\n", ds, vo);
     }
     void Gen::store_register_in_memory(ir::PhysReg& reg, ir::VirtReg& memory) {
-      Variable variable = local_vars[memory.id];
-      const char* rn = resolve_physical_register(reg);
+      Variable variable = scope_vars[memory.id];
+      const char* rn = get_register_by_size(resolve_physical_register(reg), variable.type.size);
       const size_t vo = variable.offset;
 
       char* mov;
@@ -754,8 +794,8 @@ namespace phantom {
       free(mov);
     }
     void Gen::store_memory_in_memory(ir::VirtReg& src, ir::VirtReg& dst) {
-      Variable variable = local_vars[dst.id];
-      Variable dst_var = local_vars[src.id];
+      Variable variable = scope_vars[dst.id];
+      Variable dst_var = scope_vars[src.id];
 
       // intermediate register
       const char* ir = get_register_by_size("rdx", dst_var.type.size);
@@ -801,13 +841,16 @@ namespace phantom {
       else kind = Directive::Kind::Double;
       // clang-format on
 
-      DataLabel label = constant_fp_label(v, kind);
+      DataLabel label = constant_label(v, kind);
 
       utils::appendf(&output, "  movs%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), name);
     }
     void Gen::store_register_in_register(ir::PhysReg& src, ir::PhysReg& dst) {
       const char* rn = resolve_physical_register(dst);
       const char* vn = resolve_physical_register(src);
+
+      if (strcmp(rn, vn) == 0)
+        return;
 
       char* mov;
       if (is_float(src.type) || is_float(dst.type))
@@ -819,7 +862,7 @@ namespace phantom {
       free(mov);
     }
     void Gen::store_memory_in_register(ir::VirtReg& memory, ir::PhysReg& reg) {
-      Variable variable = local_vars[memory.id];
+      Variable variable = scope_vars[memory.id];
       const size_t vo = variable.offset;
       const char* rn = resolve_physical_register(reg);
 
@@ -856,8 +899,8 @@ namespace phantom {
           else kind = Directive::Kind::Double;
           // clang-format on
 
-          DataLabel label = constant_fp_label(v, kind);
-          utils::appendf(&output, "  adds%c   %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
+          DataLabel label = constant_label(v, kind);
+          utils::appendf(&output, "  adds%c    %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
           return;
         }
       }
@@ -874,21 +917,21 @@ namespace phantom {
         const char* ir = get_register_by_size(vn, dst.type.size);
         const char vs = type_suffix(src.type);
 
-        utils::appendf(&output, "  movs%c%c %%%s, %%%s\n", vs, ds, vn, ir);
+        utils::appendf(&output, "  movs%c%c  %%%s, %%%s\n", vs, ds, vn, ir);
         vn = ir;
       }
 
-      utils::appendf(&output, "  add%s%c   %%%s, %%%s\n", extra, ds, vn, dn);
+      utils::appendf(&output, "  add%s%c    %%%s, %%%s\n", extra, ds, vn, dn);
     }
     void Gen::add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& reg) {
-      Variable variable = local_vars[memory.id];
+      Variable variable = scope_vars[memory.id];
       const size_t vo = variable.offset;
 
       const char* dn = resolve_physical_register(reg);
       const char ds = type_suffix(reg.type);
 
       const char* extra = is_float(reg.type) ? "s" : "";
-      utils::appendf(&output, "  add%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
+      utils::appendf(&output, "  add%s%c    -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
     }
 
     void Gen::sub_constant_from_register(ir::Constant& constant, ir::PhysReg& reg) {
@@ -914,7 +957,7 @@ namespace phantom {
           else kind = Directive::Kind::Double;
           // clang-format on
 
-          DataLabel label = constant_fp_label(v, kind);
+          DataLabel label = constant_label(v, kind);
           utils::appendf(&output, "  subs%c   %s(%%rip), %%%s\n", rs, label.name.c_str(), rn);
           return;
         }
@@ -932,21 +975,46 @@ namespace phantom {
         const char* ir = get_register_by_size(vn, dst.type.size);
         const char vs = type_suffix(src.type);
 
-        utils::appendf(&output, "  movs%c%c %%%s, %%%s\n", vs, ds, vn, ir);
+        utils::appendf(&output, "  movs%c%c  %%%s, %%%s\n", vs, ds, vn, ir);
         vn = ir;
       }
 
-      utils::appendf(&output, "  sub%s%c   %%%s, %%%s\n", extra, ds, vn, dn);
+      utils::appendf(&output, "  sub%s%c    %%%s, %%%s\n", extra, ds, vn, dn);
     }
     void Gen::sub_memory_from_register(ir::VirtReg& memory, ir::PhysReg& reg) {
-      Variable variable = local_vars[memory.id];
+      Variable variable = scope_vars[memory.id];
       const size_t vo = variable.offset;
 
       const char* dn = resolve_physical_register(reg);
       const char ds = type_suffix(reg.type);
 
       const char* extra = is_float(reg.type) ? "s" : "";
-      utils::appendf(&output, "  sub%s%c   -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
+      utils::appendf(&output, "  sub%s%c    -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
+    }
+
+    void Gen::negate_register(ir::PhysReg& reg) {
+      const char* rn = resolve_physical_register(reg);
+
+      if (reg.type.kind == ir::Type::Kind::Float) {
+        std::string ln;
+
+        switch (reg.type.size) {
+          case 4:
+            generate_float_sign_mask_label();
+            ln = float_sign_mask_label->name;
+            break;
+          default:
+            generate_double_sign_mask_label();
+            ln = double_sign_mask_label->name;
+        }
+
+        char ls = type_suffix(reg.type);
+        utils::appendf(&output, "  xorp%c   %s(%%rip), %%%s\n", ls, ln.c_str(), rn);
+        return;
+      }
+
+      // integer registers
+      utils::appendf(&output, "  neg     %%%s\n", rn);
     }
 
     char Gen::type_suffix(ir::Type& type) {
@@ -1023,6 +1091,30 @@ namespace phantom {
         case ir::PhysReg::Reg::F2: return (char*) "xmm1";
       }
       // clang-format on
+    }
+
+    void Gen::generate_float_sign_mask_label() {
+      if (float_sign_mask_label.has_value())
+        return;
+
+      DataLabel label;
+      label.name = ".FSML";
+      label.dirs.push_back({ .data = (long)-2147483648, .kind = Directive::Kind::Long });
+      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
+      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
+      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
+
+      float_sign_mask_label = label;
+    }
+    void Gen::generate_double_sign_mask_label() {
+      DataLabel label;
+      label.name = ".DSML";
+      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
+      label.dirs.push_back({ .data = (long)-2147483648, .kind = Directive::Kind::Long });
+      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
+      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
+
+      double_sign_mask_label = label;
     }
 
     char* Gen::generate_integer_move(ir::Type& src, ir::Type& dst) {
