@@ -456,6 +456,18 @@ namespace phantom {
       else
         return (int64_t)std::get<1>(v);
     }
+    Type Gen::extract_value_type(Value& value) {
+      switch (value.index()) {
+        case 0: // constant
+          return std::get<0>(value).type;
+        case 1: // VirtReg
+          return std::get<1>(value).type;
+        case 2: // PhysReg
+          return std::get<2>(value).type;
+        default:
+          unreachable();
+      }
+    }
     double Gen::calculate_double_constant(Token::Kind op, double lv, double rv) {
       switch (op) {
         case Token::Kind::Plus:
@@ -501,18 +513,6 @@ namespace phantom {
         return (type.size < target.size) && !constant;
 
       return true;
-    }
-    Type Gen::extract_value_type(Value& value) {
-      switch (value.index()) {
-        case 0: // constant
-          return std::get<0>(value).type;
-        case 1: // VirtReg
-          return std::get<1>(value).type;
-        case 2: // PhysReg
-          return std::get<2>(value).type;
-        default:
-          unreachable();
-      }
     }
     Type Gen::resolve_type(phantom::Type& type) {
       if (type.kind == phantom::Type::Kind::FP) {

@@ -2,7 +2,6 @@
 
 #include "data/Variable.hpp"
 #include "irgen/Program.hpp"
-#include <optional>
 #include <unordered_map>
 #include <array>
 #include <utils/str.hpp>
@@ -39,16 +38,13 @@ namespace phantom {
       std::unordered_map<float, DataLabel> floats_data;
       std::unordered_map<double, DataLabel> doubles_data;
 
-      std::optional<DataLabel> float_sign_mask_label;
-      std::optional<DataLabel> double_sign_mask_label;
-
       // NOTE: the first three registers are used as a mirror of the IR three
       // physical registers, the fourth one is use in case we need a temporary
       // register that we should use only in one instruction generation so it won'try
       // get overrided from other instructions.
       std::array<const char*, 4> integer_registers = { "rax", "rcx", "rdx", "rsi" };
       std::array<const char*, 4> float_registers = { "xmm0", "xmm1", "xmm2", "xmm3" };
-      const size_t TR_INDEX = 3;
+      const size_t TR_INDEX = 3; // the temporary register index
 
       size_t constants_size = 0;
       // to track stack size
@@ -80,8 +76,6 @@ namespace phantom {
       void sub_constant_from_register(ir::Constant& constant, ir::PhysReg& reg);
       void sub_register_from_register(ir::PhysReg& src, ir::PhysReg& dst);
       void sub_memory_from_register(ir::VirtReg& memory, ir::PhysReg& reg);
-
-      void negate_register(ir::PhysReg& reg);
 
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);

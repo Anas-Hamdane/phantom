@@ -622,24 +622,6 @@ namespace phantom {
           utils::appendf(&output, "  .double  %lf\n", value);
         }
       }
-
-      if (float_sign_mask_label.has_value()) {
-        utils::appendf(&output, "%s:\n", float_sign_mask_label->name.c_str());
-
-        for (auto dir : float_sign_mask_label->dirs) {
-          long value = std::get<0>(dir.data);
-          utils::appendf(&output, "  .long  %ld\n", value);
-        }
-      }
-
-      if (double_sign_mask_label.has_value()) {
-        utils::appendf(&output, "%s:\n", double_sign_mask_label->name.c_str());
-
-        for (auto dir : double_sign_mask_label->dirs) {
-          long value = std::get<0>(dir.data);
-          utils::appendf(&output, "  .long  %ld\n", value);
-        }
-      }
     }
 
     void Gen::generate_terminator(ir::Terminator& term, ir::Type& return_type) {
@@ -788,7 +770,7 @@ namespace phantom {
     }
     void Gen::store_register_in_memory(ir::PhysReg& reg, ir::VirtReg& memory) {
       Variable variable = scope_vars[memory.id];
-      const char* rn = get_register_by_size(physical_register_name(reg), variable.type.size);
+      const char* rn = physical_register_name(reg);
       const size_t vo = variable.offset;
 
       char* mov;
@@ -1015,31 +997,6 @@ namespace phantom {
       utils::appendf(&output, "  sub%s%c    -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
     }
 
-    void Gen::negate_register(ir::PhysReg& reg) {
-      const char* rn = physical_register_name(reg);
-
-      if (reg.type.kind == ir::Type::Kind::Float) {
-        std::string ln;
-
-        switch (reg.type.size) {
-          case 4:
-            generate_float_sign_mask_label();
-            ln = float_sign_mask_label->name;
-            break;
-          default:
-            generate_double_sign_mask_label();
-            ln = double_sign_mask_label->name;
-        }
-
-        char ls = type_suffix(reg.type);
-        utils::appendf(&output, "  xorp%c   %s(%%rip), %%%s\n", ls, ln.c_str(), rn);
-        return;
-      }
-
-      // integer registers
-      utils::appendf(&output, "  neg     %%%s\n", rn);
-    }
-
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
         case ir::Type::Kind::Float: // f32/f64
@@ -1106,34 +1063,10 @@ namespace phantom {
       // clang-format on
     }
     const char* Gen::physical_register_name(ir::PhysReg& pr) {
-      if (is_integer(pr.type))
-        return get_register_by_size(integer_registers[pr.rid], pr.type.size);
-      else
+      if (is_float(pr.type))
         return float_registers[pr.rid];
-    }
 
-    void Gen::generate_float_sign_mask_label() {
-      if (float_sign_mask_label.has_value())
-        return;
-
-      DataLabel label;
-      label.name = ".FSML";
-      label.dirs.push_back({ .data = (long)-2147483648, .kind = Directive::Kind::Long });
-      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
-      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
-      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
-
-      float_sign_mask_label = label;
-    }
-    void Gen::generate_double_sign_mask_label() {
-      DataLabel label;
-      label.name = ".DSML";
-      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
-      label.dirs.push_back({ .data = (long)-2147483648, .kind = Directive::Kind::Long });
-      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
-      label.dirs.push_back({ .data = (long)0, .kind = Directive::Kind::Long });
-
-      double_sign_mask_label = label;
+      return get_register_by_size(integer_registers[pr.rid], pr.type.size);
     }
 
     char* Gen::generate_integer_move(ir::Type& src, ir::Type& dst) {

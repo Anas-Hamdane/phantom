@@ -5,7 +5,7 @@ fn main() -> i32 {
   let a : f64 = 2.4;
   let b : f32 = a;
 
-  let c: i1 = y;
+  let c: i8 = y;
   let d: i16 = y;
   let e: i32 = y;
   let f: i64 = y;
