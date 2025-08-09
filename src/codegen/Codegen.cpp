@@ -146,7 +146,6 @@ namespace phantom {
             // NOTE: Constant + Constant is handled in the IR generation
             case ir::BinOp::Op::Add: // addition
             {
-              // REVISE
               switch (binop.lhs.index()) {
                 case 0: // Constant
                 {
@@ -164,7 +163,7 @@ namespace phantom {
                       ir::PhysReg src = std::get<2>(binop.rhs);
                       add_constant_to_register(constant, src);
 
-                      if (src.reg != binop.dst.reg)
+                      if (src.rid != binop.dst.rid || src.type.kind != binop.dst.type.kind)
                         store_register_in_register(src, binop.dst);
 
                       return;
@@ -194,7 +193,7 @@ namespace phantom {
                       ir::PhysReg src = std::get<2>(binop.rhs);
                       add_memory_to_register(memory, src);
 
-                      if (src.reg != binop.dst.reg)
+                      if (src.rid != binop.dst.rid || src.type.kind != binop.dst.type.kind)
                         store_register_in_register(src, binop.dst);
 
                       return;
@@ -212,7 +211,7 @@ namespace phantom {
                       ir::Constant constant = std::get<0>(binop.rhs);
                       add_constant_to_register(constant, left);
 
-                      if (left.reg != binop.dst.reg)
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
                         store_register_in_register(left, binop.dst);
 
                       return;
@@ -222,7 +221,7 @@ namespace phantom {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
                       add_memory_to_register(memory, left);
 
-                      if (left.reg != binop.dst.reg)
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
                         store_register_in_register(left, binop.dst);
 
                       return;
@@ -230,14 +229,12 @@ namespace phantom {
                     case 2: // PhysReg
                     {
                       ir::PhysReg right = std::get<2>(binop.rhs);
-
-                      if (left.reg == binop.dst.reg)
-                        return add_register_to_register(right, left);
-                      else if (right.reg == binop.dst.reg)
-                        return add_register_to_register(left, right);
-
                       add_register_to_register(right, left);
-                      return store_register_in_register(left, binop.dst);
+
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
                     }
                   }
                   unreachable();
@@ -251,18 +248,31 @@ namespace phantom {
                 case 0: // Constant
                 {
                   ir::Constant constant = std::get<0>(binop.lhs);
-                  store_constant_in_register(constant, binop.dst);
 
                   switch (binop.rhs.index()) {
                     case 1: // VirtReg
                     {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
+                      store_constant_in_register(constant, binop.dst);
                       return sub_memory_from_register(memory, binop.dst);
                     }
                     case 2: // PhysReg
                     {
                       ir::PhysReg right = std::get<2>(binop.rhs);
-                      return sub_register_from_register(right, binop.dst);
+
+                      if (right.rid != binop.dst.rid || right.type.kind != binop.dst.type.kind) {
+                        store_constant_in_register(constant, binop.dst);
+                        return sub_register_from_register(right, binop.dst);
+                      }
+
+                      // else
+                      ir::PhysReg ir = binop.dst;
+                      ir.rid = TR_INDEX; // using the temporary register
+
+                      store_constant_in_register(constant, ir);
+                      sub_register_from_register(right, ir);
+
+                      return store_register_in_register(ir, binop.dst);
                     }
                   }
                   unreachable();
@@ -270,30 +280,43 @@ namespace phantom {
                 case 1: // VirtReg
                 {
                   ir::VirtReg memory = std::get<1>(binop.lhs);
-                  store_memory_in_register(memory, binop.dst);
 
                   switch (binop.rhs.index()) {
                     case 0: // Constant
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
+                      store_memory_in_register(memory, binop.dst);
                       return sub_constant_from_register(constant, binop.dst);
                     }
                     case 1: // VirtReg
                     {
                       ir::VirtReg src = std::get<1>(binop.rhs);
+                      store_memory_in_register(memory, binop.dst);
                       return sub_memory_from_register(src, binop.dst);
                     }
                     case 2: // PhysReg
                     {
                       ir::PhysReg right = std::get<2>(binop.rhs);
-                      return sub_register_from_register(right, binop.dst);
+
+                      if (right.rid != binop.dst.rid || right.type.kind != binop.dst.type.kind) {
+                        store_memory_in_register(memory, binop.dst);
+                        return sub_register_from_register(right, binop.dst);
+                      }
+
+                      // else
+                      ir::PhysReg ir = binop.dst;
+                      ir.rid = TR_INDEX; // using the temporary register
+
+                      store_memory_in_register(memory, ir);
+                      sub_register_from_register(right, ir);
+
+                      return store_register_in_register(ir, binop.dst);
                     }
                   }
                   unreachable();
                 }
                 case 2: // PhysReg
                 {
-                  //  REVISE:
                   ir::PhysReg left = std::get<2>(binop.lhs);
 
                   switch (binop.rhs.index()) {
@@ -301,7 +324,7 @@ namespace phantom {
                     {
                       ir::Constant constant = std::get<0>(binop.rhs);
 
-                      if (left.reg != binop.dst.reg)
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
                         store_register_in_register(left, binop.dst);
 
                       return sub_constant_from_register(constant, binop.dst);
@@ -310,7 +333,7 @@ namespace phantom {
                     {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
 
-                      if (left.reg != binop.dst.reg)
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
                         store_register_in_register(left, binop.dst);
 
                       return sub_memory_from_register(memory, binop.dst);
@@ -320,7 +343,7 @@ namespace phantom {
                       ir::PhysReg right = std::get<2>(binop.rhs);
                       sub_register_from_register(right, left);
 
-                      if (left.reg != binop.dst.reg)
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
                         store_register_in_register(left, binop.dst);
 
                       return;
@@ -349,7 +372,7 @@ namespace phantom {
         case 4: // Int2Float
         {
           ir::Int2Float cvt = std::get<4>(inst);
-          const char* dst = resolve_physical_register(cvt.dst);
+          const char* dst = physical_register_name(cvt.dst);
           switch (cvt.value.index()) {
             case 0: // Constant
             {
@@ -375,7 +398,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              const char* prn = resolve_physical_register(pr);
+              const char* prn = physical_register_name(pr);
 
               if (pr.type.size < 4) {
                 const char* ir = get_register_by_size(prn, 4);
@@ -394,7 +417,7 @@ namespace phantom {
         case 5: // Int2Double
         {
           ir::Int2Double cvt = std::get<5>(inst);
-          const char* dst = resolve_physical_register(cvt.dst);
+          const char* dst = physical_register_name(cvt.dst);
 
           switch (cvt.value.index()) {
             case 0: // Constant
@@ -421,7 +444,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              const char* prn = resolve_physical_register(pr);
+              const char* prn = physical_register_name(pr);
 
               if (pr.type.size < 4) {
                 const char* ir = get_register_by_size(prn, 4);
@@ -440,7 +463,7 @@ namespace phantom {
         case 6: // Float2Int
         {
           ir::Float2Int cvt = std::get<6>(inst);
-          const char* dst = resolve_physical_register(cvt.dst);
+          const char* dst = physical_register_name(cvt.dst);
           switch (cvt.value.index()) {
             case 0: // Constant
             {
@@ -456,7 +479,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              utils::appendf(&output, "  cvtss2si %%%s, %%%s\n", resolve_physical_register(pr), dst);
+              utils::appendf(&output, "  cvtss2si %%%s, %%%s\n", physical_register_name(pr), dst);
               break;
             }
           }
@@ -465,7 +488,7 @@ namespace phantom {
         case 7: // Float2Double
         {
           ir::Float2Double cvt = std::get<7>(inst);
-          const char* dst = resolve_physical_register(cvt.dst);
+          const char* dst = physical_register_name(cvt.dst);
           switch (cvt.value.index()) {
             case 0: // Constant
             {
@@ -491,7 +514,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              utils::appendf(&output, "  cvtss2sd %%%s, %%%s\n", resolve_physical_register(pr), dst);
+              utils::appendf(&output, "  cvtss2sd %%%s, %%%s\n", physical_register_name(pr), dst);
               break;
             }
           }
@@ -500,7 +523,7 @@ namespace phantom {
         case 8: // Double2Int
         {
           ir::Double2Int cvt = std::get<8>(inst);
-          const char* dst = resolve_physical_register(cvt.dst);
+          const char* dst = physical_register_name(cvt.dst);
           switch (cvt.value.index()) {
             case 0: // Constant
             {
@@ -516,7 +539,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              utils::appendf(&output, "  cvtsd2si %%%s, %%%s\n", resolve_physical_register(pr), dst);
+              utils::appendf(&output, "  cvtsd2si %%%s, %%%s\n", physical_register_name(pr), dst);
               break;
             }
           }
@@ -525,7 +548,7 @@ namespace phantom {
         case 9: // Double2Float
         {
           ir::Double2Float cvt = std::get<9>(inst);
-          const char* dst = resolve_physical_register(cvt.dst);
+          const char* dst = physical_register_name(cvt.dst);
           switch (cvt.value.index()) {
             case 0: // Constant
             {
@@ -540,7 +563,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg pr = std::get<2>(cvt.value);
-              utils::appendf(&output, "  cvtsd2ss %%%s, %%%s\n", resolve_physical_register(pr), dst);
+              utils::appendf(&output, "  cvtsd2ss %%%s, %%%s\n", physical_register_name(pr), dst);
               break;
             }
           }
@@ -549,7 +572,7 @@ namespace phantom {
         case 10: // IntExtend
         {
           ir::IntExtend extend = std::get<10>(inst);
-          const char* drn = resolve_physical_register(extend.dst);
+          const char* drn = physical_register_name(extend.dst);
           const char drs = type_suffix(extend.dst.type);
 
           switch (extend.value.index()) {
@@ -565,7 +588,7 @@ namespace phantom {
             case 2: // PhysReg
             {
               ir::PhysReg reg = std::get<2>(extend.value);
-              const char* rn = resolve_physical_register(reg);
+              const char* rn = physical_register_name(reg);
               const char rs = type_suffix(reg.type);
 
               utils::appendf(&output, "  movs%c%c  %%%s, %%%s\n", rs, drs, rn, drn);
@@ -765,7 +788,7 @@ namespace phantom {
     }
     void Gen::store_register_in_memory(ir::PhysReg& reg, ir::VirtReg& memory) {
       Variable variable = scope_vars[memory.id];
-      const char* rn = get_register_by_size(resolve_physical_register(reg), variable.type.size);
+      const char* rn = get_register_by_size(physical_register_name(reg), variable.type.size);
       const size_t vo = variable.offset;
 
       char* mov;
@@ -818,7 +841,7 @@ namespace phantom {
       free(mov);
     }
     void Gen::store_constant_in_register(ir::Constant& constant, ir::PhysReg& reg) {
-      const char* name = resolve_physical_register(reg);
+      const char* name = physical_register_name(reg);
       const char ds = type_suffix(reg.type);
 
       if (constant.value.index() == 0) {
@@ -846,8 +869,8 @@ namespace phantom {
       utils::appendf(&output, "  movs%c   %s(%%rip), %%%s\n", ds, label.name.c_str(), name);
     }
     void Gen::store_register_in_register(ir::PhysReg& src, ir::PhysReg& dst) {
-      const char* rn = resolve_physical_register(dst);
-      const char* vn = resolve_physical_register(src);
+      const char* rn = physical_register_name(dst);
+      const char* vn = physical_register_name(src);
 
       if (strcmp(rn, vn) == 0)
         return;
@@ -864,7 +887,7 @@ namespace phantom {
     void Gen::store_memory_in_register(ir::VirtReg& memory, ir::PhysReg& reg) {
       Variable variable = scope_vars[memory.id];
       const size_t vo = variable.offset;
-      const char* rn = resolve_physical_register(reg);
+      const char* rn = physical_register_name(reg);
 
       char* mov;
       if (is_float(reg.type) || is_float(variable.type))
@@ -877,7 +900,7 @@ namespace phantom {
     }
 
     void Gen::add_constant_to_register(ir::Constant& constant, ir::PhysReg& reg) {
-      const char* rn = resolve_physical_register(reg);
+      const char* rn = physical_register_name(reg);
       const char rs = type_suffix(reg.type);
 
       switch (constant.value.index()) {
@@ -907,8 +930,8 @@ namespace phantom {
       unreachable();
     }
     void Gen::add_register_to_register(ir::PhysReg& src, ir::PhysReg& dst) {
-      const char* dn = resolve_physical_register(dst);
-      const char* vn = resolve_physical_register(src);
+      const char* dn = physical_register_name(dst);
+      const char* vn = physical_register_name(src);
 
       const char ds = type_suffix(dst.type);
       const char* extra = is_float(dst.type) ? "s" : "";
@@ -927,7 +950,7 @@ namespace phantom {
       Variable variable = scope_vars[memory.id];
       const size_t vo = variable.offset;
 
-      const char* dn = resolve_physical_register(reg);
+      const char* dn = physical_register_name(reg);
       const char ds = type_suffix(reg.type);
 
       const char* extra = is_float(reg.type) ? "s" : "";
@@ -935,7 +958,7 @@ namespace phantom {
     }
 
     void Gen::sub_constant_from_register(ir::Constant& constant, ir::PhysReg& reg) {
-      const char* rn = resolve_physical_register(reg);
+      const char* rn = physical_register_name(reg);
       const char rs = type_suffix(reg.type);
 
       switch (constant.value.index()) {
@@ -965,8 +988,8 @@ namespace phantom {
       unreachable();
     }
     void Gen::sub_register_from_register(ir::PhysReg& src, ir::PhysReg& dst) {
-      const char* dn = resolve_physical_register(dst);
-      const char* vn = resolve_physical_register(src);
+      const char* dn = physical_register_name(dst);
+      const char* vn = physical_register_name(src);
 
       const char ds = type_suffix(dst.type);
       const char* extra = is_float(dst.type) ? "s" : "";
@@ -985,7 +1008,7 @@ namespace phantom {
       Variable variable = scope_vars[memory.id];
       const size_t vo = variable.offset;
 
-      const char* dn = resolve_physical_register(reg);
+      const char* dn = physical_register_name(reg);
       const char ds = type_suffix(reg.type);
 
       const char* extra = is_float(reg.type) ? "s" : "";
@@ -993,7 +1016,7 @@ namespace phantom {
     }
 
     void Gen::negate_register(ir::PhysReg& reg) {
-      const char* rn = resolve_physical_register(reg);
+      const char* rn = physical_register_name(reg);
 
       if (reg.type.kind == ir::Type::Kind::Float) {
         std::string ln;
@@ -1082,15 +1105,11 @@ namespace phantom {
       }
       // clang-format on
     }
-    char* Gen::resolve_physical_register(ir::PhysReg& pr) {
-      // clang-format off
-      switch (pr.reg) {
-        case ir::PhysReg::Reg::I1: return get_register_by_size("rax", pr.type.size);
-        case ir::PhysReg::Reg::I2: return get_register_by_size("rcx", pr.type.size);
-        case ir::PhysReg::Reg::F1: return (char*) "xmm0";
-        case ir::PhysReg::Reg::F2: return (char*) "xmm1";
-      }
-      // clang-format on
+    const char* Gen::physical_register_name(ir::PhysReg& pr) {
+      if (is_integer(pr.type))
+        return get_register_by_size(integer_registers[pr.rid], pr.type.size);
+      else
+        return float_registers[pr.rid];
     }
 
     void Gen::generate_float_sign_mask_label() {

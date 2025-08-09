@@ -21,11 +21,8 @@ namespace phantom {
       std::unordered_map<std::string, VirtReg> scope_vars;
       std::unordered_map<std::string, Function> funcs_table;
 
-      // used to track which registers are currently holding values
-      // only two integer registers and two floating point registers
-      // are allowed since at the maximum possible you will have a BinOp
-      // that in worst cases does two different things at the same time,
-      // meaning each side could use one register in worst cases.
+      // used to track reserved physical registers.
+      // see include/codegen/Codegen.hpp:45 to line 50
       std::array<bool, 3> integer_registers = {false, false, false};
       std::array<bool, 3> float_registers = {false, false, false};
 

@@ -409,21 +409,24 @@ namespace phantom {
       int rid = -1;
 
       // integers
+      // searching for free registers to use
       if (type.kind == Type::Kind::Int) {
         for (size_t i = 0; i < integer_registers.size(); ++i) {
-          if (integer_registers[i])
-            continue; // reserved
-          else
+          if (!integer_registers[i]) {
+            integer_registers[i] = true;
             rid = i;
+            break;
+          }
         }
       }
 
       else if (type.kind == Type::Kind::Float) {
         for (size_t i = 0; i < float_registers.size(); ++i) {
-          if (float_registers[i])
-            continue; // reserved
-          else
+          if (!float_registers[i]) {
+            float_registers[i] = true;
             rid = i;
+            break;
+          }
         }
       }
 
@@ -432,7 +435,7 @@ namespace phantom {
         exit(1);
       }
 
-      return { .rid = (uint) rid, .type = type };
+      return { .rid = (uint)rid, .type = type };
     }
     void Gen::free_register(PhysReg reg) {
       if (reg.type.kind == Type::Kind::Int)

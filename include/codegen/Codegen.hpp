@@ -4,6 +4,7 @@
 #include "irgen/Program.hpp"
 #include <optional>
 #include <unordered_map>
+#include <array>
 #include <utils/str.hpp>
 
 namespace phantom {
@@ -40,6 +41,14 @@ namespace phantom {
 
       std::optional<DataLabel> float_sign_mask_label;
       std::optional<DataLabel> double_sign_mask_label;
+
+      // NOTE: the first three registers are used as a mirror of the IR three
+      // physical registers, the fourth one is use in case we need a temporary
+      // register that we should use only in one instruction generation so it won'try
+      // get overrided from other instructions.
+      std::array<const char*, 4> integer_registers = { "rax", "rcx", "rdx", "rsi" };
+      std::array<const char*, 4> float_registers = { "xmm0", "xmm1", "xmm2", "xmm3" };
+      const size_t TR_INDEX = 3;
 
       size_t constants_size = 0;
       // to track stack size
@@ -80,7 +89,7 @@ namespace phantom {
 
       char* type_default_register(ir::Type& type);
 
-      char* resolve_physical_register(ir::PhysReg& pr);
+      const char* physical_register_name(ir::PhysReg& pr);
 
       void generate_float_sign_mask_label();
       void generate_double_sign_mask_label();
