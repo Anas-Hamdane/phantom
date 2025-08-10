@@ -142,8 +142,8 @@ namespace phantom {
         {
           ir::BinOp binop = std::get<2>(inst);
 
+          // NOTE: Constant + Constant is handled in the IR generation
           switch (binop.op) {
-            // NOTE: Constant + Constant is handled in the IR generation
             case ir::BinOp::Op::Add: // addition
             {
               switch (binop.lhs.index()) {
@@ -356,7 +356,95 @@ namespace phantom {
             }
             case ir::BinOp::Op::Mul: // multiplication
             {
-              todo();
+              switch (binop.lhs.index()) {
+                case 0: // Constant
+                {
+                  ir::Constant constant = std::get<0>(binop.lhs);
+
+                  switch (binop.rhs.index()) {
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg memory = std::get<1>(binop.rhs);
+                      return imul_constant_with_memory(constant, memory, binop.dst);
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg reg = std::get<2>(binop.rhs);
+                      return imul_constant_with_register(constant, reg, binop.dst);
+                    }
+                  }
+                  unreachable();
+                }
+                  // case 1: // VirtReg
+                  // {
+                  //   ir::VirtReg memory = std::get<1>(binop.lhs);
+                  //
+                  //   switch (binop.rhs.index()) {
+                  //     case 0: // Constant
+                  //     {
+                  //       ir::Constant constant = std::get<0>(binop.rhs);
+                  //       store_memory_in_register(memory, binop.dst);
+                  //       return mul_constant_with_register(constant, binop.dst);
+                  //     }
+                  //     case 1: // VirtReg
+                  //     {
+                  //       ir::VirtReg src = std::get<1>(binop.rhs);
+                  //       store_memory_in_register(memory, binop.dst);
+                  //       return mul_memory_with_register(src, binop.dst);
+                  //     }
+                  //     case 2: // PhysReg
+                  //     {
+                  //       ir::PhysReg src = std::get<2>(binop.rhs);
+                  //       mul_memory_with_register(memory, src);
+                  //
+                  //       if (src.rid != binop.dst.rid || src.type.kind != binop.dst.type.kind)
+                  //         store_register_in_register(src, binop.dst);
+                  //
+                  //       return;
+                  //     }
+                  //   }
+                  //   unreachable();
+                  // }
+                  // case 2: // PhysReg
+                  // {
+                  //   ir::PhysReg left = std::get<2>(binop.lhs);
+                  //
+                  //   switch (binop.rhs.index()) {
+                  //     case 0: // Constant
+                  //     {
+                  //       ir::Constant constant = std::get<0>(binop.rhs);
+                  //       mul_constant_with_register(constant, left);
+                  //
+                  //       if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                  //         store_register_in_register(left, binop.dst);
+                  //
+                  //       return;
+                  //     }
+                  //     case 1: // VirtReg
+                  //     {
+                  //       ir::VirtReg memory = std::get<1>(binop.rhs);
+                  //       mul_memory_with_register(memory, left);
+                  //
+                  //       if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                  //         store_register_in_register(left, binop.dst);
+                  //
+                  //       return;
+                  //     }
+                  //     case 2: // PhysReg
+                  //     {
+                  //       ir::PhysReg right = std::get<2>(binop.rhs);
+                  //       mul_register_with_register(right, left);
+                  //
+                  //       if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                  //         store_register_in_register(left, binop.dst);
+                  //
+                  //       return;
+                  //     }
+                  //   }
+                  //   unreachable();
+                  // }
+              }
+              unreachable();
             }
             case ir::BinOp::Op::Div: // division
             {
@@ -979,6 +1067,84 @@ namespace phantom {
 
       const char* extra = is_float(reg.type) ? "s" : "";
       utils::appendf(&output, "  sub%s%c    -%zu(%%rbp), %%%s\n", extra, ds, vo, dn);
+    }
+
+    void Gen::imul_constant_with_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst) {
+      utils::Str cst_form = utils::init(5);
+      utils::Str mem_form = utils::init(10);
+
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t cstv = std::get<0>(constant.value);
+          utils::appendf(&cst_form, "$%lu", cstv);
+          break;
+        }
+        case 1: // double
+        {
+          double cstv = std::get<1>(constant.value);
+          Directive::Kind kind;
+
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_label(cstv, kind);
+          utils::appendf(&output, "%s(%%rip)\n", label.name.c_str());
+          break;
+        }
+      }
+
+      Variable var = scope_vars[memory.id];
+      utils::appendf(&mem_form, "-%zu(%%rbp)", var.offset);
+
+      const char* dstrn = physical_register_name(dst);
+      const char ops = type_suffix(dst.type); // operation suffix
+
+      utils::appendf(&output, "  imul%c   %s, %s, %%%s\n",
+                     ops, cst_form.content, mem_form.content, dstrn);
+
+      utils::dump(&cst_form);
+      utils::dump(&mem_form);
+    }
+    void Gen::imul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg, ir::PhysReg& dst) {
+      utils::Str cst_form = utils::init(5);
+      utils::Str reg_form = utils::init(5);
+
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t cstv = std::get<0>(constant.value);
+          utils::appendf(&cst_form, "$%lu", cstv);
+          break;
+        }
+        case 1: // double
+        {
+          double cstv = std::get<1>(constant.value);
+          Directive::Kind kind;
+
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_label(cstv, kind);
+          utils::appendf(&output, "%s(%%rip)\n", label.name.c_str());
+          break;
+        }
+      }
+
+      utils::appendf(&reg_form, "%%%s", physical_register_name(reg));
+
+      const char* dstrn = physical_register_name(dst);
+      const char ops = type_suffix(dst.type); // operation suffix
+
+      utils::appendf(&output, "  imul%c   %s, %s, %%%s\n",
+                     ops, cst_form.content, reg_form.content, dstrn);
+
+      utils::dump(&cst_form);
+      utils::dump(&reg_form);
     }
 
     char Gen::type_suffix(ir::Type& type) {

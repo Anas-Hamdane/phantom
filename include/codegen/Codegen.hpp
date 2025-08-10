@@ -77,6 +77,13 @@ namespace phantom {
       void sub_register_from_register(ir::PhysReg& src, ir::PhysReg& dst);
       void sub_memory_from_register(ir::VirtReg& memory, ir::PhysReg& reg);
 
+      void imul_constant_with_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst);
+      void imul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg, ir::PhysReg& dst);
+
+      void mul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg);
+      void mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst);
+      void mul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg);
+
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
       char floating_point_suffix(unsigned int size);
