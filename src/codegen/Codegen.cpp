@@ -918,14 +918,6 @@ namespace phantom {
       const char ds = type_suffix(dst.type);
       const char* extra = is_float(dst.type) ? "s" : "";
 
-      if (dst.type.size > src.type.size) {
-        const char* ir = get_register_by_size(vn, dst.type.size);
-        const char vs = type_suffix(src.type);
-
-        utils::appendf(&output, "  movs%c%c  %%%s, %%%s\n", vs, ds, vn, ir);
-        vn = ir;
-      }
-
       utils::appendf(&output, "  add%s%c    %%%s, %%%s\n", extra, ds, vn, dn);
     }
     void Gen::add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& reg) {
@@ -975,14 +967,6 @@ namespace phantom {
 
       const char ds = type_suffix(dst.type);
       const char* extra = is_float(dst.type) ? "s" : "";
-
-      if (dst.type.size > src.type.size) {
-        const char* ir = get_register_by_size(vn, dst.type.size);
-        const char vs = type_suffix(src.type);
-
-        utils::appendf(&output, "  movs%c%c  %%%s, %%%s\n", vs, ds, vn, ir);
-        vn = ir;
-      }
 
       utils::appendf(&output, "  sub%s%c    %%%s, %%%s\n", extra, ds, vn, dn);
     }
