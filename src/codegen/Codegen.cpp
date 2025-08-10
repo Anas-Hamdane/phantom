@@ -1130,7 +1130,7 @@ namespace phantom {
           // clang-format on
 
           DataLabel label = constant_label(cstv, kind);
-          utils::appendf(&output, "%s(%%rip)\n", label.name.c_str());
+          utils::appendf(&output, "%s(%%rip)", label.name.c_str());
           break;
         }
       }
@@ -1169,7 +1169,7 @@ namespace phantom {
           // clang-format on
 
           DataLabel label = constant_label(cstv, kind);
-          utils::appendf(&output, "%s(%%rip)\n", label.name.c_str());
+          utils::appendf(&output, "%s(%%rip)", label.name.c_str());
           break;
         }
       }
@@ -1185,8 +1185,24 @@ namespace phantom {
       utils::dump(&cst_form);
       utils::dump(&reg_form);
     }
-    void Gen::imul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {}
-    void Gen::imul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {}
+    void Gen::imul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {
+      const char* srn = physical_register_name(src); // src register name
+      const char* drn = physical_register_name(dst); // destination register name
+      const char is = type_suffix(dst.type); // instruction suffix
+
+      utils::appendf(&output, "  imul%c   %%%s, %%%s\n", is, srn, drn);
+    }
+    void Gen::imul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {
+      const char* drn = physical_register_name(reg); // destination register name
+      const char is = type_suffix(reg.type); // instruction suffix
+      const size_t vo = scope_vars[memory.id].offset; // variable offset
+
+      utils::appendf(&output, "  imul%c   -%zu(%%rbp), %%%s\n", is, vo, drn);
+    }
+
+    void Gen::mul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg) {}
+    void Gen::mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {}
+    void Gen::mul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {}
 
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
