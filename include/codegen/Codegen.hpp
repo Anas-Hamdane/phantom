@@ -67,8 +67,6 @@ namespace phantom {
       void store_register_in_register(ir::PhysReg& src, ir::PhysReg& dst);
       void store_memory_in_register(ir::VirtReg& memory, ir::PhysReg& reg);
 
-      void store_constant_in_tmp(ir::Constant& constant, const char* tmprn);
-
       void add_constant_to_register(ir::Constant& constant, ir::PhysReg& reg);
       void add_register_to_register(ir::PhysReg& src, ir::PhysReg& dst);
       void add_memory_to_register(ir::VirtReg& memory, ir::PhysReg& reg);
@@ -79,6 +77,8 @@ namespace phantom {
 
       void imul_constant_with_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst);
       void imul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg, ir::PhysReg& dst);
+      void imul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst);
+      void imul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg);
 
       void mul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg);
       void mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst);

@@ -365,84 +365,123 @@ namespace phantom {
                     case 1: // VirtReg
                     {
                       ir::VirtReg memory = std::get<1>(binop.rhs);
-                      return imul_constant_with_memory(constant, memory, binop.dst);
+
+                      if (!is_float(binop.dst.type))
+                        return imul_constant_with_memory(constant, memory, binop.dst);
+
+                      store_constant_in_register(constant, binop.dst);
+                      return mul_memory_with_register(memory, binop.dst);
                     }
                     case 2: // PhysReg
                     {
-                      ir::PhysReg reg = std::get<2>(binop.rhs);
-                      return imul_constant_with_register(constant, reg, binop.dst);
+                      ir::PhysReg src = std::get<2>(binop.rhs);
+
+                      if (!is_float(binop.dst.type))
+                        return imul_constant_with_register(constant, src, binop.dst);
+
+                      // else
+                      mul_constant_with_register(constant, src);
+
+                      if (src.rid != binop.dst.rid || src.type.kind != binop.dst.type.kind)
+                        store_register_in_register(src, binop.dst);
+
+                      return;
                     }
                   }
                   unreachable();
                 }
-                  // case 1: // VirtReg
-                  // {
-                  //   ir::VirtReg memory = std::get<1>(binop.lhs);
-                  //
-                  //   switch (binop.rhs.index()) {
-                  //     case 0: // Constant
-                  //     {
-                  //       ir::Constant constant = std::get<0>(binop.rhs);
-                  //       store_memory_in_register(memory, binop.dst);
-                  //       return mul_constant_with_register(constant, binop.dst);
-                  //     }
-                  //     case 1: // VirtReg
-                  //     {
-                  //       ir::VirtReg src = std::get<1>(binop.rhs);
-                  //       store_memory_in_register(memory, binop.dst);
-                  //       return mul_memory_with_register(src, binop.dst);
-                  //     }
-                  //     case 2: // PhysReg
-                  //     {
-                  //       ir::PhysReg src = std::get<2>(binop.rhs);
-                  //       mul_memory_with_register(memory, src);
-                  //
-                  //       if (src.rid != binop.dst.rid || src.type.kind != binop.dst.type.kind)
-                  //         store_register_in_register(src, binop.dst);
-                  //
-                  //       return;
-                  //     }
-                  //   }
-                  //   unreachable();
-                  // }
-                  // case 2: // PhysReg
-                  // {
-                  //   ir::PhysReg left = std::get<2>(binop.lhs);
-                  //
-                  //   switch (binop.rhs.index()) {
-                  //     case 0: // Constant
-                  //     {
-                  //       ir::Constant constant = std::get<0>(binop.rhs);
-                  //       mul_constant_with_register(constant, left);
-                  //
-                  //       if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
-                  //         store_register_in_register(left, binop.dst);
-                  //
-                  //       return;
-                  //     }
-                  //     case 1: // VirtReg
-                  //     {
-                  //       ir::VirtReg memory = std::get<1>(binop.rhs);
-                  //       mul_memory_with_register(memory, left);
-                  //
-                  //       if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
-                  //         store_register_in_register(left, binop.dst);
-                  //
-                  //       return;
-                  //     }
-                  //     case 2: // PhysReg
-                  //     {
-                  //       ir::PhysReg right = std::get<2>(binop.rhs);
-                  //       mul_register_with_register(right, left);
-                  //
-                  //       if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
-                  //         store_register_in_register(left, binop.dst);
-                  //
-                  //       return;
-                  //     }
-                  //   }
-                  //   unreachable();
-                  // }
+                case 1: // VirtReg
+                {
+                  ir::VirtReg memory = std::get<1>(binop.lhs);
+
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+
+                      if (!is_float(binop.dst.type))
+                        return imul_constant_with_memory(constant, memory, binop.dst);
+
+                      store_memory_in_register(memory, binop.dst);
+                      return mul_constant_with_register(constant, binop.dst);
+                    }
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg src = std::get<1>(binop.rhs);
+                      store_memory_in_register(memory, binop.dst);
+
+                      if (!is_float(binop.dst.type))
+                        return imul_memory_with_register(memory, binop.dst);
+
+                      return mul_memory_with_register(src, binop.dst);
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg src = std::get<2>(binop.rhs);
+
+                      if (!is_float(binop.dst.type))
+                        imul_memory_with_register(memory, src);
+                      else
+                        mul_memory_with_register(memory, src);
+
+                      if (src.rid != binop.dst.rid || src.type.kind != binop.dst.type.kind)
+                        store_register_in_register(src, binop.dst);
+
+                      return;
+                    }
+                  }
+                  unreachable();
+                }
+                case 2: // PhysReg
+                {
+                  ir::PhysReg left = std::get<2>(binop.lhs);
+
+                  switch (binop.rhs.index()) {
+                    case 0: // Constant
+                    {
+                      ir::Constant constant = std::get<0>(binop.rhs);
+
+                      if (!is_float(binop.dst.type))
+                        return imul_constant_with_register(constant, left, binop.dst);
+
+                      mul_constant_with_register(constant, left);
+
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
+                    }
+                    case 1: // VirtReg
+                    {
+                      ir::VirtReg memory = std::get<1>(binop.rhs);
+
+                      if (!is_float(binop.dst.type))
+                        imul_memory_with_register(memory, left);
+                      else
+                        mul_memory_with_register(memory, left);
+
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
+                    }
+                    case 2: // PhysReg
+                    {
+                      ir::PhysReg right = std::get<2>(binop.rhs);
+
+                      if (!is_float(binop.dst.type))
+                        imul_register_with_register(right, left);
+                      else
+                        mul_register_with_register(right, left);
+
+                      if (left.rid != binop.dst.rid || left.type.kind != binop.dst.type.kind)
+                        store_register_in_register(left, binop.dst);
+
+                      return;
+                    }
+                  }
+                  unreachable();
+                }
               }
               unreachable();
             }
@@ -1146,6 +1185,8 @@ namespace phantom {
       utils::dump(&cst_form);
       utils::dump(&reg_form);
     }
+    void Gen::imul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {}
+    void Gen::imul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {}
 
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
