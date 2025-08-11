@@ -1188,21 +1188,68 @@ namespace phantom {
     void Gen::imul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {
       const char* srn = physical_register_name(src); // src register name
       const char* drn = physical_register_name(dst); // destination register name
-      const char is = type_suffix(dst.type); // instruction suffix
+      const char is = type_suffix(dst.type);         // instruction suffix
 
       utils::appendf(&output, "  imul%c   %%%s, %%%s\n", is, srn, drn);
     }
     void Gen::imul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {
-      const char* drn = physical_register_name(reg); // destination register name
-      const char is = type_suffix(reg.type); // instruction suffix
+      const char* drn = physical_register_name(reg);  // destination register name
+      const char is = type_suffix(reg.type);          // instruction suffix
       const size_t vo = scope_vars[memory.id].offset; // variable offset
 
       utils::appendf(&output, "  imul%c   -%zu(%%rbp), %%%s\n", is, vo, drn);
     }
 
-    void Gen::mul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg) {}
-    void Gen::mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {}
-    void Gen::mul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {}
+    void Gen::mul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg); // register name
+      const char* extra = is_float(reg.type) ? "s" : "";
+      const char is = type_suffix(reg.type); // instruction suffix
+
+      utils::Str cst_form = utils::init(5); // constant form
+
+      // TODO: make this a function
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t cstv = std::get<0>(constant.value);
+          utils::appendf(&cst_form, "$%lu", cstv);
+          break;
+        }
+        case 1: // double
+        {
+          double cstv = std::get<1>(constant.value);
+          Directive::Kind kind;
+
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_label(cstv, kind);
+          utils::appendf(&output, "%s(%%rip)", label.name.c_str());
+          break;
+        }
+      }
+
+      utils::appendf(&output, "  mul%s%c    %s, %%%s\n", extra, is, cst_form.content, rn);
+      utils::dump(&cst_form);
+    }
+    void Gen::mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {
+      const char* srn = physical_register_name(src); // src register name
+      const char* drn = physical_register_name(dst); // dst register name
+      const char* extra = is_float(dst.type) ? "s" : "";
+      const char is = type_suffix(dst.type); // instruction suffix
+
+      utils::appendf(&output, "  mul%s%c    %%%s, %%%s\n", extra, is, srn, drn);
+    }
+    void Gen::mul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg); // register name
+      const char* extra = is_float(reg.type) ? "s" : "";
+      const char is = type_suffix(reg.type);          // instruction suffix
+      const size_t vo = scope_vars[memory.id].offset; // variable offset
+
+      utils::appendf(&output, "  mul%s%c    -%zu(%%rbp), %%%s\n", extra, is, vo, rn);
+    }
 
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
