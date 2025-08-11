@@ -1109,31 +1109,8 @@ namespace phantom {
     }
 
     void Gen::imul_constant_with_memory(ir::Constant& constant, ir::VirtReg& memory, ir::PhysReg& dst) {
-      utils::Str cst_form = utils::init(5);
+      const char* cst_form = constant_form(constant);
       utils::Str mem_form = utils::init(10);
-
-      switch (constant.value.index()) {
-        case 0: // int64_t
-        {
-          int64_t cstv = std::get<0>(constant.value);
-          utils::appendf(&cst_form, "$%lu", cstv);
-          break;
-        }
-        case 1: // double
-        {
-          double cstv = std::get<1>(constant.value);
-          Directive::Kind kind;
-
-          // clang-format off
-          if (constant.type.size == 4) kind = Directive::Kind::Float;
-          else kind = Directive::Kind::Double;
-          // clang-format on
-
-          DataLabel label = constant_label(cstv, kind);
-          utils::appendf(&output, "%s(%%rip)", label.name.c_str());
-          break;
-        }
-      }
 
       Variable var = scope_vars[memory.id];
       utils::appendf(&mem_form, "-%zu(%%rbp)", var.offset);
@@ -1142,37 +1119,13 @@ namespace phantom {
       const char ops = type_suffix(dst.type); // operation suffix
 
       utils::appendf(&output, "  imul%c   %s, %s, %%%s\n",
-                     ops, cst_form.content, mem_form.content, dstrn);
+                     ops, cst_form, mem_form.content, dstrn);
 
-      utils::dump(&cst_form);
       utils::dump(&mem_form);
     }
     void Gen::imul_constant_with_register(ir::Constant& constant, ir::PhysReg& reg, ir::PhysReg& dst) {
-      utils::Str cst_form = utils::init(5);
+      const char* cst_form = constant_form(constant);
       utils::Str reg_form = utils::init(5);
-
-      switch (constant.value.index()) {
-        case 0: // int64_t
-        {
-          int64_t cstv = std::get<0>(constant.value);
-          utils::appendf(&cst_form, "$%lu", cstv);
-          break;
-        }
-        case 1: // double
-        {
-          double cstv = std::get<1>(constant.value);
-          Directive::Kind kind;
-
-          // clang-format off
-          if (constant.type.size == 4) kind = Directive::Kind::Float;
-          else kind = Directive::Kind::Double;
-          // clang-format on
-
-          DataLabel label = constant_label(cstv, kind);
-          utils::appendf(&output, "%s(%%rip)", label.name.c_str());
-          break;
-        }
-      }
 
       utils::appendf(&reg_form, "%%%s", physical_register_name(reg));
 
@@ -1180,9 +1133,8 @@ namespace phantom {
       const char ops = type_suffix(dst.type); // operation suffix
 
       utils::appendf(&output, "  imul%c   %s, %s, %%%s\n",
-                     ops, cst_form.content, reg_form.content, dstrn);
+                     ops, cst_form, reg_form.content, dstrn);
 
-      utils::dump(&cst_form);
       utils::dump(&reg_form);
     }
     void Gen::imul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {
@@ -1204,35 +1156,9 @@ namespace phantom {
       const char* rn = physical_register_name(reg); // register name
       const char* extra = is_float(reg.type) ? "s" : "";
       const char is = type_suffix(reg.type); // instruction suffix
+      const char* cst_form = constant_form(constant);
 
-      utils::Str cst_form = utils::init(5); // constant form
-
-      // TODO: make this a function
-      switch (constant.value.index()) {
-        case 0: // int64_t
-        {
-          int64_t cstv = std::get<0>(constant.value);
-          utils::appendf(&cst_form, "$%lu", cstv);
-          break;
-        }
-        case 1: // double
-        {
-          double cstv = std::get<1>(constant.value);
-          Directive::Kind kind;
-
-          // clang-format off
-          if (constant.type.size == 4) kind = Directive::Kind::Float;
-          else kind = Directive::Kind::Double;
-          // clang-format on
-
-          DataLabel label = constant_label(cstv, kind);
-          utils::appendf(&output, "%s(%%rip)", label.name.c_str());
-          break;
-        }
-      }
-
-      utils::appendf(&output, "  mul%s%c    %s, %%%s\n", extra, is, cst_form.content, rn);
-      utils::dump(&cst_form);
+      utils::appendf(&output, "  mul%s%c    %s, %%%s\n", extra, is, cst_form, rn);
     }
     void Gen::mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst) {
       const char* srn = physical_register_name(src); // src register name
@@ -1316,11 +1242,40 @@ namespace phantom {
       }
       // clang-format on
     }
-    const char* Gen::physical_register_name(ir::PhysReg& pr) {
+    char* Gen::physical_register_name(ir::PhysReg& pr) {
       if (is_float(pr.type))
-        return float_registers[pr.rid];
+        return (char*) float_registers[pr.rid];
 
       return get_register_by_size(integer_registers[pr.rid], pr.type.size);
+    }
+    char* Gen::constant_form(ir::Constant& constant) {
+      utils::Str form = utils::init(5);
+
+      switch (constant.value.index()) {
+        case 0: // int64_t
+        {
+          int64_t v = std::get<0>(constant.value);
+          utils::appendf(&form, "$%lu", v);
+          break;
+        }
+        case 1: // double
+        {
+          double v = std::get<1>(constant.value);
+          Directive::Kind kind;
+
+          // clang-format off
+          if (constant.type.size == 4) kind = Directive::Kind::Float;
+          else kind = Directive::Kind::Double;
+          // clang-format on
+
+          DataLabel label = constant_label(v, kind);
+          utils::appendf(&form, "%s(%%rip)", label.name.c_str());
+          break;
+        }
+      }
+
+      // should be freed but who cares
+      return form.content;
     }
 
     char* Gen::generate_integer_move(ir::Type& src, ir::Type& dst) {

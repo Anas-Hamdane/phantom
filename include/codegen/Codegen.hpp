@@ -2,8 +2,8 @@
 
 #include "data/Variable.hpp"
 #include "irgen/Program.hpp"
-#include <unordered_map>
 #include <array>
+#include <unordered_map>
 #include <utils/str.hpp>
 
 namespace phantom {
@@ -89,8 +89,8 @@ namespace phantom {
       char floating_point_suffix(unsigned int size);
 
       char* type_default_register(ir::Type& type);
-
-      const char* physical_register_name(ir::PhysReg& pr);
+      char* physical_register_name(ir::PhysReg& pr);
+      char* constant_form(ir::Constant& constant);
 
       void generate_float_sign_mask_label();
       void generate_double_sign_mask_label();
