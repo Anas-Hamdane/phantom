@@ -38,13 +38,13 @@ namespace phantom {
       std::unordered_map<float, DataLabel> floats_data;
       std::unordered_map<double, DataLabel> doubles_data;
 
-      // NOTE: the first three registers are used as a mirror of the IR three
-      // physical registers, the fourth one is use in case we need a temporary
-      // register that we should use only in one instruction generation so it won'try
-      // get overrided from other instructions.
+      // NOTE: the first "two" registers are used as a mirror of the IR three
+      // physical registers, the third and the fourth ones are used in case we
+      // need a temporary register that we should use only in one instruction
+      // generation so it won't get overrided from other instructions.
       std::array<const char*, 4> integer_registers = { "rax", "rcx", "rdx", "rsi" };
       std::array<const char*, 4> float_registers = { "xmm0", "xmm1", "xmm2", "xmm3" };
-      const size_t TR_INDEX = 3; // the temporary register index
+      const size_t TR_INDEX = 2; // the temporary register index
 
       size_t constants_size = 0;
       // to track stack size

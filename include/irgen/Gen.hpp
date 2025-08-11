@@ -23,8 +23,8 @@ namespace phantom {
 
       // used to track reserved physical registers.
       // see include/codegen/Codegen.hpp:45 to line 50
-      std::array<bool, 3> integer_registers = {false, false, false};
-      std::array<bool, 3> float_registers = {false, false, false};
+      std::array<bool, 2> integer_registers = {false, false};
+      std::array<bool, 2> float_registers = {false, false};
 
       uint nrid = 0; // next register id
       Function* current_function = nullptr;
