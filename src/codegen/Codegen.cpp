@@ -143,6 +143,7 @@ namespace phantom {
           ir::BinOp binop = std::get<2>(inst);
 
           // NOTE: Constant + Constant is handled in the IR generation
+          // NOTE: we still don't support unsigned integers
           switch (binop.op) {
             case ir::BinOp::Op::Add: // addition
             {
@@ -1177,6 +1178,44 @@ namespace phantom {
       utils::appendf(&output, "  mul%s%c    -%zu(%%rbp), %%%s\n", extra, is, vo, rn);
     }
 
+    void Gen::idiv_by_register(ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg); // register name
+      const char is = type_suffix(reg.type);        // instruction suffix
+
+      utils::appendf(&output, "  idiv%c   %%%s\n", is, rn);
+    }
+    void Gen::idiv_by_memory(ir::VirtReg& memory) {
+      const size_t vo = scope_vars[memory.id].offset; // variable offset
+      const char is = type_suffix(memory.type);       // instruction suffix
+
+      utils::appendf(&output, "  idiv%c   -%zu(%%rbp)\n", is, vo);
+    }
+
+    void Gen::div_register_by_register(ir::PhysReg& src, ir::PhysReg& dst) {
+      const char* srn = physical_register_name(src); // src register name
+      const char* drn = physical_register_name(dst); // dst register name
+      const char* extra = "s";                       // since we are operating just on floating points
+      const char is = type_suffix(dst.type);         // instruction suffix
+
+      utils::appendf(&output, "  div%s%c    %%%s, %%%s\n", extra, is, srn, drn);
+    }
+    void Gen::div_constant_by_register(ir::Constant& constant, ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg);   // register name
+      const char* cst_form = constant_form(constant); // constant form
+      const char* extra = "s";                        // since we are operating just on floating points
+      const char is = type_suffix(reg.type);          // instruction suffix
+
+      utils::appendf(&output, "  div%s%c    %s, %%%s\n", extra, is, cst_form, rn);
+    }
+    void Gen::div_memory_by_register(ir::VirtReg& memory, ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg);   // register name
+      const char* extra = "s";                        // since we are operating just on floating points
+      const char is = type_suffix(reg.type);          // instruction suffix
+      const size_t vo = scope_vars[memory.id].offset; // variable offset
+
+      utils::appendf(&output, "  div%s%c    -%zu(%%rbp), %%%s\n", extra, is, vo, rn);
+    }
+
     char Gen::type_suffix(ir::Type& type) {
       switch (type.kind) {
         case ir::Type::Kind::Float: // f32/f64
@@ -1244,7 +1283,7 @@ namespace phantom {
     }
     char* Gen::physical_register_name(ir::PhysReg& pr) {
       if (is_float(pr.type))
-        return (char*) float_registers[pr.rid];
+        return (char*)float_registers[pr.rid];
 
       return get_register_by_size(integer_registers[pr.rid], pr.type.size);
     }

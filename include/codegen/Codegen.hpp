@@ -84,6 +84,15 @@ namespace phantom {
       void mul_register_with_register(ir::PhysReg& src, ir::PhysReg& dst);
       void mul_memory_with_register(ir::VirtReg& memory, ir::PhysReg& reg);
 
+      void idiv_by_register(ir::PhysReg& reg);
+      void idiv_by_memory(ir::VirtReg& memory);
+
+      // NOTE: those are just for floating points, since we don't have unsigned
+      // integers yet.
+      void div_register_by_register(ir::PhysReg& src, ir::PhysReg& dst);
+      void div_constant_by_register(ir::Constant& constant, ir::PhysReg& reg);
+      void div_memory_by_register(ir::VirtReg& memory, ir::PhysReg& reg);
+
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
       char floating_point_suffix(unsigned int size);
