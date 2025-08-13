@@ -7,3 +7,4 @@ cmake-build-debug
 .vscode
 garbage
 compile_commands.json
+.run

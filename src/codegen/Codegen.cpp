@@ -488,7 +488,173 @@ namespace phantom {
             }
             case ir::BinOp::Op::Div: // division
             {
-              todo();
+              // NOTE: "rax" register MAY BE already used so we have to save & restore it
+              // while the "rdx" register CAN'T be used.
+              switch (binop.lhs.index()) {
+                case 0: // Constant
+                {
+                  ir::Constant constant = std::get<0>(binop.lhs);
+
+                  // two helper lambdas
+                  auto div_value_by_register = [this](ir::Value& v, ir::PhysReg& dst) {
+                    if (v.index() == 1)
+                      div_memory_by_register(std::get<1>(v), dst);
+                    else if (v.index() == 2)
+                      div_register_by_register(std::get<2>(v), dst);
+                    else
+                      unreachable();
+                  };
+                  auto full_idiv_constant_by_value = [this](ir::Constant& constant, ir::Value& v, ir::PhysReg& dst) {
+                    store_constant_in_register(constant, dst);
+                    division_conversion(dst.type);
+
+                    if (v.index() == 1)
+                      idiv_by_memory(std::get<1>(v));
+                    else if (v.index() == 2)
+                      idiv_by_register(std::get<2>(v));
+                    else
+                      unreachable();
+                  };
+
+                  // in case of floating points we will explicitly specify the
+                  // destination, no need to save & restore the "rax" register
+                  if (is_float(binop.dst.type)) {
+                    store_constant_in_register(constant, binop.dst);
+                    return div_value_by_register(binop.rhs, binop.dst);
+                  }
+
+                  // the destination itself is "rax" so we don't need to save it
+                  // and restore it
+                  else if (binop.dst.rid == 0) {
+                    return full_idiv_constant_by_value(constant, binop.rhs, binop.dst);
+                  }
+
+                  // we don't need "else" since we are returning.
+                  // we need to save the "rax" register into the stack,
+                  // do the division, mov "rax" into the destination,
+                  // and then restore it from the stack.
+
+                  ir::PhysReg rax = { .rid = 0, .type = binop.dst.type };
+                  push_register(rax); // save "rax" in the stack
+
+                  // do the division
+                  full_idiv_constant_by_value(constant, binop.rhs, rax);
+
+                  // store the result into the destination
+                  // note that they have the same type
+                  store_register_in_register(rax, binop.dst);
+
+                  // restore the previous state of "rax"
+                  pop_register(rax);
+                  return;
+                }
+                case 1: // VirtReg
+                {
+                  // read the comments in `Constant` case
+                  ir::VirtReg& memory = std::get<1>(binop.lhs);
+
+                  // two helper lambdas
+                  auto div_value_by_register = [this](ir::Value& v, ir::PhysReg& dst) {
+                    if (v.index() == 0)
+                      div_constant_by_register(std::get<0>(v), dst);
+                    else if (v.index() == 1)
+                      div_memory_by_register(std::get<1>(v), dst);
+                    else if (v.index() == 2)
+                      div_register_by_register(std::get<2>(v), dst);
+                    else
+                      unreachable();
+                  };
+                  auto full_idiv_memory_by_value = [this](ir::VirtReg& memory, ir::Value& v, ir::PhysReg& dst) {
+                    store_memory_in_register(memory, dst);
+                    division_conversion(dst.type);
+
+                    if (v.index() == 0) {
+                      ir::Constant constant = std::get<0>(v);
+                      ir::PhysReg tmp = { .rid = (uint)TR_INDEX, .type = constant.type };
+                      store_constant_in_register(constant, tmp);
+                      idiv_by_register(tmp);
+                    }
+
+                    if (v.index() == 1)
+                      idiv_by_memory(std::get<1>(v));
+                    else if (v.index() == 2)
+                      idiv_by_register(std::get<2>(v));
+                    else
+                      unreachable();
+                  };
+
+                  if (is_float(binop.dst.type)) {
+                    store_memory_in_register(memory, binop.dst);
+                    return div_value_by_register(binop.rhs, binop.dst);
+                  }
+                  else if (binop.dst.rid == 0) {
+                    return full_idiv_memory_by_value(memory, binop.rhs, binop.dst);
+                  }
+
+                  ir::PhysReg rax = { .rid = 0, .type = binop.dst.type };
+                  push_register(rax);
+
+                  full_idiv_memory_by_value(memory, binop.rhs, rax);
+                  store_register_in_register(rax, binop.dst);
+
+                  pop_register(rax);
+                  return;
+                }
+                case 2: // PhysReg
+                {
+                  // read the comments in `Constant` case
+                  ir::PhysReg reg = std::get<2>(binop.lhs);
+
+                  auto div_value_by_register = [this](ir::Value& v, ir::PhysReg& dst) {
+                    if (v.index() == 0)
+                      div_constant_by_register(std::get<0>(v), dst);
+                    else if (v.index() == 1)
+                      div_memory_by_register(std::get<1>(v), dst);
+                    else if (v.index() == 2)
+                      div_register_by_register(std::get<2>(v), dst);
+                    else
+                      unreachable();
+                  };
+                  auto full_idiv_register_by_value = [this](ir::PhysReg& reg, ir::Value& v, ir::PhysReg& dst) {
+                    store_register_in_register(reg, dst);
+                    division_conversion(dst.type);
+
+                    if (v.index() == 0) {
+                      ir::Constant constant = std::get<0>(v);
+                      ir::PhysReg tmp = { .rid = (uint)TR_INDEX, .type = constant.type };
+                      store_constant_in_register(constant, tmp);
+                      idiv_by_register(tmp);
+                    }
+
+                    if (v.index() == 1)
+                      idiv_by_memory(std::get<1>(v));
+                    else if (v.index() == 2)
+                      idiv_by_register(std::get<2>(v));
+                    else
+                      unreachable();
+                  };
+
+                  if (is_float(binop.dst.type)) {
+                    store_register_in_register(reg, binop.dst);
+                    return div_value_by_register(binop.rhs, binop.dst);
+                  }
+
+                  // the destination itself is "rax" so we don't need to save it
+                  // and restore it
+                  else if (binop.dst.rid == 0) {
+                    return full_idiv_register_by_value(reg, binop.rhs, binop.dst);
+                  }
+
+                  ir::PhysReg rax = { .rid = 0, .type = binop.dst.type };
+                  push_register(rax);
+
+                  full_idiv_register_by_value(reg, binop.rhs, rax);
+                  store_register_in_register(rax, binop.dst);
+
+                  pop_register(rax);
+                  return;
+                }
+              }
             }
           }
           break;
@@ -865,6 +1031,15 @@ namespace phantom {
       unreachable();
     }
 
+    void Gen::push_register(ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg);
+      utils::appendf(&output, "  push %%%s\n", rn);
+    }
+    void Gen::pop_register(ir::PhysReg& reg) {
+      const char* rn = physical_register_name(reg);
+      utils::appendf(&output, "  pop %%%s\n", rn);
+    }
+
     void Gen::store_constant_in_memory(ir::Constant& constant, ir::VirtReg& memory) {
       Variable variable = scope_vars[memory.id];
       const char ds = type_suffix(variable.type);
@@ -1214,6 +1389,13 @@ namespace phantom {
       const size_t vo = scope_vars[memory.id].offset; // variable offset
 
       utils::appendf(&output, "  div%s%c    -%zu(%%rbp), %%%s\n", extra, is, vo, rn);
+    }
+
+    void Gen::division_conversion(ir::Type& type) {
+      if (type.size == 8)
+        utils::append(&output, "  cqto\n");
+      else
+        utils::append(&output, "  cltd\n");
     }
 
     char Gen::type_suffix(ir::Type& type) {

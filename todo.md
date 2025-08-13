@@ -1,7 +1,15 @@
-- add `add`, `sub`, `mul` and `div` support
-- add function calls support (link with `libc` and test `putchar`)
-- big boss: pointers support
-- arrays support
-- strings supprt (test `printf`)
-- heap allocation support
+- [ ] binary operations support
+    - [x] `add`
+    - [x] `sub`
+    - [x] `mul`
+    - [ ] `div`
+- [ ] a needed rewrite
+- [ ] Unary operations support
+    - [ ] `neg`
+    - [ ] `not`
+- [ ] add function calls support (link with `libc` and test `putchar`)
+- [ ] big boss: pointers support
+- [ ] arrays support
+- [ ] strings support (test `printf`)
+- [ ] heap allocation support
 ...

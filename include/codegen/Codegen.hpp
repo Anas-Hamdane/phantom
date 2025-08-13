@@ -60,6 +60,9 @@ namespace phantom {
       void generate_data();
       DataLabel constant_label(std::variant<double, std::string> value, Directive::Kind kind);
 
+      void push_register(ir::PhysReg& reg);
+      void pop_register(ir::PhysReg& reg);
+
       void store_constant_in_memory(ir::Constant& constant, ir::VirtReg& memory);
       void store_register_in_memory(ir::PhysReg& reg, ir::VirtReg& memory);
       void store_memory_in_memory(ir::VirtReg& src, ir::VirtReg& dst);
@@ -92,6 +95,9 @@ namespace phantom {
       void div_register_by_register(ir::PhysReg& src, ir::PhysReg& dst);
       void div_constant_by_register(ir::Constant& constant, ir::PhysReg& reg);
       void div_memory_by_register(ir::VirtReg& memory, ir::PhysReg& reg);
+
+      // helper function that does "cltd" or "cqto"
+      void division_conversion(ir::Type& type);
 
       char type_suffix(ir::Type& type);
       char integer_suffix(unsigned int size);
